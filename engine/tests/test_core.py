@@ -148,3 +148,32 @@ def test_delta_sign():
     up = pd.DataFrame({"open": 1.0, "high": 2.0, "low": 1.0, "close": 2.0, "volume": 5.0}, index=idx)
     f = resample(up, "5m")
     assert (pressure(up, f, 5)["delta"] > 0).all()
+
+
+def _pattern(sign):
+    """Flat, fast impulse, 3-bar pullback to EMA12, then a breakout close. sign=+1 long pattern, -1 short."""
+    closes = [100.0] * 260 + [101, 103, 105.5, 108, 110] + [108.5, 107.0, 105.8, 105.5] + [110.4]
+    c = np.array(closes)
+    c = 100 + sign * (c - 100)
+    o = np.r_[c[0], c[:-1]]
+    h = np.maximum(o, c) + 0.2
+    l = np.minimum(o, c) - 0.2
+    idx = pd.date_range("2026-03-02", periods=len(c), freq="5min", tz="UTC")
+    return pd.DataFrame({"open": o, "high": h, "low": l, "close": c}, index=idx)
+
+
+@pytest.mark.parametrize("sign", [1, -1])
+def test_impulse_pullback_fires_on_pattern(sign):
+    from xahoo.strategy.setups import impulse_pullback
+    df = _pattern(sign)
+    df["ema_fast"] = ind.ema(df["close"], 12)
+    df["atr"] = 0.6
+    df = df.join(ind.structure(df)).join(ind.fvg(df)).join(ind.candle_shape(df))
+    for col in ("pdl", "pdh", "asia_l", "asia_h"):
+        df[col] = np.nan
+    p = StrategyParams()
+    p.ip_ema_touch_atr = 1.0
+    out = impulse_pullback(df, p, sign)
+    assert len(out) >= 1 and out.index[-1] == df.index[-1]
+    assert (out["sl"].iloc[-1] < df["close"].iloc[-1]) == (sign == 1)
+    assert impulse_pullback(df, p, -sign).empty

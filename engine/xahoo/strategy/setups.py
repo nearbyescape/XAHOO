@@ -210,7 +210,62 @@ def liquidity_pressure(f: pd.DataFrame, p: StrategyParams, d: int) -> pd.DataFra
     return _pack(f, mask, d, "liquidity_pressure", sl, quality, confl, trig, pd.Series(1.0, index=f.index))
 
 
+def impulse_pullback(f: pd.DataFrame, p: StrategyParams, d: int) -> pd.DataFrame:
+    """Trader's live-stream setup (12 Nov 2026 stream), mirrored for longs.
+
+    Short: a fast impulse down (>= ip_impulse_atr ATR within ip_impulse_bars bars) makes a low;
+    price then pulls back up toward the falling EMA12 (high within ip_ema_touch_atr ATR of it,
+    retracing <= ip_max_retrace of the impulse) for ip_min_wait..ip_max_wait bars; entry when a
+    candle CLOSES below the pullback's lowest low ("breakdown"), still below EMA12.
+    Stop above the pullback high. Uses only closed bars.
+    """
+    sg = 1 if d == 1 else -1
+    # mirrored series: for shorts we flip prices so the logic is written once, for longs:
+    # long = impulse UP, pullback DOWN toward a rising EMA12, entry on close ABOVE the pullback high.
+    hi = (f["high"] if d == 1 else -f["low"]).to_numpy()
+    lo = (f["low"] if d == 1 else -f["high"]).to_numpy()
+    cl = (sg * f["close"]).to_numpy()
+    e12 = (sg * f["ema_fast"]).to_numpy()
+    atr = f["atr"].to_numpy()
+    n = len(f)
+    fire = np.zeros(n, bool)
+    sl = np.full(n, np.nan)
+    qual = np.zeros(n)
+    for t in range(p.ip_impulse_bars + p.ip_max_wait + 2, n):
+        a = atr[t]
+        if not np.isfinite(a) or a <= 0:
+            continue
+        w0 = t - p.ip_max_wait
+        seg = hi[w0:t]                                   # bars before the trigger bar
+        k = int(np.argmax(seg)) + w0                      # impulse extreme (mirrored: high)
+        wait = t - k - 1                                  # pullback bars between extreme and trigger
+        if wait < p.ip_min_wait:
+            continue
+        base = lo[k - p.ip_impulse_bars:k + 1].min()      # where the impulse started
+        imp = hi[k] - base
+        if imp < p.ip_impulse_atr * a:
+            continue
+        pb = lo[k + 1:t]                                  # pullback bars
+        pb_lo = pb.min()
+        if (hi[k] - pb_lo) > p.ip_max_retrace * imp:
+            continue
+        if pb_lo > e12[t - 1] + p.ip_ema_touch_atr * a:   # never came back to the EMA12 zone
+            continue
+        pb_hi = hi[k + 1:t].max()
+        if cl[t] > pb_hi and cl[t] > e12[t] and cl[t] <= hi[k] + 0.5 * a:
+            fire[t] = True
+            sl[t] = pb_lo - 0.1 * a
+            qual[t] = min(1.0, imp / (8 * a))
+    idx = f.index
+    mask = pd.Series(fire, index=idx)
+    sl_s = pd.Series(sl, index=idx)
+    q = pd.Series(0.5 + 0.5 * qual, index=idx)
+    trig = pd.Series(0.8, index=idx)
+    return _pack(f, mask, d, "impulse_pullback", sl_s, q, pd.Series(0.5, index=idx), trig, _liquidity(f, d))
+
+
 DETECTORS = {
+    "impulse_pullback": impulse_pullback,
     "liquidity_pressure": liquidity_pressure,
     "ema12_pullback": ema12_pullback,
     "ema200_retest": ema200_retest,

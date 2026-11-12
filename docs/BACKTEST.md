@@ -222,6 +222,39 @@ was ~break-even (n = 4,280, 67% win, +0.004R). Not run on 2026 (nothing to test)
 silver well enough to beat costs, apart from the small daily-trend effect (run 9). That matches the research literature
 on liquid markets.
 
+## Run 11: the trader's own setup from his 12 Nov live stream (`research/trader_setup.py`)
+
+Rules (see docs/trader/METHOD.md): fast impulse (≥ K × ATR within 12 bars) → shallow pullback to the 12 EMA
+(≤ 60% retrace, 2–8 bars) → **5m candle closes beyond the pullback** ("breakdown") → stop beyond the pullback, 5m chart,
+all sessions incl. Asia. 2025 dev grid (24 variants): bigger impulses and the daily-trend filter improved results almost
+monotonically. Two finalists fixed, run once on unseen years:
+
+| Finalist | 2026 trades / win % / avg R | 2024 trades / win % / avg R |
+|---|---|---|
+| A: impulse 5, daily trend, partials | 82 / 54.9 / −0.006 | 48 / 50.0 / +0.001 |
+| B: impulse 5, daily trend, 2R, BE@1R | 82 / 29.3 / +0.021 | 47 / 31.9 / +0.034 |
+
+→ Single-entry version ≈ break-even.
+
+## Run 12: + his scale-in ("add quantity at the EMA") (`research/scale_in.py`)
+
+Rule taken from the stream, not tuned: 1 lot at the breakdown close; **add 1 lot if price returns to the 12 EMA**
+(value at signal time; if the EMA isn't between entry and stop, at entry ± 0.5R); one shared stop; target measured from
+the first entry; stop moves to the average entry at +1R; flat after 5 h. Limit fill assumed at touch; if the add and the stop
+are hit in the same minute, both count as filled and stopped. R = units of the first lot's risk.
+
+| Variant | Year | Trades | Win % | Avg R | Net R | Worst | Lot added |
+|---|---|---|---|---|---|---|---|
+| impulse 4, TP 2R, 1 lot | 2024 / 2025 / 2026 | 119 / 222 / 183 | 28.6 / 36.0 / 31.7 | −0.016 / +0.055 / +0.076 | −1.9 / +12.2 / +13.9 | −1.0 | — |
+| **impulse 4, TP 2R, scale-in** | 2024 / 2025 / 2026 | 119 / 222 / 183 | 31.9 / 39.6 / 32.8 | **+0.072 / +0.098 / +0.199** | **+8.6 / +21.9 / +36.4** | −1.8 | 63–68% |
+| impulse 4, TP 1.5R, scale-in | 2024 / 2025 / 2026 | 119 / 222 / 183 | 38.7 / 44.1 / 36.6 | +0.082 / +0.082 / +0.131 | +9.8 / +18.3 / +24.0 | −1.8 | 63–67% |
+| impulse 5, TP 2R, scale-in | 2024 / 2025 / 2026 | 46 / 89 / 80 | 32.6 / 39.3 / 32.5 | +0.168 / +0.247 / +0.209 | +7.7 / +22.0 / +16.7 | −1.7 | 60–66% |
+
+All 6 variants × 3 years: **scale-in beat a single lot in 18/18 cases and was positive in 18/18**, including both
+years not used for development. **First result in this project that is positive and consistent across three years.**
+Limits: win rate 32–44% (profit comes from winners ≈ 2–3× losers, as in his own 12 Nov record); 0.5–1 signal per
+trading day across both metals; worst trade ≈ −1.8R with both lots on; fills at touch on the EMA add; Dukascopy prices.
+
 ## Caveats
 - ~150 trades in total on one metal. That is enough to tell clearly losing rules from promising ones, but not enough to prove an edge.
 - Dukascopy prices differ slightly from any retail broker's prices; spread is modelled as fixed; no slippage; no news blackout yet (calendar feed not connected).

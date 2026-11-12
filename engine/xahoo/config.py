@@ -77,6 +77,14 @@ class StrategyParams:
     lp_rvol: float = 1.3              # ... on volume >= this x the usual volume for that time of day
     lp_require_bias: bool = False     # True: only sweeps in the direction of the 1h trend
 
+    # --- Setup 6: impulse -> pullback to EMA12 -> breakdown on candle close (trader's live-stream setup) ---
+    ip_impulse_atr: float = 4.0       # fast move of at least this many ATR ...
+    ip_impulse_bars: int = 12         # ... within this many bars before the extreme
+    ip_max_wait: int = 8              # pullback must resolve within N bars after the extreme
+    ip_min_wait: int = 2              # at least N bars of pullback/consolidation
+    ip_max_retrace: float = 0.6       # pullback may retrace at most 60% of the impulse
+    ip_ema_touch_atr: float = 0.3     # pullback high must reach EMA12 (within this many ATR)
+
     # --- Trigger candle ---
     pin_wick_body: float = 2.0        # pin bar: rejection wick >= 2x body
 
