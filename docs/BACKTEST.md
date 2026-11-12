@@ -174,6 +174,33 @@ central exchange, so the platform's "volume" is only that broker's own trading a
 (aggressor volume, order book) exists only on the futures exchange (COMEX gold/silver futures, or MCX in India) and would
 need that data feed to test.
 
+## Run 9: research-driven search (2026-11-12)
+
+Literature checked: overnight-vs-day asymmetry in gold (Blose, Gondhalekar & Kort 2018, *J. Economics & Finance*);
+intraday "hat-shaped" gold pattern (CBS thesis 2019); intraday momentum in gold/silver futures (Chinese futures studies);
+time-series momentum (Moskowitz, Ooi & Pedersen 2012). RSI(2)-type dip buying: no reliable evidence on intraday gold.
+
+**Hour-of-day drift (`research/seasonality.py`, 2025 vs 2026):** the only hour positive in both years and both metals is
+22:00–23:00 UTC, the daily broker re-open with the widest spreads. That is a BID-price artefact (the bid drops when the
+spread widens, then recovers), so it isn't tradable. All other hours: |t| ≲ 2 and sign flips between years → **rejected.**
+
+**Daily trend + intraday pullback (`research/trend_pullback.py`).** Trend = yesterday's close vs 50-day EMA and 20-day
+return; enter when price pulls back `depth` × daily ATR against the trend between 07:00 and 17:00 UTC; TP/SL in daily ATR;
+flat by 20:00 UTC; at most one trade per day. 2025 grid (40 configs): the **trend filter improved results in every
+comparable pair** on both metals. Best per metal on 2025 fixed, then run **once** on 2026:
+
+| | Year | Trades | Win % | Avg R | Net R | Max DD | Long/short |
+|---|---|---|---|---|---|---|---|
+| Gold, depth 0.3, TP 0.4 / SL 0.6 dATR | 2025 (dev) | 185 | 60.0 | +0.070 | +12.9 | −6.9 | 178/7 |
+| | **2026 (held out)** | 184 | 55.4 | **+0.026** | **+4.9** | −6.1 | 69/115 |
+| Silver, depth 0.5, TP 0.25 / SL 1.0 dATR | 2025 (dev) | 149 | 71.8 | +0.030 | +4.5 | −3.2 | 141/8 |
+| | 2026 (held out) | 107 | 59.8 | −0.011 | −1.1 | −5.3 | 43/64 |
+
+**First result that survived a held-out year** (gold, positive in both a rising and a falling year), but the edge is
+small: about +0.03 to +0.07R per trade, ~1 trade/day. The high-hit-rate variants (TP 0.15 / SL 0.5 dATR) hit 72–74% but
+expectancy falls to ~0, which is the same trade-off as run 6. Next: confirm on 2023–2024, then a probability filter (Track C)
+to keep only the best days.
+
 ## Caveats
 - ~150 trades in total on one metal. That is enough to tell clearly losing rules from promising ones, but not enough to prove an edge.
 - Dukascopy prices differ slightly from any retail broker's prices; spread is modelled as fixed; no slippage; no news blackout yet (calendar feed not connected).
