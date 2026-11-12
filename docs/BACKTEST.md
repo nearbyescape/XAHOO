@@ -255,6 +255,18 @@ years not used for development. **First result in this project that is positive 
 Limits: win rate 32–44% (profit comes from winners ≈ 2–3× losers, as in his own 12 Nov record); 0.5–1 signal per
 trading day across both metals; worst trade ≈ −1.8R with both lots on; fills at touch on the EMA add; Dukascopy prices.
 
+## Run 13: his 4h support/resistance filter on the scale-in setup (impulse 4, TP 2R)
+
+Rule as he states it: skip the trade if the latest 4h swing low (for a sell) / swing high (for a buy) lies between
+entry and target.
+
+| | 2024 | 2025 | 2026 |
+|---|---|---|---|
+| Scale-in, no filter (trades / avg R) | 119 / +0.072 | 222 / +0.098 | 183 / +0.199 |
+| Scale-in + 4h filter | 96 / **−0.018** | 178 / +0.100 | 158 / +0.298 |
+
+Inconsistent (worse in 2024, equal in 2025, better in 2026), so **not adopted**.
+
 ## Caveats
 - ~150 trades in total on one metal. That is enough to tell clearly losing rules from promising ones, but not enough to prove an edge.
 - Dukascopy prices differ slightly from any retail broker's prices; spread is modelled as fixed; no slippage; no news blackout yet (calendar feed not connected).

@@ -18,6 +18,14 @@ so wording is approximate). Quotes are from the machine translation, lightly cle
 7. **Stop to entry early, trail** ("cost to cost").
 8. Sessions: streams at 13:00 and 21:00 IST; trades also around 08:00 IST.
 
+## From the second half of the stream (his own statements)
+- Claimed accuracy: "The VIP group is 90% of the trade. The live stream is almost 70%."
+- Shows losses: "I will never say that I am just profit… 300 loss, 400 loss, 400 loss, 600 loss… targets 1,000, 1,500,
+  1,075, 1,200" → losses ≈ $300–600 vs wins ≈ $1,000–1,500 (≈ 2.5 : 1). "Sometimes back to back 10 times loss."
+- Selectivity: "90% of the time the market doesn't move… just 10% of the time we execute."
+- Filter: "There is a lot of support on the 4-hour time frame, that's why I am not taking the entry here."
+- "Risk management is very important… the market can give you big losses."
+
 ## His shown results
 - 12 Nov 2026 closed trades (shown on stream at 1:00:00): +1,601 · +1,258 · +1,533 · +1,075 · +1,101 · −~675 · −521
   → 5 wins / 2 losses (71%), avg win ≈ $1,310, avg loss ≈ $600 (≈ 2.2 : 1).

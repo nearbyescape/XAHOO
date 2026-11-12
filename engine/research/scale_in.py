@@ -38,13 +38,19 @@ def sim(lo, hi, cl, i, b, d, entry, sl, tp, add_px, spread, be_r=1.0):
 import itertools
 IMPULSES = [float(x) for x in (sys.argv[1].split(",") if len(sys.argv) > 1 else ["5"])]
 TPS = [float(x) for x in (sys.argv[2].split(",") if len(sys.argv) > 2 else ["2"])]
+H4_FILTER = len(sys.argv) > 3 and sys.argv[3] == "h4"
+from xahoo import indicators as ind
+from xahoo.data.resample import align_closed, resample
 PERIODS = {"2024": (date(2024, 2, 10), date(2024, 12, 31)), "2025 (dev)": (date(2025, 2, 10), date(2025, 12, 31)),
            "2026": (date(2026, 2, 10), date(2026, 11, 11))}
 rows = []
 for label, (a, b_) in PERIODS.items():
     data = {s: dukascopy.load(s, CACHE, a - timedelta(days=40), b_) for s in ("XAUUSD", "XAGUSD")}
     ctx = {}
+    h4lv = {}
     for sym, m1 in data.items():
+        h4 = resample(m1, "4h").join(ind.structure(resample(m1, "4h"), k=2))
+        h4lv[sym] = h4
         ctx[sym] = (daily_context(m1)["trend"],
                     features.build(m1, "5m", StrategyParams()).set_index("close_time")["ema_fast"],
                     m1.low.to_numpy(), m1.high.to_numpy(), m1.close.to_numpy(), m1.index)
@@ -57,9 +63,17 @@ for label, (a, b_) in PERIODS.items():
         for sym in data:
             dt, f, lo, hi, cl, idx = ctx[sym]
             last_exit = None
-            for r in c[c.symbol == sym].itertuples():
+            cs = c[c.symbol == sym]
+            if H4_FILTER and len(cs):
+                lv = align_closed(h4lv[sym], cs["close_time"], ["last_sh", "last_sl"], "h4_")
+                cs = cs.join(lv)
+            for r in cs.itertuples():
                 if dt.reindex([r.close_time.normalize()]).iloc[0] != r.dir:
                     continue
+                if H4_FILTER:
+                    lvl = r.h4_last_sl if r.dir == -1 else r.h4_last_sh     # 4h support below a short / resistance above a long
+                    if np.isfinite(lvl) and (r.entry - lvl) * r.dir < 0 and abs(lvl - r.entry) < abs(r.tp1 - r.entry):
+                        continue
                 if last_exit is not None and r.close_time < last_exit:
                     continue
                 i = idx.searchsorted(r.close_time); b = idx.searchsorted(r.close_time + pd.Timedelta(minutes=300))
