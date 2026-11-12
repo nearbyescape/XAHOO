@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XAHOO Terminal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="logo">XAHOO</span><span class="sub">XAU·XAG SIGNAL TERMINAL</span></div>
+  <nav class="views" id="views">
+    <button data-view="terminal" class="on">TERMINAL <kbd>F1</kbd></button>
+    <button data-view="signals">SIGNALS <kbd>F2</kbd></button>
+    <button data-view="analytics">ANALYTICS <kbd>F3</kbd></button>
+    <button data-view="settings">STRATEGY <kbd>F4</kbd></button>
+  </nav>
+  <div class="status">
+    <span id="mode" class="badge">—</span>
+    <span class="sess" id="sess-asia">ASIA</span>
+    <span class="sess" id="sess-london">LDN</span>
+    <span class="sess" id="sess-newyork">NY</span>
+    <span id="clock" class="clock">--:--:-- IST</span>
+    <button id="theme" class="icon" title="Toggle theme">◐</button>
+  </div>
+</header>
+
+<div id="devwarn" class="devwarn" hidden>DEV MODE — no admin password set. Set XAHOO_ADMIN_PASSWORD before deploying.</div>
+
+<section class="tickers" id="tickers"></section>
+
+<!-- TERMINAL -->
+<main class="view grid" id="view-terminal">
+  <aside class="col left">
+    <div class="panel">
+      <div class="ph">MTF BIAS <span class="dim">Δ = close vs EMA, in ATR</span></div>
+      <div id="matrix"></div>
+    </div>
+    <div class="panel">
+      <div class="ph">RISK CALCULATOR</div>
+      <div class="calc">
+        <label>Account $ <input id="acc" type="number" value="10000" min="0"></label>
+        <label>Risk % <input id="riskpct" type="number" value="1" step="0.25" min="0"></label>
+        <label>SL dist <input id="sldist" type="number" value="4" step="0.01" min="0"></label>
+        <label>Symbol <select id="calcsym"><option>XAUUSD</option><option>XAGUSD</option></select></label>
+        <div class="calcout" id="calcout">—</div>
+        <div class="dim small">XAU 1 lot = 100 oz · XAG 1 lot = 5,000 oz. Check your broker's contract size.</div>
+      </div>
+    </div>
+  </aside>
+
+  <section class="col center">
+    <div class="panel chartpanel">
+      <div class="ph toolbar">
+        <div class="seg" id="symseg"><button data-sym="XAUUSD" class="on">XAUUSD</button><button data-sym="XAGUSD">XAGUSD</button></div>
+        <div class="seg" id="tfseg">
+          <button data-tf="1m">1m</button><button data-tf="5m" class="on">5m</button><button data-tf="15m">15m</button><button data-tf="1h">1h</button><button data-tf="4h">4h</button>
+        </div>
+        <div class="legend"><i class="l-fast"></i>EMA12 <i class="l-slow"></i>EMA200</div>
+      </div>
+      <div id="chart" class="chart"></div>
+    </div>
+    <div class="panel">
+      <div class="ph">PERFORMANCE <span class="dim" id="perfwin"></span></div>
+      <div class="kpis" id="kpis"></div>
+    </div>
+  </section>
+
+  <aside class="col right">
+    <div class="panel feed">
+      <div class="ph">SIGNAL FEED <span class="dim" id="feedcount"></span></div>
+      <div id="feed" class="feedlist"></div>
+    </div>
+  </aside>
+
+  <section class="panel log">
+    <div class="ph">EVENT LOG</div>
+    <div id="log" class="loglines"></div>
+  </section>
+</main>
+
+<!-- SIGNALS -->
+<main class="view" id="view-signals" hidden>
+  <div class="panel">
+    <div class="ph toolbar">
+      <span>ALL SIGNALS</span>
+      <div class="filters">
+        <select id="f-sym"><option value="">All symbols</option><option>XAUUSD</option><option>XAGUSD</option></select>
+        <select id="f-tf"><option value="">All TF</option><option>1m</option><option>5m</option><option>15m</option></select>
+        <select id="f-grade"><option value="">All grades</option><option>A+</option><option>A</option><option>B</option></select>
+        <select id="f-res"><option value="">All results</option><option>SL</option><option>BE</option><option>TP1</option><option>TP2</option><option>TP3</option><option>EXPIRED</option></select>
+        <button id="csv">EXPORT CSV</button>
+      </div>
+    </div>
+    <div class="tablewrap"><table class="tbl" id="sigtable"></table></div>
+  </div>
+</main>
+
+<!-- ANALYTICS -->
+<main class="view" id="view-analytics" hidden>
+  <div class="panel"><div class="ph">EQUITY CURVE (R) <span class="dim">net of spread · partials 50/25/25 · SL→entry after TP1</span></div><div id="equity" class="equity"></div></div>
+  <div class="agrid" id="agrid"></div>
+</main>
+
+<!-- SETTINGS -->
+<main class="view" id="view-settings" hidden>
+  <div class="panel">
+    <div class="ph">STRATEGY PARAMETERS <span class="dim" id="pver"></span></div>
+    <div class="dim small pad">Read-only in this build. Editing, presets and version history arrive with the live service.</div>
+    <pre id="params" class="params"></pre>
+  </div>
+</main>
+
+<!-- signal detail drawer -->
+<aside id="drawer" class="drawer" hidden>
+  <div class="ph">SIGNAL <span id="d-id" class="dim"></span><button class="icon" id="d-close">✕</button></div>
+  <div id="d-body"></div>
+</aside>
+
+<!-- command bar -->
+<div id="cmdk" class="cmdk" hidden>
+  <input id="cmdin" placeholder="xau · xag · 1m 5m 15m 1h 4h · signals · analytics · strategy · theme" autocomplete="off">
+</div>
+
+<script src="/vendor/lightweight-charts-4.2.0.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

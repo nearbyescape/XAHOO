@@ -44,6 +44,10 @@ def generate(data: dict[str, pd.DataFrame], p: StrategyParams, tfs=EXEC_TFS) -> 
     return res.sort_values(["close_time", "symbol", "tf"]).reset_index(drop=True)
 
 
+class _Row(dict):
+    __getattr__ = dict.__getitem__
+
+
 def run_backtest(data: dict[str, pd.DataFrame], p: StrategyParams, tfs=EXEC_TFS,
                  cand: pd.DataFrame | None = None) -> pd.DataFrame:
     cand = generate(data, p, tfs) if cand is None else cand
@@ -55,7 +59,8 @@ def run_backtest(data: dict[str, pd.DataFrame], p: StrategyParams, tfs=EXEC_TFS,
     last_sig: dict[tuple, pd.Timestamp] = {}
     sl_log: dict[tuple, list] = defaultdict(list)   # (symbol, day) -> exit times of SL trades
     rows = []
-    for c in cand.itertuples(index=False):
+    for rec in cand.to_dict("records"):     # dicts, not itertuples: keeps keys like "1h_bias"
+        c = _Row(rec)
         t = c.close_time
         key = (c.symbol, c.tf)
         if key in open_until and open_until[key] > t:
@@ -78,7 +83,7 @@ def run_backtest(data: dict[str, pd.DataFrame], p: StrategyParams, tfs=EXEC_TFS,
         last_sig[key] = t
         if o.result == "SL":
             sl_log[(c.symbol, day)].append(exit_t)
-        r = c._asdict()
+        r = dict(rec)
         r.update(result=o.result, r=o.r, tp_hits=o.tp_hits, exit_time=exit_t, exit_price=o.exit_price,
                  mfe_r=o.mfe_r, mae_r=o.mae_r, minutes=int((exit_t - t).total_seconds() // 60))
         rows.append(r)
