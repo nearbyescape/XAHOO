@@ -17,7 +17,8 @@ def finalize(cand: pd.DataFrame, f: pd.DataFrame, p: StrategyParams, spec: Symbo
     """Attach filters, entry/SL/TP and score to raw setup candidates. Drops rejected rows."""
     if cand.empty:
         return cand
-    c = cand.join(f[["close_time", "atr", "close", "1h_bias", "4h_bias", "session", "overlap"]], how="left")
+    cols = ["close_time", "atr", "close", "1h_bias", "4h_bias", "session", "overlap"] + (["15m_bias"] if "15m_bias" in f else [])
+    c = cand.join(f[cols], how="left")
     d = c["dir"]
 
     # --- filters ---
@@ -25,6 +26,9 @@ def finalize(cand: pd.DataFrame, f: pd.DataFrame, p: StrategyParams, spec: Symbo
     if p.require_1h_bias:
         trend_setup = c["setup"] != "range"
         keep &= np.where(trend_setup, c["1h_bias"] == d, c["1h_bias"] != -d)
+    if p.require_15m_bias and "15m_bias" in c:
+        trend_setup = c["setup"] != "range"
+        keep &= np.where(trend_setup, c["15m_bias"] == d, True)
     if p.use_sessions:
         keep &= c["session"] != "off"
     keep &= c["atr"] >= p.min_atr_frac * c["close"]
@@ -36,22 +40,23 @@ def finalize(cand: pd.DataFrame, f: pd.DataFrame, p: StrategyParams, spec: Symbo
     # --- entry & risk (long fills at ask = bid + spread; short at bid) ---
     c["entry"] = c["entry_ref"] + np.where(d == 1, spec.spread, 0.0)
     risk = (c["entry"] - c["sl"]) * d
-    min_risk = p.sl_min_atr * c["atr"]
+    min_risk = np.maximum(p.sl_min_atr * c["atr"], p.min_sl_spreads * spec.spread)
     c["sl"] = np.where(risk < min_risk, c["entry"] - d * min_risk, c["sl"])
     c["risk"] = (c["entry"] - c["sl"]) * d
-    c = c[c["risk"] <= p.sl_max_atr * c["atr"]].copy()
+    c = c[c["risk"] <= np.maximum(p.sl_max_atr * c["atr"], p.min_sl_spreads * spec.spread * 1.5)].copy()
     if c.empty:
         return c
     d = c["dir"]
+    has_fixed = c["tp1_fixed"].notna() if "tp1_fixed" in c else pd.Series(False, index=c.index)
     for i, r in enumerate(p.tp_r):
         col = f"tp{i + 1}"
         c[col] = c["entry"] + d * r * c["risk"]
         fixed = f"{col}_fixed"
         if fixed in c:
-            c[col] = np.where(c[fixed].notna(), c[fixed], c[col])
-    # fixed targets (range) must still pay at least 0.8R at TP1 and stay ordered
+            c[col] = np.where(has_fixed, c[fixed], c[col])
+    # structural targets (range) must still pay at least 0.8R at TP1
     tp1_r = (c["tp1"] - c["entry"]) * d / c["risk"]
-    c = c[tp1_r >= 0.8].copy()
+    c = c[~has_fixed | (tp1_r >= 0.8)].copy()
     if c.empty:
         return c
     c = c.drop(columns=[x for x in c.columns if x.endswith("_fixed")])

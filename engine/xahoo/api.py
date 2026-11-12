@@ -25,7 +25,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import features, indicators as ind
-from .config import EXEC_TFS, SYMBOLS, TF_MINUTES, StrategyParams
+from .config import SYMBOLS, TF_MINUTES, StrategyParams
 from .data import dukascopy
 from .data.resample import resample
 from .engine import breakdown, generate, run_backtest, stats
@@ -68,10 +68,10 @@ def load_state() -> None:
     S.now = min(df.index[-1] for df in data.values()) + pd.Timedelta(minutes=1)
     start = S.now - pd.Timedelta(days=REPLAY_DAYS)
     win = {s: df[df.index >= start - pd.Timedelta(days=WARMUP_DAYS)] for s, df in data.items()}
-    cand = generate(win, S.params, EXEC_TFS)
+    cand = generate(win, S.params, S.params.exec_tfs)
     if not cand.empty:
         cand = cand[cand["close_time"] >= start].reset_index(drop=True)
-    bt = run_backtest(win, S.params, EXEC_TFS, cand=cand)
+    bt = run_backtest(win, S.params, S.params.exec_tfs, cand=cand)
     if not bt.empty:
         ist = bt["close_time"] + pd.Timedelta(minutes=330)
         bt["id"] = [f"SIG-{t:%Y%m%d-%H%M}-{s[:3]}-{tf}" for t, s, tf in zip(ist, bt["symbol"], bt["tf"])]

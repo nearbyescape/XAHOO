@@ -75,7 +75,8 @@ class StrategyParams:
     sl_buffer_atr: float = 0.20
     sl_min_atr: float = 0.60
     sl_max_atr: float = 2.50
-    tp_r: tuple[float, float, float] = (1.0, 2.0, 3.0)
+    min_sl_spreads: float = 8.0       # stop at least N x spread away, so spread stays a small cost
+    tp_r: tuple[float, float, float] = (0.75, 1.5, 2.5)        # backtest: 0.75R TP1 beat 1R (docs/BACKTEST.md)
     partials: tuple[float, float, float] = (0.5, 0.25, 0.25)  # size closed at TP1/TP2/TP3
     move_sl_to_be_at_tp1: bool = True                         # "cost to cost"
     max_hold_minutes: dict = field(default_factory=lambda: {"1m": 90, "5m": 300, "15m": 720})
@@ -83,6 +84,7 @@ class StrategyParams:
     # --- Filters ---
     use_sessions: bool = True
     require_1h_bias: bool = True
+    require_15m_bias: bool = False    # 1m/5m entries also need the 15m trend to agree (top-down)
     min_atr_frac: float = 0.00015     # ATR must be >= this fraction of price (dead-market filter)
     cooldown_bars: int = 6
     max_sl_per_day: int = 2           # per symbol, then quiet for the day
@@ -97,6 +99,7 @@ class StrategyParams:
     min_score_telegram: int = 75
 
     enabled_setups: tuple[str, ...] = ("ema12_pullback", "ema200_retest", "range", "sweep")
+    exec_tfs: tuple[str, ...] = ("5m", "15m")   # 1m entries lost money in every test; available but off
     sessions: Sessions = field(default_factory=Sessions)
 
     def to_json(self) -> str:

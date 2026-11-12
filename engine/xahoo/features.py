@@ -71,7 +71,9 @@ def build(m1: pd.DataFrame, tf: str, p: StrategyParams, ctx: dict[str, pd.DataFr
     f["e12_slope"] = f["ema_fast"] - f["ema_fast"].shift(3)
     f["e200_slope_atr"] = (f["ema_slow"] - f["ema_slow"].shift(p.slope_lookback)) / f["atr"]
 
-    for htf in ("1h", "4h"):
+    for htf in ("15m", "1h", "4h"):
+        if htf == tf:
+            continue
         h = ctx.get(htf)
         if h is None:
             h = tf_frame(m1, htf, p)

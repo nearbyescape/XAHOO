@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from .config import EXEC_TFS, StrategyParams
+from .config import StrategyParams
 from .data import dukascopy
 from .engine import breakdown, run_backtest, stats
 
@@ -68,7 +68,7 @@ def main(argv=None):
         sp.add_argument("--symbols", nargs="+", default=["XAUUSD", "XAGUSD"])
         sp.set_defaults(fn=fn)
         if name == "backtest":
-            sp.add_argument("--tf", nargs="+", default=list(EXEC_TFS))
+            sp.add_argument("--tf", nargs="+", default=list(StrategyParams().exec_tfs))
             sp.add_argument("--min-score", type=int, default=None)
             sp.add_argument("--warmup-days", type=int, default=40)
     args = ap.parse_args(argv)
