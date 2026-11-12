@@ -98,7 +98,8 @@ class StrategyParams:
     min_score_dashboard: int = 65
     min_score_telegram: int = 75
 
-    enabled_setups: tuple[str, ...] = ("ema12_pullback", "ema200_retest", "range", "sweep")
+    # ema200_retest lost money on both metals in every test window (docs/BACKTEST.md run 4): off by default
+    enabled_setups: tuple[str, ...] = ("sweep", "ema12_pullback", "range")
     exec_tfs: tuple[str, ...] = ("5m", "15m")   # 1m entries lost money in every test; available but off
     sessions: Sessions = field(default_factory=Sessions)
 

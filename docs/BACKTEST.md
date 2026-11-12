@@ -46,6 +46,25 @@ Findings that repeated in both windows:
 What did **not** repeat:
 - The A+ grade (score ≥ 85) hit TP1 10 out of 11 times in-sample, but only 2 out of 5 in October. **The confidence score is not yet a reliable filter.** It needs a lot more trades before it can be calibrated.
 
+## Run 4: more unseen data (silver never used for tuning)
+
+Same settings as run 3, nothing changed.
+
+| Window | Signals | TP1 hit | Avg R | Net R | PF | Max DD |
+|---|---|---|---|---|---|---|
+| Gold 28 Oct – 11 Nov | 26 | 65.4% | +0.21 | +5.4 | 1.67 | −2.6R |
+| **Silver 10 Aug – 11 Nov** | 159 | 55.3% | **−0.03** | −5.4 | 0.92 | −17.1R |
+
+By setup on silver: sweep 31 trades, 71% TP1, +0.22R · EMA12 pullback 102 trades, −0.08R · EMA200 retest 21 trades, −0.27R.
+
+Consistent across every window so far:
+- **Liquidity sweep** is the strongest setup on both metals (TP1 70–77%, positive avg R).
+- **EMA200 retest** lost money in every window except one with 2 trades → **disabled by default**.
+- EMA12 pullback works on gold, not (yet) on silver.
+- The New York session edge on gold **did not repeat on silver** → not a rule yet.
+
+Not changed on purpose: no silver-specific tuning until January–June gives another unseen test.
+
 ## Caveats
 - ~150 trades in total on one metal. That is enough to tell clearly losing rules from promising ones, but not enough to prove an edge.
 - Dukascopy prices differ slightly from any retail broker's prices; spread is modelled as fixed; no slippage; no news blackout yet (calendar feed not connected).
