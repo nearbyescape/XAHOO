@@ -17,7 +17,8 @@ def finalize(cand: pd.DataFrame, f: pd.DataFrame, p: StrategyParams, spec: Symbo
     """Attach filters, entry/SL/TP and score to raw setup candidates. Drops rejected rows."""
     if cand.empty:
         return cand
-    cols = ["close_time", "atr", "close", "1h_bias", "4h_bias", "session", "overlap"] + (["15m_bias"] if "15m_bias" in f else [])
+    cols = ["close_time", "atr", "close", "1h_bias", "4h_bias", "session", "overlap",
+            "last_sh", "last_sl", "pdh", "pdl", "asia_h", "asia_l"] + (["15m_bias"] if "15m_bias" in f else [])
     c = cand.join(f[cols], how="left")
     d = c["dir"]
 
@@ -54,9 +55,29 @@ def finalize(cand: pd.DataFrame, f: pd.DataFrame, p: StrategyParams, spec: Symbo
         fixed = f"{col}_fixed"
         if fixed in c:
             c[col] = np.where(has_fixed, c[fixed], c[col])
+    if p.target_mode == "liquidity":
+        # trader-style: one target at the nearest liquidity pool (swing / previous day / Asian extreme)
+        # that is at least min_rr away; no pool in [min_rr, max_rr] -> no trade.
+        pools_dn = c[["last_sl", "pdl", "asia_l"]].to_numpy(dtype=float)
+        pools_up = c[["last_sh", "pdh", "asia_h"]].to_numpy(dtype=float)
+        e, rk, dd = c["entry"].to_numpy(), c["risk"].to_numpy(), d.to_numpy()
+        pools = np.where(dd[:, None] == 1, pools_up, pools_dn)
+        dist = (pools - e[:, None]) * dd[:, None] / rk[:, None]
+        dist[(dist < p.min_rr) | (dist > p.max_rr) | np.isnan(dist)] = np.inf
+        best = dist.min(axis=1)
+        tgt = e + dd * best * rk
+        for col in ("tp1", "tp2", "tp3"):
+            c[col] = tgt
+        has_fixed = has_fixed | np.isfinite(best)
+        c = c[np.isfinite(best)].copy()
+        if c.empty:
+            return c
+        d = c["dir"]
+        has_fixed = has_fixed.loc[c.index]
     # structural targets (range) must still pay at least 0.8R at TP1
     tp1_r = (c["tp1"] - c["entry"]) * d / c["risk"]
     c = c[~has_fixed | (tp1_r >= 0.8)].copy()
+    c = c.drop(columns=["last_sh", "last_sl", "pdh", "pdl", "asia_h", "asia_l"])
     if c.empty:
         return c
     c = c.drop(columns=[x for x in c.columns if x.endswith("_fixed")])

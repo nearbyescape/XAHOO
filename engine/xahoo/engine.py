@@ -77,7 +77,7 @@ def run_backtest(data: dict[str, pd.DataFrame], p: StrategyParams, tfs=EXEC_TFS,
         if start >= len(idx):
             continue
         o = simulate(lo, hi, cl, start, end, c.dir, c.entry, c.sl, (c.tp1, c.tp2, c.tp3),
-                     p.partials, SYMBOLS[c.symbol].spread, p.move_sl_to_be_at_tp1)
+                     p.partials, SYMBOLS[c.symbol].spread, p.move_sl_to_be_at_tp1, p.be_at_r)
         exit_t = idx[o.exit_idx] + pd.Timedelta(minutes=1)
         open_until[key] = exit_t
         last_sig[key] = t
@@ -102,6 +102,7 @@ def stats(bt: pd.DataFrame) -> dict:
         "signals": int(len(bt)),
         "per_day": round(len(bt) / max(days, 1), 2),
         "tp1_hit_rate": round(float((bt["tp_hits"] >= 1).mean()) * 100, 1),
+        "green_rate": round(float((r > -0.05).mean()) * 100, 1),   # wins + breakevens (how most signal channels count)
         "win_rate": round(len(wins) / len(bt) * 100, 1),
         "loss_rate": round(len(losses) / len(bt) * 100, 1),
         "breakeven_rate": round((len(bt) - len(wins) - len(losses)) / len(bt) * 100, 1),

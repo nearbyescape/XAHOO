@@ -121,3 +121,10 @@ def test_telegram_format():
     msg = format_signal(s)
     assert "BUY" in msg and "2,384.50" in msg and "1.0R" in msg and "2.0R" in msg
     assert "SL to entry" in format_update("TP1", 0.5)
+
+
+def test_tracker_breakeven_trigger():
+    # short 100, stop 102 (risk 2); price moves to 98 (+1R) then back up to 103 -> exits at entry, not at stop
+    lo, hi, cl = _bars([[97.9, 100.2, 98.5], [98.5, 103, 102]])
+    o = simulate(lo, hi, cl, 0, 2, -1, 100.0, 102.0, (90, 90, 90), (1, 0, 0), 0.0, False, be_at_r=1.0)
+    assert o.result == "BE" and o.r == 0.0

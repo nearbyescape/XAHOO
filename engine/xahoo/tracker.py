@@ -21,11 +21,13 @@ class Outcome:
 
 def simulate(lo: np.ndarray, hi: np.ndarray, cl: np.ndarray, start: int, end: int, d: int,
              entry: float, sl: float, tps: tuple[float, float, float], partials: tuple[float, float, float],
-             spread: float, be_after_tp1: bool = True) -> Outcome:
+             spread: float, be_after_tp1: bool = True, be_at_r: float | None = None) -> Outcome:
     """Bars are BID prices. Longs exit at bid, shorts at ask (= bid + spread).
 
     Within one bar, if the stop and a target are both touched, the stop is assumed
     to have come first (conservative).
+    be_at_r: move the stop to entry once price has moved this many R in favour
+    ("cost to cost"); takes effect from the next bar.
     """
     risk = abs(entry - sl)
     off = 0.0 if d == 1 else spread           # convert bid bar to the side we exit on
@@ -41,7 +43,7 @@ def simulate(lo: np.ndarray, hi: np.ndarray, cl: np.ndarray, start: int, end: in
         stopped = (bl <= stop) if d == 1 else (bh >= stop)
         if stopped:
             realized += remaining * (stop - entry) * d / risk
-            res = "SL" if stage == 0 else ("BE" if stage == 1 else f"TP{stage}")
+            res = ("BE" if stop == entry else "SL") if stage == 0 else ("BE" if stage == 1 else f"TP{stage}")
             return Outcome(res, round(realized, 3), stage, i, stop, round(mfe, 2), round(mae, 2))
         while stage < 3:
             t = tps[stage]
@@ -55,6 +57,8 @@ def simulate(lo: np.ndarray, hi: np.ndarray, cl: np.ndarray, start: int, end: in
                 break
         if remaining <= 1e-9:
             return Outcome("TP3", round(realized, 3), 3, i, tps[2], round(mfe, 2), round(mae, 2))
+        if be_at_r is not None and mfe >= be_at_r and (stop - entry) * d < 0:
+            stop = entry
     i = end - 1
     px = cl[i] + off
     realized += remaining * (px - entry) * d / risk

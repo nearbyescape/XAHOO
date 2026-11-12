@@ -54,6 +54,9 @@ def session_label(ts: pd.DatetimeIndex, p: StrategyParams) -> tuple[np.ndarray, 
     label = np.full(len(ts), "off", dtype=object)
     for a, b, name in p.sessions.windows:
         label[(mins >= a) & (mins < b)] = name
+    if p.trade_asia:
+        a, b = p.sessions.asia
+        label[(mins >= a) & (mins < b)] = "asia"
     o0, o1 = p.sessions.overlap
     overlap = (mins >= o0) & (mins < o1)
     return label, overlap

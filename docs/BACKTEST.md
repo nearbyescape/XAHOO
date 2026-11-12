@@ -109,6 +109,32 @@ Script: `engine/research/winrate_tradeoff.py`. Single exit at the target; stop a
 **Win rate moves from 39% to 89% by stop/target placement alone; average R stays negative in every row.**
 A high win rate on its own is not evidence of an edge. Plan: [PLAN_V2_HIGH_WINRATE.md](PLAN_V2_HIGH_WINRATE.md).
 
+## Run 7: the trader's own trade management (from 10 posted screenshots), all 2026, both metals
+
+What the screenshots show: tight stop just beyond the last wick ($2.2–5.4 on gold), one far target at the next
+liquidity pool (risk:reward 1:3 to 1:9), stop moved to entry early, all sessions including ~08:00 IST,
+~2.5–3% account risk per trade (100 oz, ~$550 on a $17–24k account). His own panels show a day with 2 wins / 1 loss
+and breakeven exits (+$3.74, +$3.63) displayed as green trades.
+
+Check against our data: the 10 Nov 13:25 IST XM sell (4117.54 / SL 4121.95 / TP 4093.40) reaches TP, +5.5R.
+The 30 Oct Exness sell had a $0.73 stop, smaller than typical broker-to-broker price differences, so it can't be verified.
+
+Variants fixed before running (`engine/research/trader_style.py`). Same XAHOO entries, his management:
+
+| Variant | Asia | Trades | /day | Green % (win+BE) | Real win % | Avg R | Net R | PF | Max DD |
+|---|---|---|---|---|---|---|---|---|---|
+| v1 baseline | no | 940 | 5.0 | 53.2 | 53.2 | −0.044 | −41.4 | 0.90 | −54.9 |
+| BE@1R, TP 3R | no | 874 | 4.7 | 46.9 | 18.9 | −0.077 | −67.1 | 0.85 | −77.3 |
+| BE@1R, TP 5R | no | 841 | 4.5 | 47.6 | 16.3 | −0.047 | −39.6 | 0.91 | −69.5 |
+| BE@1R, TP liquidity 3–10R | no | 375 | 2.7 | 46.9 | 16.0 | **−0.015** | −5.5 | 0.97 | −23.0 |
+| BE@1R, TP liquidity 3–10R | yes | 448 | 2.9 | 47.8 | 15.6 | −0.016 | −7.0 | 0.97 | −22.8 |
+| BE@1R, TP liquidity 2–10R | no | 478 | 3.0 | 44.8 | 16.7 | −0.094 | −45.1 | 0.83 | −49.6 |
+| liquidity 3–10R + EMA200 retest | no | 406 | 2.8 | 47.3 | 16.5 | −0.037 | −14.8 | 0.93 | −26.0 |
+
+**Conclusion:** his management on XAHOO's entries is roughly break-even at best. Any edge he has is in **which trades he
+picks** (discretionary reading of the chart), not in how he manages them. To capture that we need his **complete** call
+history, losses included, so we can measure it and train the engine on his actual entries.
+
 ## Caveats
 - ~150 trades in total on one metal. That is enough to tell clearly losing rules from promising ones, but not enough to prove an edge.
 - Dukascopy prices differ slightly from any retail broker's prices; spread is modelled as fixed; no slippage; no news blackout yet (calendar feed not connected).

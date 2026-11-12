@@ -37,6 +37,7 @@ class Sessions:
         (7 * 60, 11 * 60, "london"),
         (12 * 60 + 30, 17 * 60, "newyork"),
     ])
+    asia: tuple[int, int] = (1 * 60, 4 * 60)   # 06:30-09:30 IST; enable with StrategyParams.trade_asia
     overlap: tuple[int, int] = (12 * 60 + 30, 16 * 60)  # London/NY overlap gets best session score
 
 
@@ -79,10 +80,15 @@ class StrategyParams:
     tp_r: tuple[float, float, float] = (0.75, 1.5, 2.5)        # backtest: 0.75R TP1 beat 1R (docs/BACKTEST.md)
     partials: tuple[float, float, float] = (0.5, 0.25, 0.25)  # size closed at TP1/TP2/TP3
     move_sl_to_be_at_tp1: bool = True                         # "cost to cost"
+    be_at_r: float | None = None      # move SL to entry once +x R in profit (trader-style), None = off
+    target_mode: str = "r"            # "r": tp_r multiples · "liquidity": nearest swing/PDH-PDL/Asia level >= min_rr
+    min_rr: float = 3.0               # liquidity mode: nearest pool at least this many R away
+    max_rr: float = 10.0              # liquidity mode: ignore pools further than this
     max_hold_minutes: dict = field(default_factory=lambda: {"1m": 90, "5m": 300, "15m": 720})
 
     # --- Filters ---
     use_sessions: bool = True
+    trade_asia: bool = False          # the trader also enters around 08:00 IST
     require_1h_bias: bool = True
     require_15m_bias: bool = False    # 1m/5m entries also need the 15m trend to agree (top-down)
     min_atr_frac: float = 0.00015     # ATR must be >= this fraction of price (dead-market filter)
