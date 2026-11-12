@@ -18,6 +18,13 @@ so wording is approximate). Quotes are from the machine translation, lightly cle
 7. **Stop to entry early, trail** ("cost to cost").
 8. Sessions: streams at 13:00 and 21:00 IST; trades also around 08:00 IST.
 
+## Minutes 17–48 (his own statements)
+- Planned risk:reward about **1:2**: "almost 1 is to 2 risk… my entry is almost here."
+- **Trails the stop** once the move is under way ("trail the stop-loss", repeated through every winning trade).
+- Second entry type: **break of a support zone → retest → sell** ("the zone of support which the market has given a
+  breakdown… after giving a breakdown the market has come to retest… trying to come close to the EMA").
+- Adds "the rest of the quantity" at the EMA (again); checks the news before trading.
+
 ## From the second half of the stream (his own statements)
 - Claimed accuracy: "The VIP group is 90% of the trade. The live stream is almost 70%."
 - Shows losses: "I will never say that I am just profit… 300 loss, 400 loss, 400 loss, 600 loss… targets 1,000, 1,500,
