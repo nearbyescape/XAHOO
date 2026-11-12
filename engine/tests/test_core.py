@@ -128,3 +128,23 @@ def test_tracker_breakeven_trigger():
     lo, hi, cl = _bars([[97.9, 100.2, 98.5], [98.5, 103, 102]])
     o = simulate(lo, hi, cl, 0, 2, -1, 100.0, 102.0, (90, 90, 90), (1, 0, 0), 0.0, False, be_at_r=1.0)
     assert o.result == "BE" and o.r == 0.0
+
+
+def test_pressure_features_causal_and_bounded():
+    p = StrategyParams()
+    m1 = synth(4000, drift=0.01)
+    full = features.build(m1, "5m", p)
+    assert full["press3"].dropna().between(-1, 1).all()
+    cut = m1.index[3000]
+    part = features.build(m1[m1.index < cut], "5m", p)
+    common = part.index[part["close_time"] <= cut][-30:]
+    pd.testing.assert_frame_equal(full.loc[common, ["delta", "press3", "eq_high", "eq_low"]],
+                                  part.loc[common, ["delta", "press3", "eq_high", "eq_low"]])
+
+
+def test_delta_sign():
+    from xahoo.features import pressure
+    idx = pd.date_range("2026-03-02", periods=10, freq="1min", tz="UTC")
+    up = pd.DataFrame({"open": 1.0, "high": 2.0, "low": 1.0, "close": 2.0, "volume": 5.0}, index=idx)
+    f = resample(up, "5m")
+    assert (pressure(up, f, 5)["delta"] > 0).all()

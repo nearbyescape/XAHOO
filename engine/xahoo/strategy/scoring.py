@@ -26,7 +26,10 @@ def finalize(cand: pd.DataFrame, f: pd.DataFrame, p: StrategyParams, spec: Symbo
     keep = pd.Series(True, index=c.index)
     if p.require_1h_bias:
         trend_setup = c["setup"] != "range"
-        keep &= np.where(trend_setup, c["1h_bias"] == d, c["1h_bias"] != -d)
+        need = np.where(trend_setup, c["1h_bias"] == d, c["1h_bias"] != -d)
+        if not p.lp_require_bias:
+            need = need | (c["setup"] == "liquidity_pressure").to_numpy()
+        keep &= need
     if p.require_15m_bias and "15m_bias" in c:
         trend_setup = c["setup"] != "range"
         keep &= np.where(trend_setup, c["15m_bias"] == d, True)

@@ -171,7 +171,47 @@ def liquidity_sweep(f: pd.DataFrame, p: StrategyParams, d: int) -> pd.DataFrame:
     return _pack(f, mask, d, "sweep", sl, quality, confl, strength, pd.Series(1.0, index=f.index))
 
 
+def liquidity_pressure(f: pd.DataFrame, p: StrategyParams, d: int) -> pd.DataFrame:
+    """Sweep of a liquidity pool followed by a pressure flip (PLAN v2 / trader's 'liquidity + pressure').
+
+    Short (mirror for long): within the last `lp_sweep_bars`, a wick traded above a pool that was
+    already known before the sweep (equal highs, previous-day high, Asian high, last swing high),
+    by no more than `lp_sweep_max_atr` ATR, and price closed back below it. Then sellers take
+    over: a bearish displacement candle on above-normal volume with negative delta, and net
+    selling pressure over the last 3 bars. Stop just beyond the sweep wick.
+    """
+    sg = 1 if d == 1 else -1
+    s = _side(f, d)
+    atr = f["atr"]
+    n = p.lp_sweep_bars
+    c = sg * f["close"]
+    o = sg * f["open"]
+    lo_n = s["lo"].rolling(n, min_periods=1).min()          # sweep extreme (mirrored: low for longs)
+    if d == 1:
+        pools = [f["eq_low"], f["pdl"], f["asia_l"], f["last_sl"]]
+    else:
+        pools = [-f["eq_high"], -f["pdh"], -f["asia_h"], -f["last_sh"]]
+    swept = pd.Series(False, index=f.index)
+    strength = pd.Series(0.0, index=f.index)                 # equal highs/lows & daily levels score higher
+    for w, lvl in zip((1.0, 0.9, 0.8, 0.5), pools):
+        ref = lvl.shift(n)                                   # pool known before the sweep window
+        hit = (lo_n < ref) & (ref - lo_n <= p.lp_sweep_max_atr * atr) & (c > ref)
+        swept |= hit.fillna(False)
+        strength = np.maximum(strength, np.where(hit.fillna(False), w, 0.0))
+    body = (c - o)                                           # positive = candle in trade direction
+    disp = (body >= p.lp_disp_atr * atr) & (f["rvol"] >= p.lp_rvol) & (sg * f["delta"] > 0)
+    disp_recent = _roll_any(disp, 3)
+    press_ok = sg * f["press3"] > 0.15
+    mask = swept & disp_recent & press_ok & (body > 0)
+    sl = lo_n - 0.1 * atr
+    quality = (0.5 + 0.5 * (f["rvol"].clip(0, 3) / 3)).fillna(0.5)
+    confl = pd.Series(strength, index=f.index)
+    trig = (sg * f["press3"]).clip(0, 1).fillna(0)
+    return _pack(f, mask, d, "liquidity_pressure", sl, quality, confl, trig, pd.Series(1.0, index=f.index))
+
+
 DETECTORS = {
+    "liquidity_pressure": liquidity_pressure,
     "ema12_pullback": ema12_pullback,
     "ema200_retest": ema200_retest,
     "range": range_fade,

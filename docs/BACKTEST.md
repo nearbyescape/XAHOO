@@ -135,6 +135,45 @@ Variants fixed before running (`engine/research/trader_style.py`). Same XAHOO en
 picks** (discretionary reading of the chart), not in how he manages them. To capture that we need his **complete** call
 history, losses included, so we can measure it and train the engine on his actual entries.
 
+## Run 8: liquidity sweep + buyer/seller pressure (owner: "he checks liquidity, buyers and sellers pressure")
+
+Pressure is measured from 1m volume. Each candle's volume is split into buying/selling by where it closed in its range.
+Then: delta, volume relative to the same time-of-day (20-day average), net pressure over the last 3 bars.
+Liquidity pools: equal highs/lows, previous-day high/low, Asian high/low, last swing high/low.
+Setup `liquidity_pressure`: a pool is swept (wick through ≤ 0.6 ATR, close back inside), then a displacement candle
+(body ≥ 0.8 ATR, volume ≥ 1.3× normal, delta in trade direction) with net pressure > 0.15; stop beyond the sweep wick.
+
+**Development data only (2025: gold Feb–Dec, silver Feb–Aug). 8 variants fixed in advance** (`engine/research/liquidity_pressure.py dev`):
+
+| Variant | Trades | Green % | Win % | Avg R | Net R | PF |
+|---|---|---|---|---|---|---|
+| A liquidity target 2–10R, BE@1R, no bias filter | 20 | 35.0 | 25.0 | −0.14 | −2.9 | 0.74 |
+| A … with 1h-bias filter | 18 | 27.8 | 22.2 | −0.19 | −3.5 | 0.68 |
+| B liquidity target 3–10R, BE@1R | 11 | 45.5 | 27.3 | −0.04 | −0.4 | 0.93 |
+| B … with bias | 10 | 40.0 | 30.0 | −0.04 | −0.4 | 0.93 |
+| C partials 0.75/1.5/2.5R | 75 | 54.7 | 53.3 | −0.11 | −8.2 | 0.74 |
+| C … with bias | 70 | 51.4 | 50.0 | −0.15 | −10.6 | 0.66 |
+| D fixed 2R, BE@1R | 75 | 46.7 | 25.3 | −0.23 | −17.1 | 0.52 |
+| D … with bias | 70 | 44.3 | 24.3 | −0.26 | −18.0 | 0.49 |
+
+No variant was positive on development data, so **it was not run on 2026** (that would only use up the test data).
+
+### Does volume pressure predict anything? (`engine/research/pressure_event_study.py`, 2025, all 5m bars)
+
+| Pressure, last 3 bars | Bars | Move next 60 min (ATR) | Up after 60 min |
+|---|---|---|---|
+| strong sell | 180 | +0.20 | 56.1% |
+| sell | 18,368 | +0.11 | 54.4% |
+| neutral | 64,379 | +0.09 | 53.1% |
+| buy | 24,981 | +0.08 | 52.5% |
+| strong buy | 385 | +0.10 | 51.4% |
+
+After a sweep of highs with strong selling pressure, price went **up** 58% of the time (77 cases), the opposite of what the setup assumes.
+**Conclusion:** pressure estimated from candle volume carries no usable signal on spot gold/silver. Spot metals have no
+central exchange, so the platform's "volume" is only that broker's own trading activity. True buyer/seller pressure
+(aggressor volume, order book) exists only on the futures exchange (COMEX gold/silver futures, or MCX in India) and would
+need that data feed to test.
+
 ## Caveats
 - ~150 trades in total on one metal. That is enough to tell clearly losing rules from promising ones, but not enough to prove an edge.
 - Dukascopy prices differ slightly from any retail broker's prices; spread is modelled as fixed; no slippage; no news blackout yet (calendar feed not connected).

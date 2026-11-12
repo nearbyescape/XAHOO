@@ -69,6 +69,14 @@ class StrategyParams:
     # --- Setup 4: liquidity sweep ---
     sweep_lookback: int = 3
 
+    # --- Setup 5: liquidity sweep + buyer/seller pressure flip ---
+    lp_sweep_bars: int = 6            # sweep must have happened within the last N bars
+    lp_sweep_max_atr: float = 0.6     # how far through the pool the wick may poke (beyond = real breakout)
+    lp_eq_tol_atr: float = 0.25       # two swing highs/lows this close = "equal highs/lows" pool
+    lp_disp_atr: float = 0.8          # displacement candle body >= this x ATR
+    lp_rvol: float = 1.3              # ... on volume >= this x the usual volume for that time of day
+    lp_require_bias: bool = False     # True: only sweeps in the direction of the 1h trend
+
     # --- Trigger candle ---
     pin_wick_body: float = 2.0        # pin bar: rejection wick >= 2x body
 

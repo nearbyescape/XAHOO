@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from . import indicators as ind
-from .config import StrategyParams
+from .config import TF_MINUTES, StrategyParams
 from .data.resample import align_closed, resample
 
 
@@ -62,6 +62,29 @@ def session_label(ts: pd.DatetimeIndex, p: StrategyParams) -> tuple[np.ndarray, 
     return label, overlap
 
 
+def pressure(m1: pd.DataFrame, f: pd.DataFrame, tf_minutes: int) -> pd.DataFrame:
+    """Buyer/seller pressure from 1m volume.
+
+    Each 1m bar's volume is split into buying and selling by where it closed in its range
+    (close at the high = all buying, at the low = all selling). Summed per exec bar:
+      delta     buy minus sell volume
+      rvol      volume / average volume of the same time-of-day slot over the previous 20 days
+      press3    net pressure of the last 3 bars, -1 (all selling) .. +1 (all buying)
+    """
+    rng = (m1["high"] - m1["low"]).replace(0, np.nan)
+    clv = ((m1["close"] - m1["low"]) / rng).fillna(0.5)
+    d1 = m1["volume"] * (2 * clv - 1)
+    delta = d1.resample(f"{tf_minutes}min", label="left", closed="left").sum().reindex(f.index).fillna(0)
+    vol = f["volume"]
+    slot = f.index.hour * 60 + f.index.minute
+    base = vol.groupby(slot).transform(lambda x: x.shift(1).rolling(20, min_periods=5).mean())
+    out = pd.DataFrame(index=f.index)
+    out["delta"] = delta
+    out["rvol"] = (vol / base).replace([np.inf, -np.inf], np.nan)
+    out["press3"] = (delta.rolling(3).sum() / vol.rolling(3).sum()).clip(-1, 1)
+    return out
+
+
 def build(m1: pd.DataFrame, tf: str, p: StrategyParams, ctx: dict[str, pd.DataFrame] | None = None) -> pd.DataFrame:
     """Return the feature frame for execution timeframe `tf`.
 
@@ -71,6 +94,10 @@ def build(m1: pd.DataFrame, tf: str, p: StrategyParams, ctx: dict[str, pd.DataFr
     f = f.join(ind.structure(f, k=2))
     f = f.join(ind.fvg(f))
     f = f.join(ind.candle_shape(f, p.pin_wick_body))
+    f = f.join(pressure(m1, f, TF_MINUTES[tf]))
+    tol = p.lp_eq_tol_atr * f["atr"]
+    f["eq_high"] = np.where((f["last_sh"] - f["prev_sh"]).abs() <= tol, np.maximum(f["last_sh"], f["prev_sh"]), np.nan)
+    f["eq_low"] = np.where((f["last_sl"] - f["prev_sl"]).abs() <= tol, np.minimum(f["last_sl"], f["prev_sl"]), np.nan)
     f["e12_slope"] = f["ema_fast"] - f["ema_fast"].shift(3)
     f["e200_slope_atr"] = (f["ema_slow"] - f["ema_slow"].shift(p.slope_lookback)) / f["atr"]
 
