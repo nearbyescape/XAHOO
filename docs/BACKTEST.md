@@ -65,7 +65,33 @@ Consistent across every window so far:
 
 Not changed on purpose: no silver-specific tuning until January–June gives another unseen test.
 
+## Run 5: largest unseen test (both metals, 10 Feb – 30 Jun 2026), settings unchanged
+
+| Signals | Per day | TP1 hit | Avg R | Net R | PF | Max DD |
+|---|---|---|---|---|---|---|
+| 514 | 5.2 | 53.7% | **−0.05** | −25.2 | 0.89 | −28.1R |
+
+| Setup | n | TP1 hit | Avg R |
+|---|---|---|---|
+| EMA12 pullback | 418 | 56.0% | −0.03 (5m +0.01, 15m −0.11) |
+| Liquidity sweep | 79 | 43.0% | **−0.24** |
+| Range | 17 | 47.1% | +0.26 |
+
+| Score | n | TP1 hit | Avg R |
+|---|---|---|---|
+| < 70 | 208 | 58.2% | +0.08 |
+| 70–80 | 225 | 54.3% | −0.08 |
+| 80–85 | 56 | 46.4% | −0.22 |
+| ≥ 85 (A+) | 25 | **28.0%** | −0.48 |
+
+### Verdict so far
+- **No proven edge.** Over all unseen data (~770 trades) the rules are about break-even to slightly negative after spread. The positive October/November gold results did not repeat in February–June.
+- The liquidity sweep, the best setup from August to November, was the worst one from February to June. A setup that flips like that is following the market's mood of the moment, not a stable edge.
+- **The confidence score is inverted:** the more confluence factors line up, the worse the trade. Most likely high scores pick moves that are already stretched. The score must not be used to filter signals until this is fixed.
+- All 2026 data has now been used. **Any further tuning must be checked on new data** (paper trading from here on), or it will only fit the past.
+- **Do not trade real money on these signals.**
+
 ## Caveats
 - ~150 trades in total on one metal. That is enough to tell clearly losing rules from promising ones, but not enough to prove an edge.
 - Dukascopy prices differ slightly from any retail broker's prices; spread is modelled as fixed; no slippage; no news blackout yet (calendar feed not connected).
-- Silver and January–June 2026 are still downloading. Next steps: re-run on those (more unseen data), then paper-trade live for 3–4 weeks.
+- Next step is the trader's actual rules (transcripts), tested once on the full Feb–Nov window with settings fixed in advance. Then paper-trade before any real money.

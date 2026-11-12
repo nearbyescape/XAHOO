@@ -1,6 +1,6 @@
 # XAHOO — Gold & Silver Scalp Signal Terminal
 
-**Status:** Phase 1–2 built (engine, backtester, terminal UI prototype) — see [BACKTEST.md](BACKTEST.md) · **Owner:** single admin (private) · **Instruments:** XAUUSD, XAGUSD
+**Status:** Phase 1–2 built (engine, backtester, terminal UI prototype). **Current rules show no proven edge — see [BACKTEST.md](BACKTEST.md); not for real-money use.** · **Owner:** single admin (private) · **Instruments:** XAUUSD, XAGUSD
 **Execution timeframes:** 1m · 5m · 15m · **Context timeframes:** 1h · 4h
 
 ---
