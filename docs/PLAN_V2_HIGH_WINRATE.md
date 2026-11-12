@@ -126,6 +126,28 @@ counting breakeven trades as wins without labelling them; hiding stopped-out sig
 **Daily operating rules (owner):** max 3 signals/day · risk 0.5–1% per trade · stop for the day after one full loss ·
 weekly review in the Analytics tab · no real money until the go-live gate (§3) passes on paper.
 
+## 5c. Update after run 10: the only documented route to ~85–90% win rates with positive expectancy
+
+Directional intraday signals from chart data: no out-of-sample predictive power beyond the small daily-trend effect
+(BACKTEST runs 1–10). The one strategy family that professionally and academically shows **high win rates *with*
+positive expected return** is **selling options** (harvesting the variance risk premium: option prices usually imply
+more movement than actually happens). Prokopczuk, Symeonidis & Wese Simen (2017, *J. Banking & Finance*) find
+significantly negative variance risk premia in nearly all commodity markets (2008–2011 options data).
+
+| | Directional engine (XAHOO now) | Option-selling engine (new track D) |
+|---|---|---|
+| Win rate | ~55–60% (gold, daily-trend pullback) | typically 80–90% for out-of-the-money, defined-risk spreads |
+| Profit per win vs loss | ~1:1.5 | small wins, occasional larger loss (capped by the spread width) |
+| Edge source | trend persistence (documented) | variance risk premium (documented) |
+| Main risk | slow drawdowns | sudden large moves (e.g. war, Fed shock); must be defined-risk, never naked |
+| Signals | ~1 per day | new position weekly/monthly + **daily management alerts** (adjust, close at 50% profit, exit on stop) |
+| Market (India-legal) | — | **MCX GOLDM options** (100 g lot, monthly, European) / Gold options (1 kg) |
+
+**Track D plan:** get MCX gold options history (broker API/vendor) → backtest defined-risk credit spreads
+(e.g. sell ~15–20 delta, buy wing, close at 50% profit or 2× credit loss, skip event weeks) → paper for one expiry cycle →
+XAHOO shows option-chain, suggested strikes, daily P&L and exit alerts. Needs the owner's broker/data choice.
+No naked option selling, ever.
+
 ## 6. Honest expectation
 
 - **Likely outcome:** a TP1-hit rate in the 80s with a small positive average R, on 1–2 signals a day. That is a good, tradable system.

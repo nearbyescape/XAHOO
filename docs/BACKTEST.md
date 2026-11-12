@@ -201,6 +201,27 @@ small: about +0.03 to +0.07R per trade, ~1 trade/day. The high-hit-rate variants
 expectancy falls to ~0, which is the same trade-off as run 6. Next: confirm on 2023–2024, then a probability filter (Track C)
 to keep only the best days.
 
+## Run 10: probability filter (Track C), `engine/research/ml_filter.py`
+
+Candidates: every 15m close 07:00–17:00 UTC, both directions, both metals (~37k in 2025). Fixed high-hit-rate structure:
+TP 0.2 × daily ATR, SL 0.6 × daily ATR, flat 20:00 UTC (break-even win rate ≈ 75% before costs). 24 features: daily trend
+and momentum, distance to the 50-day EMA, previous-day move, pullback/extension today, PDH/PDL distance, hour, weekday,
+EMA12/200 on 15m, 15m/1h/4h bias, ADX, ATR ratio, volume pressure, relative volume, the other metal's move.
+Gradient boosting, train Feb–Sep 2025, validate Oct–Dec 2025.
+
+| | AUC |
+|---|---|
+| Train | 0.899 |
+| **Validation** | **0.511** (0.50 = coin flip) |
+
+Win rate and avg R by predicted decile on validation are flat (60–67% win, avg R −0.11 … +0.01); the most confident decile
+was the worst. The model memorised 2025 and has **no predictive power out of sample**. Only "with the daily trend, long"
+was ~break-even (n = 4,280, 67% win, +0.004R). Not run on 2026 (nothing to test).
+
+**Conclusion across runs 1–10:** at intraday horizons, publicly available price/volume features don't predict gold or
+silver well enough to beat costs, apart from the small daily-trend effect (run 9). That matches the research literature
+on liquid markets.
+
 ## Caveats
 - ~150 trades in total on one metal. That is enough to tell clearly losing rules from promising ones, but not enough to prove an edge.
 - Dukascopy prices differ slightly from any retail broker's prices; spread is modelled as fixed; no slippage; no news blackout yet (calendar feed not connected).
