@@ -91,6 +91,24 @@ Not changed on purpose: no silver-specific tuning until January–June gives ano
 - All 2026 data has now been used. **Any further tuning must be checked on new data** (paper trading from here on), or it will only fit the past.
 - **Do not trade real money on these signals.**
 
+## Run 6: win rate vs return (all 2026, both metals, same entries)
+
+Script: `engine/research/winrate_tradeoff.py`. Single exit at the target; stop and target in multiples of the original stop.
+
+| Stop | Target | Risk:reward | Trades | Win % | Avg R | Net R | Worst DD |
+|---|---|---|---|---|---|---|---|
+| 1× | 0.25× | 4:1 | 1256 | 75.9 | −0.052 | −64.8 | −67.2 |
+| 1× | 0.5× | 2:1 | 1145 | 62.6 | −0.059 | −67.1 | −73.1 |
+| 1× | 1.0× | 1:1 | 970 | 47.5 | −0.048 | −46.9 | −59.5 |
+| 1× | 1.5× | 1:1.5 | 881 | 39.0 | −0.032 | −28.4 | −43.8 |
+| 2× | 0.25× | 8:1 | 1314 | 86.4 | −0.025 | −32.4 | −47.7 |
+| 2× | 1.5× | 1.3:1 | 946 | 55.7 | −0.001 | −1.2 | −43.3 |
+| 3× | 0.25× | 12:1 | 1301 | **89.3** | −0.021 | −26.8 | −37.0 |
+| 3× | 1.0× | 3:1 | 1050 | 70.2 | −0.007 | −7.7 | −24.0 |
+
+**Win rate moves from 39% to 89% by stop/target placement alone; average R stays negative in every row.**
+A high win rate on its own is not evidence of an edge. Plan: [PLAN_V2_HIGH_WINRATE.md](PLAN_V2_HIGH_WINRATE.md).
+
 ## Caveats
 - ~150 trades in total on one metal. That is enough to tell clearly losing rules from promising ones, but not enough to prove an edge.
 - Dukascopy prices differ slightly from any retail broker's prices; spread is modelled as fixed; no slippage; no news blackout yet (calendar feed not connected).
