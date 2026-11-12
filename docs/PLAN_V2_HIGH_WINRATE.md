@@ -102,6 +102,30 @@ If a target is not met, the dashboard says so in plain numbers. **We do not lowe
 
 ---
 
+## 5b. Update after runs 7–8: three tracks to find a real edge
+
+Every rule set tested so far (EMA 12/200, smart money concepts, the trader's own trade management, volume pressure)
+lands near break-even after costs (BACKTEST.md runs 1–8). Changing stop/target placement moves the win rate but not
+the profit. So the work now is **finding entries that are genuinely better than chance**. Three tracks, each with a
+clear pass/fail:
+
+| Track | What | Why it could work | Cost | Pass if |
+|---|---|---|---|---|
+| **A. Trader's call history** | Telegram export of every call (losses included) → score each call on 1m data → train XAHOO on the situations he picks | Uses his actual discretionary choices as labels | Free, owner exports | His real record shows avg R > 0 after spread on ≥ 100 calls |
+| **B. Real order flow** | Exchange data with true buyer/seller volume: COMEX gold/silver futures (tick data with aggressor side), or **MCX GOLDM/SILVERM** (exchange volume + market depth, legal for Indian residents) | Spot "volume" is only one broker's own activity; exchange data shows the whole market | Paid data feed (usage-based or monthly; confirm current pricing) | Pressure / imbalance predicts the next 30–60 min with an effect larger than costs on 2025, then again on 2026 |
+| **C. Probability filter on 4 years** | 2023–2026 history (downloading) → model estimates P(first target before stop) → walk-forward test | More regimes, many more examples; strict selection | Free | Calibrated P ≥ 0.85 signals show TP1 hit ≥ 85% **and** avg R > 0 on 2026 (held out) |
+
+**Signal structure once an edge is found (built for a high hit rate *and* profit):**
+- TP1 = nearest structure, **0.3–0.5R**, close **60%** → this is the 85–90% "winning signals" number.
+- Stop to entry immediately after TP1. The remaining 40% runs to the liquidity target (2–5R): this is where the profit comes from.
+- Reported per signal: P(TP1), expected R, outcome. Weekly: TP1-hit %, green %, real win %, avg R, drawdown.
+
+**Will not be built:** grid, martingale or averaging into losers (high win rate until one wipes out the account);
+counting breakeven trades as wins without labelling them; hiding stopped-out signals.
+
+**Daily operating rules (owner):** max 3 signals/day · risk 0.5–1% per trade · stop for the day after one full loss ·
+weekly review in the Analytics tab · no real money until the go-live gate (§3) passes on paper.
+
 ## 6. Honest expectation
 
 - **Likely outcome:** a TP1-hit rate in the 80s with a small positive average R, on 1–2 signals a day. That is a good, tradable system.
