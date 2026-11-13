@@ -11,6 +11,18 @@ Streaming signals makes XAHOO a public recommendation service, not a private too
   restricted, and registered brokers may not associate with them. Get advice from a lawyer or CA who knows SEBI and FEMA.
 - **FEMA / RBI:** Indian residents may only trade forex/CFDs through authorised channels. The RBI "Alert List" names
   unauthorised offshore platforms. Check the broker before showing or promoting it. **MCX gold/silver** is the compliant route.
+- **Checked 2026-11-13 (secondary sources; confirm with a lawyer):**
+  - The RBI Alert List names **both Exness and XM**. Residents dealing on alert-list platforms, including depositing
+    money for it, face penal action under FEMA. The list also names websites that *promote* such platforms, including
+    "training or advisory" sites.
+  - SEBI has barred regulated entities from working with unregistered finfluencers (2024). It treats live buy/sell calls
+    by unregistered persons as unregistered advice; education is allowed (one source: educational price data must be
+    at least 3 months old).
+  - Enforcement is real: e.g. orders against Avadhut Sathe's trading academy (Dec 2025) and against a YouTube channel
+    (Ravindra Bharti) with disgorgement and penalties.
+- **Safe paths:** (a) register with SEBI as a Research Analyst before publishing calls; or (b) education-only content:
+  methods, backtests, and replays of past setups (≥ 3 months old), no live calls, no return claims, no affiliate links to
+  alert-list brokers; (c) use MCX gold/silver in any content; (d) keep XAHOO private for your own analysis.
 - Built into the stream view regardless: a permanent **"Educational only — not investment advice"** bar, no win-rate
   promises, and a public scorecard that shows **every** signal's result, losses included.
 
