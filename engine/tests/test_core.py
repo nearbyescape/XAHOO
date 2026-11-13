@@ -216,3 +216,17 @@ def test_forming_fires_before_trigger_only(sign):
     row = out.iloc[-1]
     # the trigger level is the pullback's extreme so far, and the trigger bar closes beyond it
     assert (df["close"].iloc[-1] - row["trigger"]) * sign > 0
+
+
+def test_ticks_to_m1_bid_candles():
+    import lzma, struct
+    from datetime import date
+    from xahoo.data.dukascopy import ticks_to_m1
+    rows = [(0, 3900_500, 3900_250, 1.0, 1.0), (30_000, 3901_500, 3901_250, 1.0, 1.0),
+            (59_000, 3899_500, 3899_250, 1.0, 1.0), (61_000, 3902_500, 3902_250, 1.0, 1.0)]
+    raw = lzma.compress(b"".join(struct.pack(">3i2f", *r) for r in rows))
+    m = ticks_to_m1(raw, "XAUUSD", date(2026, 11, 13), 2)
+    first = m.iloc[0]
+    assert m.index[0] == pd.Timestamp("2026-11-13 02:00", tz="UTC")
+    assert (first.open, first.high, first.low, first.close, first.volume) == (3900.25, 3901.25, 3899.25, 3899.25, 3)
+    assert len(m) == 2 and m.iloc[1].close == 3902.25

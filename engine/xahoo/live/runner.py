@@ -94,8 +94,29 @@ class LiveRunner:
             with self._lock:
                 m = pd.concat([hist, live, self.m1.get(sym, hist.iloc[:0])]).sort_index()
                 self.m1[sym] = m[~m.index.duplicated(keep="last")]
+        self.fill_today(download)
         self.history_ready = True
         log.info("history ready: %s", {s: len(m) for s, m in self.m1.items()})
+
+    def fill_today(self, download: bool = True) -> None:
+        """Fill today's completed hours (UTC) that have no candles yet from Dukascopy hourly tick files, so the
+        chart has no hole before the service started and signals can start sooner after a restart."""
+        now = datetime.now(timezone.utc)
+        day = now.date()
+        for sym in SYMBOLS:
+            m = self.m1.get(sym)
+            have = set() if m is None else set(m.index[m.index >= pd.Timestamp(day, tz="UTC")].hour)
+            missing = [h for h in range(now.hour) if h not in have]
+            if not missing or not download:
+                continue
+            bars = dukascopy.fetch_today_hours(sym, day, missing, CACHE, log=log.info)
+            if bars.empty:
+                continue
+            with self._lock:
+                cur = self.m1.get(sym, bars.iloc[:0])
+                merged = pd.concat([bars, cur]).sort_index()
+                self.m1[sym] = merged[~merged.index.duplicated(keep="last")]   # live bars win where both exist
+            log.info("filled today %s: %d bars from %d hourly tick files", sym, len(bars), len(missing))
 
     def refresh_history(self) -> None:
         """Hourly: fetch any finished days Dukascopy has published since startup (e.g. yesterday) and merge them
@@ -112,6 +133,7 @@ class LiveRunner:
             with self._lock:
                 m = pd.concat([self.m1.get(sym, hist.iloc[:0]), hist]).sort_index()
                 self.m1[sym] = m[~m.index.duplicated(keep="first")]   # keep live bars where both exist
+        self.fill_today()
 
     # ------------------------------------------------------------ candles
     def on_quote(self, q: Quote) -> list[str]:

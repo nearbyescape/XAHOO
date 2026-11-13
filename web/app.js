@@ -77,6 +77,11 @@
     const end = around ? `&end=${around + tfSec * 150}` : "";
     const d = await api(`/api/candles?symbol=${st.sym}&tf=${st.tf}&limit=600${end}`);
     const t = d.t.map(x => x + IST);
+    // live candle state: only when showing the latest data (not a past signal)
+    const n = t.length;
+    st.liveChart = !around && n > 1 ? { sym: st.sym, tf: st.tf, tfSec,
+      bar: { time: t[n - 1], open: d.o[n - 1], high: d.h[n - 1], low: d.l[n - 1], close: d.c[n - 1] },
+      fastPrev: d.ema_fast[n - 2], slowPrev: d.ema_slow[n - 2] } : null;
     candleS.setData(t.map((x, i) => ({ time: x, open: d.o[i], high: d.h[i], low: d.l[i], close: d.c[i] })));
     fastS.setData(t.map((x, i) => ({ time: x, value: d.ema_fast[i] })));
     slowS.setData(t.map((x, i) => ({ time: x, value: d.ema_slow[i] })));
@@ -302,7 +307,7 @@
     $$(".views button").forEach(b => b.onclick = () => showView(b.dataset.view));
     $$("#symseg button").forEach(b => b.onclick = () => setSym(b.dataset.sym));
     $$("#tfseg button").forEach(b => b.onclick = () => setTf(b.dataset.tf));
-    $("#d-close").onclick = () => { $("#drawer").hidden = true; };
+    $("#d-close").onclick = () => { $("#drawer").hidden = true; st.selected = null; drawLevels(); loadChart(); };
     ["#f-sym", "#f-tf", "#f-grade", "#f-res"].forEach(s => $(s).onchange = renderTable);
     $("#csv").onclick = exportCsv;
     ["#acc", "#riskpct", "#sldist", "#calcsym"].forEach(s => $(s).oninput = calc);
@@ -320,6 +325,40 @@
 
   function tickClock(now) {
     $("#clock").textContent = tIST(now, false) + " IST";
+  }
+
+  // ------------------------------------------------------------ live chart: update the forming candle every tick
+  const AF = 2 / 13, AS = 2 / 201;                 // EMA12 / EMA200 smoothing
+  let resyncTimer = null;
+  function liveTick(price, tsec) {
+    const L = st.liveChart;
+    if (!L || L.sym !== st.sym || L.tf !== st.tf || !isFinite(price)) return;
+    const bucket = Math.floor(tsec / L.tfSec) * L.tfSec + IST;
+    if (bucket < L.bar.time) return;
+    if (bucket > L.bar.time) {                      // previous candle closed: roll the EMAs forward, open a new candle
+      L.fastPrev = L.fastPrev + AF * (L.bar.close - L.fastPrev);
+      L.slowPrev = L.slowPrev + AS * (L.bar.close - L.slowPrev);
+      L.bar = { time: bucket, open: L.bar.close, high: Math.max(L.bar.close, price), low: Math.min(L.bar.close, price), close: price };
+      clearTimeout(resyncTimer);
+      resyncTimer = setTimeout(() => { if (st.liveChart) loadChart(); }, 15000);   // re-sync with server candles
+    } else {
+      L.bar.high = Math.max(L.bar.high, price); L.bar.low = Math.min(L.bar.low, price); L.bar.close = price;
+    }
+    candleS.update({ ...L.bar });
+    fastS.update({ time: L.bar.time, value: L.fastPrev + AF * (price - L.fastPrev) });
+    slowS.update({ time: L.bar.time, value: L.slowPrev + AS * (price - L.slowPrev) });
+  }
+  window.__xahooLive = () => st.liveChart && { ...st.liveChart.bar };      // read-only probe for tests
+  async function pollTicks() {
+    try {
+      const f = await api("/api/feed");
+      const q = (f.quotes || {})[st.sym];
+      if (q) liveTick(q.bid, q.ts);
+      for (const [sym, qq] of Object.entries(f.quotes || {})) {        // header prices tick too
+        const el = document.querySelector(`.tick[data-sym="${sym}"] .px`);
+        if (el) el.textContent = px(qq.bid, sym);
+      }
+    } catch (e) { /* next tick */ }
   }
 
   // ------------------------------------------------------------ first start: history still downloading
@@ -383,7 +422,8 @@
     $("#guardbtn").onclick = guardResume;
     setInterval(() => tickClock(Math.floor(Date.now() / 1000)), 1000);
     setInterval(refreshLive, 5000);
-    setInterval(() => { if (!st.selected) loadChart(); }, 30000);
+    setInterval(pollTicks, 2000);                                   // live candle + header price every 2 s
+    setInterval(() => { if (st.liveChart) loadChart(); }, 120000);   // periodic full re-sync
     refreshLive();
   }
 
