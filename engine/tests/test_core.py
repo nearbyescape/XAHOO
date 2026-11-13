@@ -230,3 +230,26 @@ def test_ticks_to_m1_bid_candles():
     assert m.index[0] == pd.Timestamp("2026-11-13 02:00", tz="UTC")
     assert (first.open, first.high, first.low, first.close, first.volume) == (3900.25, 3901.25, 3899.25, 3899.25, 3)
     assert len(m) == 2 and m.iloc[1].close == 3902.25
+
+
+def test_telegram_errors_never_leak_token(monkeypatch):
+    import requests
+    from xahoo import telegram as tgm
+
+    class R:
+        status_code = 400
+        def json(self):
+            return {"ok": False, "error_code": 400, "description": "Bad Request: chat not found"}
+    monkeypatch.setattr(requests, "post", lambda *a, **k: R())
+    with pytest.raises(tgm.TelegramError) as e:
+        tgm.Telegram("123:SECRET-TOKEN", "-100").send("hi")
+    assert "SECRET-TOKEN" not in str(e.value) and "chat not found" in str(e.value)
+
+
+def test_find_chats_from_updates():
+    from xahoo.telegram import find_chats
+    ups = [{"channel_post": {"chat": {"id": -1001, "type": "channel", "title": "XAHOO signals"}}},
+           {"message": {"chat": {"id": 42, "type": "private", "first_name": "Owner"}}},
+           {"my_chat_member": {"chat": {"id": -1001, "type": "channel", "title": "XAHOO signals"}}}]
+    c = find_chats(ups)
+    assert set(c) == {-1001, 42} and c[-1001]["name"] == "XAHOO signals" and c[42]["type"] == "private"

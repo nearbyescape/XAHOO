@@ -177,7 +177,8 @@ class LiveRunner:
         msg_id = None
         if external:
             try:
-                msg_id = self.tg.send(tg_text or f"{title}\n{body}", reply_to=reply_to)
+                from html import escape
+                msg_id = self.tg.send(tg_text or f"<b>{escape(title)}</b>\n{escape(body)}", reply_to=reply_to)
             except Exception as e:  # noqa: BLE001 - a Telegram outage must not stop the service
                 log.warning("telegram: %s", e)
             if push:

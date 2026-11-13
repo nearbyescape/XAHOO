@@ -86,6 +86,23 @@ Append `deploy/Caddyfile.snippet` to the existing Caddyfile and reload Caddy.
 4. Phone: open the site → install it (Android: menu → *Install app*; iPhone: Share → *Add to Home Screen*) →
    open the app → tap 🔕 → allow. A test alert should pop up within seconds.
 
+## 6b. Telegram (optional)
+1. In Telegram, open **@BotFather** → `/newbot` → pick a name → copy the **token**.
+2. Create a **private channel** (e.g. "XAHOO signals") → channel settings → Administrators → add your bot
+   (it only needs *Post messages*). Post any message in the channel.
+   *(Or, for direct messages instead of a channel: open your bot and send `/start`.)*
+3. On the VPS, put the token in `.env` (`TELEGRAM_BOT_TOKEN=…`), then find the chat ID:
+   ```bash
+   docker run --rm --env-file .env xahoo:latest python -m xahoo.telegram
+   ```
+   It prints the chats your bot can see; copy the channel's id (starts with `-100…`) into `.env` as `TELEGRAM_CHAT_ID`.
+4. Run the same command again: it sends **"✅ XAHOO connected"** to the channel. Then restart XAHOO:
+   ```bash
+   docker compose -f deploy/docker-compose.vps.yml up -d --no-build
+   ```
+Signals, "get ready" pre-alerts (set `XAHOO_PREALERTS=off` to silence those), trade updates (threaded as replies)
+and stop-rule alerts now arrive in Telegram. Keep the channel private, and never paste the token in a chat.
+
 ## 7. Day-to-day
 | Task | Command (in `/opt/xahoo`) |
 |---|---|

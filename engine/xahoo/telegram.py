@@ -102,6 +102,24 @@ def format_daily(stats: dict, day: str) -> str:
             f"Net       {stats.get('total_r', 0):+} R</pre>")
 
 
+class TelegramError(RuntimeError):
+    """Telegram API failure. The message never contains the bot token (it is part of the request URL)."""
+
+
+def _call(token: str, method: str, payload: dict | None = None, timeout: float = 15) -> dict:
+    try:
+        r = requests.post(API.format(token=token, method=method), json=payload or {}, timeout=timeout)
+    except requests.RequestException as e:
+        raise TelegramError(f"{method}: network error ({type(e).__name__})") from None
+    try:
+        data = r.json()
+    except ValueError:
+        raise TelegramError(f"{method}: HTTP {r.status_code}") from None
+    if not data.get("ok"):
+        raise TelegramError(f"{method}: {data.get('error_code', r.status_code)} {data.get('description', '')}".strip())
+    return data["result"]
+
+
 class Telegram:
     def __init__(self, token: str | None = None, chat_id: str | None = None):
         self.token = token or os.environ.get("TELEGRAM_BOT_TOKEN", "")
@@ -116,9 +134,55 @@ class Telegram:
         if not self.enabled:
             return None
         payload = {"chat_id": self.chat_id, "text": text, "parse_mode": "HTML",
-                   "disable_web_page_preview": True}
+                   "link_preview_options": {"is_disabled": True}}
         if reply_to:
             payload["reply_parameters"] = {"message_id": reply_to, "allow_sending_without_reply": True}
-        r = requests.post(API.format(token=self.token, method="sendMessage"), json=payload, timeout=15)
-        r.raise_for_status()
-        return r.json()["result"]["message_id"]
+        return _call(self.token, "sendMessage", payload)["message_id"]
+
+
+def find_chats(updates: list[dict]) -> dict[int, dict]:
+    """Chats the bot has seen (private chat, group or channel) from getUpdates results."""
+    chats = {}
+    for u in updates:
+        for key in ("message", "channel_post", "my_chat_member", "edited_message", "edited_channel_post"):
+            chat = (u.get(key) or {}).get("chat")
+            if chat:
+                name = chat.get("title") or " ".join(x for x in (chat.get("first_name"), chat.get("last_name")) if x)
+                chats[chat["id"]] = {"id": chat["id"], "type": chat.get("type"), "name": name or chat.get("username", "")}
+    return chats
+
+
+def setup() -> int:
+    """`python -m xahoo.telegram`: check the bot token, list chats the bot can see (with their IDs), and send a test
+    message if TELEGRAM_CHAT_ID is set."""
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+    if not token:
+        print("TELEGRAM_BOT_TOKEN is empty. Create a bot with @BotFather and put the token in .env")
+        return 1
+    try:
+        me = _call(token, "getMe")
+        print(f"bot ok: @{me['username']} ({me.get('first_name', '')})")
+        chats = find_chats(_call(token, "getUpdates", {"limit": 100, "timeout": 0}))
+    except TelegramError as e:
+        print(f"Telegram error: {e}")
+        return 1
+    if chats:
+        print("chats the bot can see (use the id as TELEGRAM_CHAT_ID):")
+        for c in chats.values():
+            print(f"  {c['id']:>16}  {c['type']:<10} {c['name']}")
+    else:
+        print("no chats yet: add the bot to your channel as admin (or send /start to the bot), post one message, "
+              "then run this again")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+    if chat_id:
+        try:
+            Telegram(token, chat_id).send("✅ <b>XAHOO connected</b>\nSignals, pre-alerts and trade updates will arrive here.")
+            print(f"test message sent to {chat_id}")
+        except TelegramError as e:
+            print(f"could not send to {chat_id}: {e}")
+            return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(setup())
