@@ -1,14 +1,15 @@
 # XAHOO on a shared VPS (next to NearbyEscape / XP). It does NOT touch ports 80/443: it listens only on
 # 127.0.0.1:${XAHOO_PORT:-8010} and your existing reverse proxy forwards xahoo.chaliyaboy.com to it.
 # Hard limits keep it from ever slowing the other sites down.
-#   docker compose -f deploy/docker-compose.vps.yml --env-file .env up -d --build
+# Build with the host network (pip downloads are unreliable on Docker's build network on this VPS), then start:
+#   docker build --network=host -t xahoo:latest .
+#   docker compose -f deploy/docker-compose.vps.yml up -d --no-build
 name: xahoo
 services:
   xahoo:
     build:
       context: ..
       dockerfile: Dockerfile
-      network: host          # use the VPS's own network for pip downloads (Docker's build network can be flaky)
     image: xahoo:latest
     container_name: xahoo
     restart: unless-stopped

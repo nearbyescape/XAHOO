@@ -46,13 +46,15 @@ Set at least:
 
 Optional 2-step login (recommended):
 ```bash
-docker compose -f deploy/docker-compose.vps.yml run --rm --no-deps xahoo python -m xahoo.security
+docker build --network=host -t xahoo:latest . && \
+  docker run --rm xahoo:latest python -m xahoo.security
 ```
 Put the printed `XAHOO_TOTP_SECRET=…` into `.env` and add the key to Google Authenticator / Authy.
 
 ## 4. Start XAHOO
 ```bash
-docker compose -f deploy/docker-compose.vps.yml up -d --build
+docker build --network=host -t xahoo:latest .
+docker compose -f deploy/docker-compose.vps.yml up -d --no-build
 docker logs -f xahoo                         # first start downloads ~55 days of history (a few minutes)
 curl -sI http://127.0.0.1:8010/robots.txt    # expect: HTTP/1.1 200 and x-robots-tag: noindex…
 ```
@@ -87,7 +89,7 @@ Append `deploy/Caddyfile.snippet` to the existing Caddyfile and reload Caddy.
 ## 7. Day-to-day
 | Task | Command (in `/opt/xahoo`) |
 |---|---|
-| Update | `git pull && docker compose -f deploy/docker-compose.vps.yml up -d --build` |
+| Update | `git pull && docker build --network=host -t xahoo:latest . && docker compose -f deploy/docker-compose.vps.yml up -d --no-build` |
 | Logs | `docker logs --tail 200 xahoo` |
 | Restart | `docker restart xahoo` |
 | Stop | `docker compose -f deploy/docker-compose.vps.yml down` |
