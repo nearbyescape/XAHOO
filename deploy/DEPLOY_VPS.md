@@ -56,7 +56,7 @@ Put the printed `XAHOO_TOTP_SECRET=…` into `.env` and add the key to Google Au
 docker build --network=host -t xahoo:latest .
 docker compose -f deploy/docker-compose.vps.yml up -d --no-build
 docker logs -f xahoo                         # first start downloads ~55 days of history (a few minutes)
-curl -sI http://127.0.0.1:8010/robots.txt    # expect: HTTP/1.1 200 and x-robots-tag: noindex…
+curl -si http://127.0.0.1:8010/robots.txt | head -3   # expect: HTTP/1.1 200 OK
 ```
 
 ## 5. Connect the existing reverse proxy (pick ONE)

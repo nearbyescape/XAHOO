@@ -158,12 +158,12 @@ def _https(request: Request) -> bool:
     return request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "") == "https"
 
 
-@app.get("/robots.txt")
+@app.api_route("/robots.txt", methods=["GET", "HEAD"])
 def robots():
     return PlainTextResponse(ROBOTS_TXT)
 
 
-@app.get("/login")
+@app.api_route("/login", methods=["GET", "HEAD"])
 def login_page():
     return FileResponse(WEB / "login.html")
 
