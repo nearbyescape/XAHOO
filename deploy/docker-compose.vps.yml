@@ -8,6 +8,7 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
+      network: host          # use the VPS's own network for pip downloads (Docker's build network can be flaky)
     image: xahoo:latest
     container_name: xahoo
     restart: unless-stopped
