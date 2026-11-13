@@ -33,7 +33,8 @@ def format_signal(s: dict) -> str:
             f"SL     {_px(s['sl'], sym)}   (-{_px(risk, sym)} per lot)",
             f"TP     {_px(s['tp1'], sym)}   {abs(s['tp1'] - s['entry']) / risk:.1f}R from entry",
         ]
-        manage = "At +1R move SL to average entry. Size: 0.5% risk per lot."
+        size = "0.25% (HALF SIZE — drawdown rule)" if s.get("risk_mult", 1.0) < 1 else "0.5%"
+        manage = f"At +1R move SL to average entry. Size: {size} risk per lot."
     else:
         levels = [
             f"Entry  {_px(s['entry'], sym)}",

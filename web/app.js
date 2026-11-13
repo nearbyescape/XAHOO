@@ -320,7 +320,8 @@
   // ------------------------------------------------------------ live mode
   async function refreshLive() {
     try {
-      const [f, o, sg] = await Promise.all([api("/api/feed"), api("/api/overview"), api("/api/signals?limit=500")]);
+      const [f, o, sg, g] = await Promise.all([api("/api/feed"), api("/api/overview"), api("/api/signals?limit=500"), api("/api/guard")]);
+      renderGuard(g);
       const st0 = f.status || {};
       const age = st0.last_quote ? Math.round(Date.now() / 1000 - st0.last_quote) : null;
       $("#mode").textContent = `LIVE · ${st0.feed || "—"}${age != null && age > 30 ? ` · ${age}s old` : ""}`;
@@ -337,7 +338,25 @@
       if (!f.ready || !Object.values(f.ready).every(Boolean)) $("#feedcount").textContent += " · warming up";
     } catch (e) { log(esc(e.message), "dn"); }
   }
+  const GUARD = { ACTIVE: ["ACTIVE", "--green"], HALF: ["HALF SIZE", "--amber"], DAY_STOP: ["DAY STOP", "--amber"], PAUSED: ["PAUSED", "--red"] };
+  function renderGuard(g) {
+    const el = $("#guard"), btn = $("#guardbtn");
+    const [label, color] = GUARD[g.state] || [g.state, "--dim"];
+    el.hidden = false;
+    el.textContent = `${label} · ${g.equity_r >= 0 ? "+" : ""}${g.equity_r}R · DD ${g.drawdown_r}R`;
+    el.style.color = el.style.borderColor = css(color);
+    el.title = (g.reasons || []).join("\n") || `trades ${g.trades} · avg ${g.avg_r}R · today ${g.today_r}R`;
+    btn.hidden = g.state !== "PAUSED";
+    if (st.guardState && st.guardState !== g.state) log(`guard: ${label}${g.reasons && g.reasons.length ? " — " + esc(g.reasons[0]) : ""}`, g.state === "ACTIVE" ? "up" : "dn");
+    st.guardState = g.state;
+  }
+  async function guardResume() {
+    if (!confirm("Resume signals? Drawdown and edge tracking restart from now.")) return;
+    const r = await fetch("/api/guard/resume", { method: "POST", credentials: "same-origin" });
+    if (r.ok) renderGuard(await r.json());
+  }
   function startLive() {
+    $("#guardbtn").onclick = guardResume;
     setInterval(() => tickClock(Math.floor(Date.now() / 1000)), 1000);
     setInterval(refreshLive, 5000);
     setInterval(() => { if (!st.selected) loadChart(); }, 30000);

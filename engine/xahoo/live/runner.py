@@ -26,6 +26,7 @@ from ..engine import generate
 from ..providers.free import FreeFeed, Quote
 from ..telegram import Telegram, format_signal, format_update
 from ..tracker import simulate_scalein
+from .guard import GuardConfig, evaluate as guard_eval
 from .store import Store
 
 log = logging.getLogger("xahoo.live")
@@ -120,6 +121,35 @@ class LiveRunner:
         recent = m.index[m.index >= m.index[-1] - pd.Timedelta(minutes=150)]
         return len(recent) > 100 and (pd.Series(recent).diff().max() <= pd.Timedelta(minutes=5))
 
+    # ------------------------------------------------------------ strategy stop rules
+    def guard(self, notify: bool = True) -> dict:
+        closed = [x for x in self.store.signals(5000) if x["state"] in CLOSED and x.get("r") is not None]
+        g = guard_eval(closed, pd.Timestamp.now(tz="UTC"), GuardConfig(),
+                       baseline_ts=self.store.get("guard_baseline", 0), manual_pause=self.store.get("guard_manual"))
+        prev = self.store.get("guard_state")
+        if g["state"] != prev:
+            self.store.put("guard_state", g["state"])
+            if notify and prev is not None:
+                text = {"ACTIVE": "✅ XAHOO active — normal size",
+                        "HALF": "⚠️ XAHOO half size — risk 0.25% per lot",
+                        "DAY_STOP": "⏸ XAHOO day stop — no new signals until tomorrow (UTC)",
+                        "PAUSED": "🛑 XAHOO PAUSED — no new signals until you resume in the dashboard"}[g["state"]]
+                try:
+                    self.tg.send(text + ("\n" + "\n".join(g["reasons"]) if g["reasons"] else ""))
+                except Exception as e:  # noqa: BLE001
+                    log.warning("telegram: %s", e)
+        return g
+
+    def pause(self, reason: str = "paused by owner") -> dict:
+        self.store.put("guard_manual", reason)
+        return self.guard()
+
+    def resume(self) -> dict:
+        """Clear a pause and restart drawdown / edge tracking from now."""
+        self.store.put("guard_manual", None)
+        self.store.put("guard_baseline", int(time.time()))
+        return self.guard()
+
     # ------------------------------------------------------------ signals
     def evaluate(self, bar_close: pd.Timestamp) -> list[dict]:
         """Run the strategy at a 5m close; store and announce new signals."""
@@ -130,6 +160,12 @@ class LiveRunner:
         if cand.empty:
             return []
         cand = cand[cand["close_time"] == bar_close]
+        if cand.empty:
+            return []
+        g = self.guard()
+        if g["risk_mult"] <= 0:
+            log.info("guard %s: %d candidate(s) not sent", g["state"], len(cand))
+            return []
         out = []
         open_syms = {s["symbol"] for s in self.store.signals(open_only=True)}
         for rec in cand.to_dict("records"):
@@ -146,7 +182,7 @@ class LiveRunner:
                 "risk": float(rec["risk"]), "atr": float(rec["atr"]), "session": rec["session"],
                 "overlap": bool(rec["overlap"]), "1h_bias": int(rec["1h_bias"]), "4h_bias": int(rec["4h_bias"]),
                 "d_trend": int(rec["d_trend"]), "close_time": int(bar_close.timestamp()), "source": "live",
-                "components": rec.get("components", {}),
+                "components": rec.get("components", {}), "risk_mult": g["risk_mult"],
             }
             msg_id = None
             try:

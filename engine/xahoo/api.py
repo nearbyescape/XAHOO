@@ -262,6 +262,25 @@ def signal_events(sid: str):
     return {"events": S.runner.store.events(sid) if S.runner is not None else []}
 
 
+@app.get("/api/guard")
+def guard():
+    return S.runner.guard(notify=False) if S.runner is not None else {"state": "N/A"}
+
+
+@app.post("/api/guard/resume")
+def guard_resume():
+    if S.runner is None:
+        raise HTTPException(409, "live mode not running")
+    return S.runner.resume()
+
+
+@app.post("/api/guard/pause")
+def guard_pause():
+    if S.runner is None:
+        raise HTTPException(409, "live mode not running")
+    return S.runner.pause()
+
+
 @app.get("/api/feed")
 def feed():
     if S.runner is None:

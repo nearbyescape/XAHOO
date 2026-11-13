@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS bars (symbol TEXT, ts INTEGER, open REAL, high REAL, 
 CREATE TABLE IF NOT EXISTS signals (id TEXT PRIMARY KEY, created INTEGER, symbol TEXT, state TEXT,
                                     payload TEXT, msg_id INTEGER, updated INTEGER);
 CREATE TABLE IF NOT EXISTS events (signal_id TEXT, ts INTEGER, state TEXT, price REAL, note TEXT);
+CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT);
 """
 
 
@@ -44,6 +45,16 @@ class Store:
                                msg_id=COALESCE(excluded.msg_id, signals.msg_id), updated=excluded.updated""",
                             (sig["id"], sig["created"], sig["symbol"], state, json.dumps(sig, default=str), msg_id,
                              sig.get("updated", sig["created"])))
+            self.db.commit()
+
+    def get(self, k: str, default=None):
+        with self.lock:
+            row = self.db.execute("SELECT v FROM kv WHERE k=?", (k,)).fetchone()
+        return json.loads(row[0]) if row else default
+
+    def put(self, k: str, v) -> None:
+        with self.lock:
+            self.db.execute("INSERT OR REPLACE INTO kv VALUES (?,?)", (k, json.dumps(v)))
             self.db.commit()
 
     def event(self, signal_id: str, ts: int, state: str, price: float | None, note: str = ""):

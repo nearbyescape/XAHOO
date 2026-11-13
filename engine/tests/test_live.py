@@ -61,3 +61,18 @@ def test_live_matches_backtest(tmp_path):
     done = [x for x in r.store.signals() if x["id"] == s["id"]][0]
     assert done["state"] in {"TP", "SL", "BE", "TIME"}
     assert done["r"] == pytest.approx(float(target["r"]), abs=1e-6)
+
+
+@pytest.mark.skipif(not (CACHE / "XAUUSD").exists(), reason="no cached Dukascopy data")
+def test_guard_blocks_signals_when_paused(tmp_path):
+    p = StrategyParams.trader()
+    data = {s: dukascopy.load(s, CACHE, date(2026, 9, 15), date(2026, 11, 11)) for s in ("XAUUSD", "XAGUSD")}
+    cand = generate(data, p, p.exec_tfs)
+    t = cand[cand["close_time"] >= pd.Timestamp("2026-10-25", tz="UTC")]["close_time"].iloc[0]
+    r = _runner(tmp_path)
+    r.m1 = {s: m[m.index < t] for s, m in data.items()}
+    r.pause("test")
+    assert r.evaluate(t) == []
+    assert r.resume()["state"] == "ACTIVE"
+    sigs = r.evaluate(t)
+    assert sigs and all(s["risk_mult"] == 1.0 for s in sigs)
