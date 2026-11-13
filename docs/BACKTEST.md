@@ -311,6 +311,25 @@ the free sources here. Spreads: NAS100 1.2 pt, S&P 0.5 pt, EURUSD 0.8 pip. Nothi
 may depend on that trending regime, so enforce the strategy stop rule (pause if live drawdown > 1.5× the backtest's worst,
 or after 50 trades clearly below expectation) and re-test every quarter.
 
+## Run 17: volatility-regime and news-impulse filters (`engine/research/filters.py`)
+
+Volatility = 5m ATR at the signal vs the previous 20 days. News spike (no free historical calendar, so detected from
+price): a 1m candle at :00/:30 between 12:00 and 19:30 UTC with range ≥ 5× its 20-day median. Fixed in advance; dev 2025.
+
+| Variant | 2024 trades / avg R | 2025 (dev) | 2026 |
+|---|---|---|---|
+| none | 134 / +0.136 | 238 / +0.084 | 192 / +0.210 |
+| V1 ATR ≥ median | 109 / +0.013 | 166 / +0.124 | 134 / +0.298 |
+| V2 ATR ≥ 70th pct (best on dev) | 85 / +0.030 | 124 / +0.194 | 91 / +0.144 |
+| V3 skip ATR > 95th pct | 118 / +0.078 | 205 / +0.055 | 175 / +0.199 |
+| V4 median … 95th | 93 / −0.081 | 133 / +0.089 | 117 / +0.294 |
+| **N1 only ≤ 90 min after a news spike** | **18 / +0.626 (55.6% win)** | **14 / +0.501 (57.1%)** | **12 / +0.515 (50.0%)** |
+| N2 never ≤ 90 min after a news spike | 116 / +0.060 | 224 / +0.058 | 180 / +0.189 |
+
+- Volatility filters: inconsistent across years → **none adopted**.
+- **Post-news signals were 3–6× better than average in every year**, but are rare (44 in 3 years, t ≈ 2). Avoiding news
+  would *lower* profit. Action: keep all signals and **tag** post-news ones; no size increase until confirmed live.
+
 ## Caveats
 - ~150 trades in total on one metal. That is enough to tell clearly losing rules from promising ones, but not enough to prove an edge.
 - Dukascopy prices differ slightly from any retail broker's prices; spread is modelled as fixed; no slippage; no news blackout yet (calendar feed not connected).
