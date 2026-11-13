@@ -111,9 +111,8 @@
     add(s.entry, css("--blue"), "ENTRY", 0);
     if (s.add_price) add(s.add_price, css("--amber"), "ADD LOT 2", 1);
     add(s.sl, css("--red"), "SL");
-    add(s.tp1, css("--green"), "TP1");
-    add(s.tp2, css("--green"), "TP2");
-    add(s.tp3, css("--green"), "TP3");
+    if (s.tp1 === s.tp3) add(s.tp1, css("--green"), "TARGET");
+    else { add(s.tp1, css("--green"), "TP1"); add(s.tp2, css("--green"), "TP2"); add(s.tp3, css("--green"), "TP3"); }
   }
 
   // ------------------------------------------------------------ overview
@@ -189,9 +188,10 @@
         <span class="k">Entry</span><span></span><span class="v">${px(s.entry, s.symbol)}</span>
         ${s.add_price ? `<span class="k">Add lot 2</span><span class="dim">EMA12</span><span class="v" style="color:var(--amber)">${px(s.add_price, s.symbol)}</span>` : ""}
         <span class="k">Stop loss</span><span class="dim">-${px(s.risk, s.symbol)}</span><span class="v dn">${px(s.sl, s.symbol)}</span>
+        ${s.tp1 === s.tp3 ? `<span class="k">Target</span><span class="dim">${R(s.tp1).toFixed(1)}R</span><span class="v up">${px(s.tp1, s.symbol)}</span>` : `
         <span class="k">TP1</span><span class="dim">${R(s.tp1).toFixed(1)}R</span><span class="v up">${px(s.tp1, s.symbol)}</span>
         <span class="k">TP2</span><span class="dim">${R(s.tp2).toFixed(1)}R</span><span class="v up">${px(s.tp2, s.symbol)}</span>
-        <span class="k">TP3</span><span class="dim">${R(s.tp3).toFixed(1)}R</span><span class="v up">${px(s.tp3, s.symbol)}</span>
+        <span class="k">TP3</span><span class="dim">${R(s.tp3).toFixed(1)}R</span><span class="v up">${px(s.tp3, s.symbol)}</span>`}
         <span class="k">Bias 4h / 1h</span><span></span><span class="v">${["▼", "■", "▲"][s["4h_bias"] + 1]} / ${["▼", "■", "▲"][s["1h_bias"] + 1]}</span>
         <span class="k">Session</span><span></span><span class="v">${s.session}${s.overlap ? " (overlap)" : ""}</span>
       </div>

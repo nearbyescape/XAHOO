@@ -21,5 +21,17 @@ Shortcuts in the UI: `Ctrl+K` command bar (`xau`, `xag`, `5m`, `signals`, `theme
 
 Telegram: set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` (delivery module: `engine/xahoo/telegram.py`).
 
-> The UI currently runs in **REPLAY** mode over downloaded history. Live mode needs a real-time price feed (see PLAN §6.1).
+## Live mode (free feed)
+
+```bash
+cd engine && XAHOO_MODE=live uvicorn xahoo.api:app --port 8000     # or: docker compose up -d  (see .env.example)
+```
+
+- Prices: Swissquote public quotes (bid/ask, polled every 2 s), fallback gold-api.com. Free, no key, not an official
+  market-data product; the header shows feed health. Execution prices are your broker's: **gold spread must be ≤ ~$0.30–0.40**
+  for this strategy (docs/BACKTEST.md, spread test).
+- Strategy: `StrategyParams.trader()` — impulse → EMA12 pullback → breakdown close on 5m, daily-trend filter, lot 2 added at
+  EMA12, target 2R, stop to average entry at +1R. Same code as the backtests (parity test in `engine/tests/test_live.py`).
+- Signals start after ~2.5 h of continuous live candles ("warming up"). History: Dukascopy daily files, refreshed hourly.
+- Needs to run 24/5 on an always-on machine (small VPS). This repo's cloud session is temporary.
 > Signals are for personal analysis only. Not financial advice.

@@ -50,6 +50,7 @@ class LiveRunner:
         self.last_eval: pd.Timestamp | None = None
         self.status = {"feed": "starting", "last_quote": None, "last_bar": None, "ready": False, "errors": 0}
         self._lock = threading.Lock()
+        self._next_history = time.time() + 3600
 
     # ------------------------------------------------------------ history
     def backfill(self, download: bool = True) -> None:
@@ -68,6 +69,22 @@ class LiveRunner:
             live = self.store.bars(sym, int(hist.index[-1].timestamp()) + 60 if len(hist) else 0)
             self.m1[sym] = pd.concat([hist, live]).sort_index()
             self.m1[sym] = self.m1[sym][~self.m1[sym].index.duplicated(keep="last")]
+
+    def refresh_history(self) -> None:
+        """Hourly: fetch any finished days Dukascopy has published since startup (e.g. yesterday) and merge them
+        under the live bars, so indicators run on complete history."""
+        today = datetime.now(timezone.utc).date()
+        for sym in SYMBOLS:
+            try:
+                dukascopy.download(sym, today - timedelta(days=5), today - timedelta(days=1), CACHE, pause=3.0,
+                                   log=log.info)
+                hist = dukascopy.load(sym, CACHE, today - timedelta(days=5), today)
+            except Exception as e:  # noqa: BLE001
+                log.warning("history refresh %s: %s", sym, e)
+                continue
+            with self._lock:
+                m = pd.concat([self.m1.get(sym, hist.iloc[:0]), hist]).sort_index()
+                self.m1[sym] = m[~m.index.duplicated(keep="first")]   # keep live bars where both exist
 
     # ------------------------------------------------------------ candles
     def on_quote(self, q: Quote) -> list[str]:
@@ -190,6 +207,9 @@ class LiveRunner:
 
     # ------------------------------------------------------------ loop
     def step(self) -> None:
+        if time.time() >= self._next_history:
+            self._next_history = time.time() + 3600
+            threading.Thread(target=self.refresh_history, daemon=True).start()
         closed_any = False
         for sym in SYMBOLS:
             q = self.feed.quote(sym)
