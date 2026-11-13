@@ -294,6 +294,23 @@ Same entries (StrategyParams.trader()), five exits fixed in advance. R = first l
 win rate and smaller drawdowns in 2 of 3 years, but it was weak on the dev year. It is available as `exit_mode="trail_ema"`
 (`--exit trail_ema`). Engine check, E0 vs E1: 2025 +0.084 vs +0.015R, 2026 +0.199 vs +0.173R.
 
+## Run 16: same strategy, unchanged, on other markets (`engine/research/multi_market.py`)
+
+Data: HistData.com free 1m (Nasdaq 100 = NSXUSD, S&P 500 = SPXUSD, EURUSD), 2024–2026; BTC and Dow not available from
+the free sources here. Spreads: NAS100 1.2 pt, S&P 0.5 pt, EURUSD 0.8 pip. Nothing tuned.
+
+| Market | 2024 avg R / net | 2025 avg R / net | 2026 avg R / net |
+|---|---|---|---|
+| Nasdaq 100 | −0.073 / −7.0 | −0.140 / −19.6 | +0.152 / +15.8 |
+| S&P 500 | −0.127 / −13.7 | −0.308 / −44.0 | −0.209 / −20.3 |
+| EURUSD | −0.270 / −31.1 | +0.028 / +3.3 | +0.154 / +13.6 |
+| *Gold + silver (run 12)* | *+0.072 / +8.6* | *+0.098 / +21.9* | *+0.199 / +36.4* |
+
+**The edge does not generalise:** losing in 6 of 9 market-years elsewhere. It is specific to precious metals in
+2024–2026, a period of unusually strong trends. Conclusions: (1) don't trade other markets with it; (2) the gold/silver edge
+may depend on that trending regime, so enforce the strategy stop rule (pause if live drawdown > 1.5× the backtest's worst,
+or after 50 trades clearly below expectation) and re-test every quarter.
+
 ## Caveats
 - ~150 trades in total on one metal. That is enough to tell clearly losing rules from promising ones, but not enough to prove an edge.
 - Dukascopy prices differ slightly from any retail broker's prices; spread is modelled as fixed; no slippage; no news blackout yet (calendar feed not connected).

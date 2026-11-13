@@ -32,6 +32,8 @@ EXTRA_SYMBOLS = {
     "USATECHIDXUSD": SymbolSpec("USATECHIDXUSD", spread=1.2, max_spread=3.0, digits=2),   # NAS100
     "USA30IDXUSD": SymbolSpec("USA30IDXUSD", spread=2.5, max_spread=6.0, digits=2),       # US30
     "EURUSD": SymbolSpec("EURUSD", spread=0.00008, max_spread=0.0002, digits=5),
+    "NSXUSD": SymbolSpec("NSXUSD", spread=1.2, max_spread=3.0, digits=2),     # Nasdaq 100 (HistData)
+    "SPXUSD": SymbolSpec("SPXUSD", spread=0.5, max_spread=1.5, digits=2),     # S&P 500 (HistData)
 }
 
 
