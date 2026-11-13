@@ -28,7 +28,7 @@ cat ~/.ssh/xahoo_deploy.pub
 GitHub → `nearbyescape/XAHOO` → Settings → Deploy keys → *Add* → paste the key, **leave "Allow write access" off**.
 ```bash
 GIT_SSH_COMMAND="ssh -i ~/.ssh/xahoo_deploy" \
-  git clone -b claude/gold-silver-scalp-signals-j3noiw git@github.com:nearbyescape/XAHOO.git /opt/xahoo
+  git clone -b main git@github.com:nearbyescape/XAHOO.git /opt/xahoo
 cd /opt/xahoo && git config core.sshCommand "ssh -i ~/.ssh/xahoo_deploy"
 ```
 
