@@ -57,18 +57,33 @@ class LiveRunner:
         self._lock = threading.Lock()
         self._next_history = time.time() + 3600
         self.watch: dict[str, dict] = {}
+        self.history_ready = False
         self.prealerts = os.environ.get("XAHOO_PREALERTS", "on").lower() != "off"
         self.watch: dict[str, dict] = {}
         self.prealerts = os.environ.get("XAHOO_PREALERTS", "on").lower() != "off"
 
     # ------------------------------------------------------------ history
-    def backfill(self, download: bool = True) -> None:
+    def _history_range(self):
         today = datetime.now(timezone.utc).date()
-        start = today - timedelta(days=HISTORY_DAYS + 10)
+        return today - timedelta(days=HISTORY_DAYS + 10), today
+
+    def history_progress(self) -> dict:
+        """Cached days vs days needed (the downloader skips Saturdays), across both symbols."""
+        start, today = self._history_range()
+        need = [start + timedelta(days=i) for i in range((today - start).days) if (start + timedelta(days=i)).weekday() != 5]
+        done = sum((CACHE / sym / f"{d.isoformat()}.bi5").exists() for sym in SYMBOLS for d in need)
+        total = len(need) * len(SYMBOLS)
+        return {"done": done, "total": total, "pct": round(100 * done / max(total, 1)), "ready": self.history_ready}
+
+    def backfill(self, download: bool = True) -> None:
+        """Download (throttled) and load ~55 days of 1m history, then merge any live bars on top.
+        Runs in a background thread on a fresh server; live quotes keep flowing meanwhile."""
+        start, today = self._history_range()
         for sym in SYMBOLS:
             if download:
                 try:
-                    dukascopy.download(sym, start, today - timedelta(days=1), CACHE, pause=3.0, log=log.info)
+                    dukascopy.download(sym, start, today - timedelta(days=1), CACHE, pause=3.0,
+                                       log=lambda m: log.info("history %s (%s)", m, self.history_progress()["pct"]))
                 except Exception as e:  # noqa: BLE001 - history gaps are tolerated, live bars fill in
                     log.warning("backfill %s: %s", sym, e)
             try:
@@ -76,8 +91,11 @@ class LiveRunner:
             except FileNotFoundError:
                 hist = pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
             live = self.store.bars(sym, int(hist.index[-1].timestamp()) + 60 if len(hist) else 0)
-            self.m1[sym] = pd.concat([hist, live]).sort_index()
-            self.m1[sym] = self.m1[sym][~self.m1[sym].index.duplicated(keep="last")]
+            with self._lock:
+                m = pd.concat([hist, live, self.m1.get(sym, hist.iloc[:0])]).sort_index()
+                self.m1[sym] = m[~m.index.duplicated(keep="last")]
+        self.history_ready = True
+        log.info("history ready: %s", {s: len(m) for s, m in self.m1.items()})
 
     def refresh_history(self) -> None:
         """Hourly: fetch any finished days Dukascopy has published since startup (e.g. yesterday) and merge them

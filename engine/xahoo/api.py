@@ -94,19 +94,34 @@ MODE = os.environ.get("XAHOO_MODE", "replay").lower()
 
 
 def _live_loop() -> None:
-    """Backfill, then run the free-feed live service inside this process."""
+    """Run the free-feed live service inside this process. Live quotes start at once; the history download
+    (slow on a fresh server) runs in the background and the dashboard shows its progress."""
     import logging
     import threading
 
     from .live.runner import LiveRunner
+    lg = logging.getLogger("xahoo")
+    if not lg.handlers:
+        h = logging.StreamHandler()
+        h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+        lg.addHandler(h)
+        lg.setLevel(logging.INFO)
     r = LiveRunner(S.params)
     S.runner = r
-    r.backfill(download=os.environ.get("XAHOO_BACKFILL", "1") == "1")
-    try:
-        load_state()                  # fresh server: history just arrived, so build the analytics replay now
-    except Exception:  # noqa: BLE001
-        logging.getLogger("xahoo.live").exception("replay after backfill failed")
+    for sym in SYMBOLS:                                   # bars saved by earlier runs show up immediately
+        r.m1[sym] = r.store.bars(sym, int(time.time()) - 3 * 86400)
     S.m1 = r.m1
+
+    def history():
+        lg.info("downloading price history (throttled free source, can take 15-30 min on a fresh server)")
+        r.backfill(download=os.environ.get("XAHOO_BACKFILL", "1") == "1")
+        try:
+            load_state()                                  # analytics replay over the new history
+        except Exception:  # noqa: BLE001
+            lg.exception("replay after backfill failed")
+        S.m1 = r.m1
+
+    threading.Thread(target=history, name="xahoo-history", daemon=True).start()
     stop = threading.Event()
     while not stop.is_set():
         t0 = time.time()
@@ -116,8 +131,12 @@ def _live_loop() -> None:
             if last is not None:
                 S.now = last + pd.Timedelta(minutes=1)
         except Exception:  # noqa: BLE001
-            logging.getLogger("xahoo.live").exception("live step failed")
+            lg.exception("live step failed")
         stop.wait(max(0.2, r.poll - (time.time() - t0)))
+
+
+def _warming() -> bool:
+    return S.runner is not None and not S.runner.history_ready
 
 
 @app.on_event("startup")
@@ -236,15 +255,18 @@ def _session_now(t: pd.Timestamp) -> dict:
 # ---------------------------------------------------------------- endpoints
 @app.get("/api/health")
 def health():
-    return {"ok": True, "mode": S.mode, "auth": bool(PASSWORD), "now": _ts(S.now) if S.now is not None else None,
+    return {"ok": True, "mode": S.mode, "auth": bool(PASSWORD), "warming": _warming(), "now": _ts(S.now) if S.now is not None else None,
             "symbols": list(S.m1), "params_version": S.params.version,
             "bars": {s: int(len(df)) for s, df in S.m1.items()}}
 
 
 @app.get("/api/overview")
 def overview():
-    if not S.m1:
-        raise HTTPException(503, "no market data loaded")
+    if _warming() or not S.m1 or S.now is None:
+        now = pd.Timestamp.now(tz="UTC")
+        q = {k: {"bid": v.bid, "ask": v.ask} for k, v in (S.runner.quotes.items() if S.runner else [])}
+        return {"warming": True, "now": _ts(now), "session": _session_now(now), "quotes": q,
+                "progress": S.runner.history_progress() if S.runner else None}
     out = {"now": _ts(S.now), "session": _session_now(S.now), "symbols": {}}
     p = S.params
     for sym, m1 in S.m1.items():
@@ -278,8 +300,11 @@ def overview():
 @app.get("/api/candles")
 def candles(symbol: str = "XAUUSD", tf: str = "5m", limit: int = 600, end: int | None = None):
     """Last `limit` bars up to `end` (unix seconds, default = now)."""
-    if symbol not in S.m1 or tf not in TF_MINUTES:
+    if tf not in TF_MINUTES or symbol not in SYMBOLS:
         raise HTTPException(404, "unknown symbol/tf")
+    if _warming() or symbol not in S.m1 or S.now is None or len(S.m1[symbol]) < 10:
+        return {"symbol": symbol, "tf": tf, "t": [], "o": [], "h": [], "l": [], "c": [], "ema_fast": [], "ema_slow": [],
+                "warming": True}
     m1 = S.m1[symbol]
     stop = min(S.now, pd.Timestamp(end, unit="s", tz="UTC")) if end else S.now
     span = timedelta(minutes=TF_MINUTES[tf] * (limit + S.params.ema_slow * 3))

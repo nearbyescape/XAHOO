@@ -207,3 +207,8 @@ body.login { display: grid; place-items: center; min-height: 100vh; }
   .toasts { top: 8px; right: 8px; left: 8px; width: auto; }
   .toast b { font-size: 15px; }
 }
+
+.chartwrap { position: relative; }
+.chartmsg { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: var(--dim);
+  background: color-mix(in srgb, var(--panel) 85%, transparent); z-index: 2; line-height: 1.8; }
+.chartmsg b { color: var(--amber); font-size: 15px; }

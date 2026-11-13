@@ -322,6 +322,20 @@
     $("#clock").textContent = tIST(now, false) + " IST";
   }
 
+  // ------------------------------------------------------------ first start: history still downloading
+  function renderWarming(o) {
+    const pr = o.progress || { done: 0, total: 0, pct: 0 };
+    const syms = Object.keys(o.quotes || {}).length ? o.quotes : { XAUUSD: null, XAGUSD: null };
+    $("#tickers").innerHTML = Object.entries(syms).map(([s, q]) => `
+      <div class="tick"><span class="sym">${s}</span><span class="px">${q ? px(q.bid, s) : "—"}</span>
+      <span class="kv">SPRD <b>${q ? (q.ask - q.bid).toFixed(DIG[s] ?? 2) : "—"}</b></span><span class="kv">live quote</span></div>`).join("");
+    const msg = `Downloading price history: ${pr.done} / ${pr.total} days (${pr.pct}%).<br><span class="dim">Free source, throttled — about 15–30 min on a fresh server. Live prices are already flowing; the chart, matrix and signals appear by themselves when it's done.</span>`;
+    $("#matrix").innerHTML = `<div class="pad">${msg}<div class="bar" style="margin-top:10px"><i style="width:${pr.pct}%;left:0;background:var(--amber)"></i></div></div>`;
+    $("#chartmsg").innerHTML = `<div><b>Preparing chart…</b><br>${pr.pct}% of history downloaded</div>`;
+    $("#chartmsg").hidden = false;
+    renderSession(o); tickClock(o.now);
+  }
+
   // ------------------------------------------------------------ live mode
   async function refreshLive() {
     try {
@@ -330,6 +344,8 @@
       for (const x of newWatch) log(`GET READY · ${x.dir === 1 ? "BUY" : "SELL"} ${x.symbol} setup forming · trigger ${x.dir === 1 ? "above" : "below"} ${px(x.trigger, x.symbol)}`, "");
       st.watch = w.watch || [];
       renderGuard(g);
+      if (o.warming) { renderWarming(o); st.signals = sg.signals; renderFeed(); return; }
+      if (!st.ready) { st.ready = await loadFull(); if (st.ready) log("price history ready — dashboard live", "up"); return; }
       const st0 = f.status || {};
       const age = st0.last_quote ? Math.round(Date.now() / 1000 - st0.last_quote) : null;
       $("#mode").textContent = `LIVE · ${st0.feed || "—"}${age != null && age > 30 ? ` · ${age}s old` : ""}`;
@@ -498,25 +514,34 @@
     setInterval(pollAlerts, 5000);
   }
 
+  async function loadFull() {
+    const [o, sg, s, p] = await Promise.all([api("/api/overview"), api("/api/signals?limit=2000"), api("/api/stats"), api("/api/params")]);
+    st.signals = sg.signals; st.stats = s;
+    $("#params").textContent = JSON.stringify(p.params, null, 2);
+    $("#pver").textContent = "version " + p.version;
+    if (o.warming) { renderWarming(o); renderFeed(); return false; }
+    st.overview = o;
+    renderTickers(o); renderMatrix(o); renderSession(o); tickClock(o.now);
+    $("#kpis").innerHTML = kpiHtml(s.summary);
+    $("#perfwin").textContent = `last ${s.window_days || "?"} days · net of spread`;
+    renderFeed();
+    await loadChart();
+    $("#chartmsg").hidden = true;
+    log(`${st.signals.length} signals loaded · net ${s.summary.total_r ?? 0}R over the replay window`);
+    return true;
+  }
+
   async function boot() {
     initTheme(); bind(); initChart(); calc(); initAlerts();
     try {
       const h = await api("/api/health");
       $("#mode").textContent = h.mode;
       $("#devwarn").hidden = h.auth;
-      log(`connected · mode ${h.mode} · params ${h.params_version} · ${Object.entries(h.bars).map(([s, n]) => `${s} ${n.toLocaleString()} bars`).join(" · ")}`);
+      log(`connected · mode ${h.mode} · params ${h.params_version}`);
       if (h.mode === "REPLAY") log("REPLAY: engine runs over cached history; prices are not live.", "dn");
-      const [o, sg, s, p] = await Promise.all([api("/api/overview"), api("/api/signals?limit=2000"), api("/api/stats"), api("/api/params")]);
-      st.overview = o; st.signals = sg.signals; st.stats = s;
-      renderTickers(o); renderMatrix(o); renderSession(o); tickClock(o.now);
-      $("#kpis").innerHTML = kpiHtml(s.summary);
-      $("#perfwin").textContent = `last ${s.window_days || "?"} days · net of spread`;
-      $("#params").textContent = JSON.stringify(p.params, null, 2);
-      $("#pver").textContent = "version " + p.version;
-      renderFeed();
-      await loadChart();
-      log(`${st.signals.length} signals loaded · TP1 hit ${s.summary.tp1_hit_rate ?? "–"}% · net ${s.summary.total_r ?? 0}R`);
-      if (h.mode === "LIVE") startLive();
+      if (h.mode === "LIVE") startLive();                 // live prices & alerts even while history downloads
+      st.ready = await loadFull();
+      if (!st.ready) log("downloading price history — the dashboard fills in by itself when it's ready");
     } catch (e) {
       log(esc(e.message), "dn");
     }
