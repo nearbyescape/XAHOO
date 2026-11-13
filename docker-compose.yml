@@ -1,4 +1,8 @@
-# XAHOO live service: free feed -> signals -> dashboard + Telegram. Data persists in ./data.
+# XAHOO private signal terminal: free feed -> signals -> dashboard / installable app / Telegram / device push.
+# HTTPS is required for installing the app on phones and for push notifications.
+#   1. point a DNS A-record (e.g. x7k2.yourdomain.com) to this server
+#   2. cp .env.example .env  and fill it in
+#   3. docker compose up -d
 services:
   xahoo:
     build: .
@@ -8,5 +12,18 @@ services:
       XAHOO_MODE: live
     volumes:
       - ./data:/app/data
+    expose:
+      - "8000"
+  caddy:
+    image: caddy:2.8.4
+    restart: unless-stopped
+    env_file: .env
     ports:
-      - "127.0.0.1:8000:8000"   # put Caddy/Nginx with HTTPS in front, or use an SSH tunnel
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on: [xahoo]
+volumes:
+  caddy_data:

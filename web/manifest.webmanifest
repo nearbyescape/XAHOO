@@ -1,0 +1,19 @@
+{
+  "name": "XAHOO Signal Terminal",
+  "short_name": "XAHOO",
+  "description": "Private XAU/XAG signal terminal",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "any",
+  "background_color": "#06080b",
+  "theme_color": "#06080b",
+  "categories": ["finance"],
+  "icons": [
+    {"src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}

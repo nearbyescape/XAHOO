@@ -41,3 +41,17 @@ cd engine && XAHOO_MODE=live uvicorn xahoo.api:app --port 8000     # or: docker 
   when the live average is statistically below the backtest's. Resume from the dashboard header.
 - Needs to run 24/5 on an always-on machine (small VPS). This repo's cloud session is temporary.
 > Signals are for personal analysis only. Not financial advice.
+
+## Private app (desktop + mobile)
+
+- **Private:** every page, file and API call needs the owner's login (30-day signed session; optional 2-step code;
+  lockout after 5 wrong tries). Search engines are blocked three ways (robots.txt, `X-Robots-Tag`, `<meta robots>`),
+  no third-party requests (fonts and chart library are self-hosted), no referrers, no embedding. Live mode won't start
+  without `XAHOO_ADMIN_PASSWORD`.
+- **Install:** XAHOO is an installable app (PWA). Desktop Chrome/Edge: **⬇ APP** in the header or the install icon in
+  the address bar. Android: menu → *Install app*. iPhone/iPad: Safari → Share → *Add to Home Screen*. No app store.
+- **Alerts:** 🔔 bell with unread count and alert list, pop-up toasts with sound, and **device notifications even when
+  the app is closed** (tap 🔕 → allow). Pushes carry no content: the app fetches the alert from your own server,
+  so signal details never pass through Google/Apple push servers. iPhone needs iOS 16.4+ and the home-screen app.
+- **Deploy:** `docker compose up -d` (XAHOO + Caddy automatic HTTPS). HTTPS is required for installing on phones and
+  for push. See `.env.example`.

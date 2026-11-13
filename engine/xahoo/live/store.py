@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
+import time
 from pathlib import Path
 
 import numpy as np
@@ -22,6 +23,8 @@ CREATE TABLE IF NOT EXISTS signals (id TEXT PRIMARY KEY, created INTEGER, symbol
                                     payload TEXT, msg_id INTEGER, updated INTEGER);
 CREATE TABLE IF NOT EXISTS events (signal_id TEXT, ts INTEGER, state TEXT, price REAL, note TEXT);
 CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT);
+CREATE TABLE IF NOT EXISTS alerts (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER, kind TEXT, level TEXT,
+                                   title TEXT, body TEXT, ref TEXT);
 """
 
 
@@ -63,6 +66,19 @@ class Store:
         with self.lock:
             self.db.execute("INSERT OR REPLACE INTO kv VALUES (?,?)", (k, json.dumps(v, default=_jsonable)))
             self.db.commit()
+
+    def add_alert(self, kind: str, level: str, title: str, body: str, ref: str | None = None) -> int:
+        with self.lock:
+            cur = self.db.execute("INSERT INTO alerts (ts, kind, level, title, body, ref) VALUES (?,?,?,?,?,?)",
+                                  (int(time.time()), kind, level, title, body, ref))
+            self.db.commit()
+            return int(cur.lastrowid)
+
+    def alerts(self, since_id: int = 0, limit: int = 100) -> list[dict]:
+        with self.lock:
+            rows = self.db.execute("SELECT id, ts, kind, level, title, body, ref FROM alerts WHERE id > ? "
+                                   "ORDER BY id DESC LIMIT ?", (since_id, limit)).fetchall()
+        return [dict(zip(("id", "ts", "kind", "level", "title", "body", "ref"), r)) for r in rows]
 
     def event(self, signal_id: str, ts: int, state: str, price: float | None, note: str = ""):
         with self.lock:

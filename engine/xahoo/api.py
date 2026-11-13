@@ -6,8 +6,9 @@ Mode REPLAY (current): loads cached Dukascopy history, runs the engine over
 the most recent days and serves the result as if live. The LIVE mode will
 swap the data source for the chosen real-time provider and the database.
 
-Auth: single admin. Set XAHOO_ADMIN_PASSWORD (and XAHOO_SECRET) to require
-login; without it the API runs open in dev mode and the UI shows a warning.
+Privacy: every page, file and API call requires the owner's login (signed 30-day session cookie, optional TOTP
+2-step code via XAHOO_TOTP_SECRET, lockout after 5 failures). Search engines are blocked (robots.txt + X-Robots-Tag
++ meta). LIVE mode refuses to start without XAHOO_ADMIN_PASSWORD (set XAHOO_DEV=1 only for local testing).
 """
 from __future__ import annotations
 
@@ -22,7 +23,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import features, indicators as ind
@@ -30,6 +31,7 @@ from .config import SYMBOLS, TF_MINUTES, StrategyParams
 from .data import dukascopy
 from .data.resample import resample
 from .engine import breakdown, generate, run_backtest, stats
+from .security import PRIVACY_HEADERS, ROBOTS_TXT, LoginLimiter, Sessions, totp_ok
 
 ROOT = Path(__file__).resolve().parents[2]
 WEB = ROOT / "web"
@@ -39,6 +41,13 @@ WARMUP_DAYS = 40
 
 PASSWORD = os.environ.get("XAHOO_ADMIN_PASSWORD", "")
 SECRET = os.environ.get("XAHOO_SECRET", "dev-secret-change-me").encode()
+TOTP_SECRET = os.environ.get("XAHOO_TOTP_SECRET", "")
+DEV = os.environ.get("XAHOO_DEV", "") == "1"
+SESSIONS = Sessions(SECRET, PASSWORD)
+LIMITER = LoginLimiter()
+PUBLIC = {"/login", "/login.js", "/api/login", "/api/login/info", "/robots.txt", "/manifest.webmanifest", "/sw.js", "/styles.css",
+          "/favicon.ico"}
+PUBLIC_PREFIX = ("/icons/", "/vendor/fonts/")
 COOKIE = "xahoo_session"
 
 app = FastAPI(title="XAHOO", docs_url=None, redoc_url=None)
@@ -110,6 +119,8 @@ def _live_loop() -> None:
 @app.on_event("startup")
 def _startup() -> None:
     load_state()                      # backtest replay of the last N days (analytics + "BT" signals)
+    if MODE == "live" and not PASSWORD and not DEV:
+        raise RuntimeError("XAHOO_MODE=live requires XAHOO_ADMIN_PASSWORD (set XAHOO_DEV=1 only for local testing)")
     if MODE == "live":
         import threading
         S.mode = "LIVE"
@@ -117,32 +128,70 @@ def _startup() -> None:
 
 
 # ---------------------------------------------------------------- auth
-def _token() -> str:
-    return hmac.new(SECRET, b"admin:" + PASSWORD.encode(), hashlib.sha256).hexdigest()
+def _authed(request: Request) -> bool:
+    return not PASSWORD or SESSIONS.valid(request.cookies.get(COOKIE, ""))
 
 
 @app.middleware("http")
-async def auth(request: Request, call_next):
+async def privacy_and_auth(request: Request, call_next):
     p = request.url.path
-    if PASSWORD and p.startswith("/api/") and p not in ("/api/login", "/api/health"):
-        if not hmac.compare_digest(request.cookies.get(COOKIE, ""), _token()):
-            return JSONResponse({"detail": "login required"}, status_code=401)
-    return await call_next(request)
+    public = p in PUBLIC or p.startswith(PUBLIC_PREFIX)
+    if not public and not _authed(request):
+        if p.startswith("/api/"):
+            resp = JSONResponse({"detail": "login required"}, status_code=401)
+        else:
+            resp = RedirectResponse("/login", status_code=303)
+    else:
+        resp = await call_next(request)
+    for k, v in PRIVACY_HEADERS.items():
+        resp.headers[k] = v
+    if p.startswith("/api/") or p in ("/", "/login", "/index.html", "/sw.js"):
+        resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+def _https(request: Request) -> bool:
+    return request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "") == "https"
+
+
+@app.get("/robots.txt")
+def robots():
+    return PlainTextResponse(ROBOTS_TXT)
+
+
+@app.get("/login")
+def login_page():
+    return FileResponse(WEB / "login.html")
 
 
 @app.post("/api/login")
 async def login(request: Request, response: Response):
+    # last X-Forwarded-For hop = the address our own HTTPS proxy saw (earlier hops can be spoofed by the client)
+    who = request.headers.get("x-forwarded-for", request.client.host if request.client else "?").split(",")[-1].strip()
+    wait = LIMITER.locked(who)
+    if wait:
+        raise HTTPException(429, f"too many attempts — try again in {wait // 60 + 1} min")
     body = await request.json()
-    if not PASSWORD or not hmac.compare_digest(str(body.get("password", "")), PASSWORD):
-        raise HTTPException(401, "bad password")
-    response.set_cookie(COOKIE, _token(), httponly=True, samesite="strict", secure=request.url.scheme == "https",
-                        max_age=60 * 60 * 12)
+    ok = bool(PASSWORD) and hmac.compare_digest(str(body.get("password", "")), PASSWORD)
+    if ok and TOTP_SECRET:
+        ok = totp_ok(TOTP_SECRET, str(body.get("code", "")))
+    if not ok:
+        LIMITER.fail(who)
+        raise HTTPException(401, "wrong password or code")
+    LIMITER.ok(who)
+    response.set_cookie(COOKIE, SESSIONS.issue(), httponly=True, samesite="strict", secure=_https(request),
+                        max_age=30 * 86400, path="/")
     return {"ok": True}
+
+
+@app.get("/api/login/info")
+def login_info():
+    return {"totp": bool(TOTP_SECRET)}
 
 
 @app.post("/api/logout")
 def logout(response: Response):
-    response.delete_cookie(COOKIE)
+    response.delete_cookie(COOKIE, path="/")
     return {"ok": True}
 
 
@@ -260,6 +309,47 @@ def signals(limit: int = 200, symbol: str | None = None, tf: str | None = None):
 @app.get("/api/signals/{sid}/events")
 def signal_events(sid: str):
     return {"events": S.runner.store.events(sid) if S.runner is not None else []}
+
+
+@app.get("/api/alerts")
+def alerts(since: int = 0, limit: int = 100):
+    return {"alerts": S.runner.store.alerts(since, limit) if S.runner is not None else []}
+
+
+@app.get("/api/alerts/latest")
+def alerts_latest():
+    """Used by the service worker after a (payload-free) push to show the notification text."""
+    a = S.runner.store.alerts(0, 1) if S.runner is not None else []
+    return a[0] if a else {"title": "XAHOO", "body": "New alert"}
+
+
+@app.get("/api/push/key")
+def push_key():
+    if S.runner is None:
+        raise HTTPException(409, "live mode not running")
+    return {"key": S.runner.push.public_key}
+
+
+@app.post("/api/push/subscribe")
+async def push_subscribe(request: Request):
+    if S.runner is None:
+        raise HTTPException(409, "live mode not running")
+    sub = await request.json()
+    if not str(sub.get("endpoint", "")).startswith("https://"):
+        raise HTTPException(400, "bad subscription")
+    subs = [x for x in (S.runner.store.get("push_subs", []) or []) if x.get("endpoint") != sub["endpoint"]]
+    subs.append({"endpoint": sub["endpoint"], "keys": sub.get("keys", {})})
+    S.runner.store.put("push_subs", subs[-10:])            # at most 10 devices
+    return {"ok": True, "devices": len(subs[-10:])}
+
+
+@app.post("/api/push/test")
+def push_test():
+    if S.runner is None:
+        raise HTTPException(409, "live mode not running")
+    S.runner.notify("test", "info", "XAHOO test alert", "Notifications are working on this device.", tg_text=None,
+                    external=True)
+    return {"ok": True}
 
 
 @app.get("/api/watch")

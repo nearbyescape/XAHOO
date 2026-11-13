@@ -26,7 +26,8 @@ from .. import features
 from ..engine import generate
 from ..strategy.setups import impulse_forming
 from ..providers.free import FreeFeed, Quote
-from ..telegram import Telegram, format_prealert, format_signal, format_update
+from ..telegram import NAMES, Telegram, _px, format_prealert, format_signal, format_update
+from .push import WebPush
 from ..tracker import simulate_scalein
 from .guard import GuardConfig, evaluate as guard_eval
 from .store import Store
@@ -45,6 +46,7 @@ class LiveRunner:
         self.poll = poll
         self.store = Store(db or ROOT / "data" / "live.db")
         self.tg = telegram or Telegram()
+        self.push = WebPush((db or ROOT / "data" / "live.db").parent / "vapid_private.pem")
         self.feed = feed or FreeFeed()
         self.m1: dict[str, pd.DataFrame] = {}
         self.cur: dict[str, dict] = {}
@@ -127,6 +129,35 @@ class LiveRunner:
         recent = m.index[m.index >= m.index[-1] - pd.Timedelta(minutes=150)]
         return len(recent) > 100 and (pd.Series(recent).diff().max() <= pd.Timedelta(minutes=5))
 
+    # ------------------------------------------------------------ notifications
+    def notify(self, kind: str, level: str, title: str, body: str, ref: str | None = None, tg_text: str | None = None,
+               reply_to: int | None = None, external: bool = True, push: bool = True) -> int | None:
+        """One path for every alert: dashboard bell (always), Telegram and device push (if `external`)."""
+        self.store.add_alert(kind, level, title, body, ref)
+        msg_id = None
+        if external:
+            try:
+                msg_id = self.tg.send(tg_text or f"{title}\n{body}", reply_to=reply_to)
+            except Exception as e:  # noqa: BLE001 - a Telegram outage must not stop the service
+                log.warning("telegram: %s", e)
+            if push:
+                threading.Thread(target=self._push_all, daemon=True).start()
+        return msg_id
+
+    def _push_all(self) -> None:
+        subs = self.store.get("push_subs", []) or []
+        keep = []
+        for sub in subs:
+            try:
+                code = self.push.send(sub)
+            except Exception as e:  # noqa: BLE001
+                log.warning("push: %s", e)
+                code = 0
+            if code not in (404, 410):
+                keep.append(sub)
+        if len(keep) != len(subs):
+            self.store.put("push_subs", keep)
+
     # ------------------------------------------------------------ strategy stop rules
     def guard(self, notify: bool = True) -> dict:
         closed = [x for x in self.store.signals(5000) if x["state"] in CLOSED and x.get("r") is not None]
@@ -140,10 +171,9 @@ class LiveRunner:
                         "HALF": "⚠️ XAHOO half size — risk 0.25% per lot",
                         "DAY_STOP": "⏸ XAHOO day stop — no new signals until tomorrow (UTC)",
                         "PAUSED": "🛑 XAHOO PAUSED — no new signals until you resume in the dashboard"}[g["state"]]
-                try:
-                    self.tg.send(text + ("\n" + "\n".join(g["reasons"]) if g["reasons"] else ""))
-                except Exception as e:  # noqa: BLE001
-                    log.warning("telegram: %s", e)
+                self.notify("guard", "info" if g["state"] == "ACTIVE" else "warn", text,
+                            "; ".join(g["reasons"]) or "normal operation",
+                            tg_text=text + ("\n" + "\n".join(g["reasons"]) if g["reasons"] else ""))
         return g
 
     def pause(self, reason: str = "paused by owner") -> dict:
@@ -198,11 +228,12 @@ class LiveRunner:
             if pre:
                 self.store.put(f"prealert:{sym}", None)
                 self.watch.pop(sym, None)
-            msg_id = None
-            try:
-                msg_id = self.tg.send(format_signal(sig), reply_to=reply_to)
-            except Exception as e:  # noqa: BLE001 - a Telegram outage must not stop signal generation
-                log.warning("telegram: %s", e)
+            side = "BUY" if sig["dir"] == 1 else "SELL"
+            body = (f"Entry {_px(sig['entry'], sym)} · add {_px(sig['add_price'], sym) if sig['add_price'] else '-'} · "
+                    f"SL {_px(sig['sl'], sym)} · TP {_px(sig['tp1'], sym)}"
+                    + (" · HALF SIZE" if sig["risk_mult"] < 1 else "") + (" · 📰 news impulse" if sig["news_impulse"] else ""))
+            msg_id = self.notify("signal", "signal", f"{side} {NAMES.get(sym, sym)} — signal", body, ref=sig["id"],
+                                 tg_text=format_signal(sig), reply_to=reply_to)
             self.store.upsert_signal(sig, "OPEN", msg_id)
             self.store.event(sig["id"], sig["created"], "OPEN", sig["entry"], "signal")
             out.append(sig)
@@ -238,21 +269,20 @@ class LiveRunner:
                 best.update(key=key, extreme_time=str(best["extreme_time"]), close_time=int(bar_close.timestamp()))
                 self.watch[sym] = best
                 if not pre or pre.get("key") != key:
-                    msg_id = None
-                    if self.prealerts:
-                        try:
-                            msg_id = self.tg.send(format_prealert(best))
-                        except Exception as e:  # noqa: BLE001
-                            log.warning("telegram: %s", e)
+                    side = "BUY" if best["dir"] == 1 else "SELL"
+                    beyond = "above" if best["dir"] == 1 else "below"
+                    msg_id = self.notify(
+                        "prealert", "warn", f"GET READY · {side} {NAMES.get(sym, sym)}",
+                        f"Setup forming: trigger = 5m close {beyond} {_px(best['trigger'], sym)} "
+                        f"(≤ {int(best['bars_left']) * 5} min) · stop ≈ {_px(best['sl_est'], sym)}",
+                        ref=key, tg_text=format_prealert(best), external=self.prealerts)
                     self.store.put(f"prealert:{sym}", {**best, "msg_id": msg_id})
             elif pre:
                 self.watch.pop(sym, None)
                 self.store.put(f"prealert:{sym}", None)
-                if self.prealerts and pre.get("msg_id"):
-                    try:
-                        self.tg.send(format_update("CANCELLED"), reply_to=pre["msg_id"])
-                    except Exception as e:  # noqa: BLE001
-                        log.warning("telegram: %s", e)
+                self.notify("cancel", "muted", f"Setup cancelled · {NAMES.get(sym, sym)}",
+                            "No breakdown in time — no trade.", ref=pre.get("key"), tg_text=format_update("CANCELLED"),
+                            reply_to=pre.get("msg_id"), external=self.prealerts and bool(pre.get("msg_id")), push=False)
 
     def _sl_today(self, sym: str) -> int:
         day0 = int(pd.Timestamp.now(tz="UTC").normalize().timestamp())
@@ -301,10 +331,10 @@ class LiveRunner:
             self.store.upsert_signal(sig, state)
             for st, px, note in notes:
                 self.store.event(sig["id"], sig["updated"], st, px, note)
-                try:
-                    self.tg.send(format_update(st, o.r if st in CLOSED else 0.0, px), reply_to=sig.get("msg_id"))
-                except Exception as e:  # noqa: BLE001
-                    log.warning("telegram: %s", e)
+                txt = format_update(st, o.r if st in CLOSED else 0.0, px)
+                lvl = "good" if (st in ("TP", "TRAIL") or (st in CLOSED and o.r > 0)) else ("bad" if st == "SL" else "info")
+                self.notify("update", lvl, f"{NAMES.get(sig['symbol'], sig['symbol'])} · {st.replace('_', ' ')}",
+                            txt, ref=sig["id"], tg_text=txt, reply_to=sig.get("msg_id"))
 
     # ------------------------------------------------------------ loop
     def step(self) -> None:

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#06080b">
+<title>XAHOO</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/favicon-32.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body class="login">
+<form id="lf" class="loginbox" autocomplete="on">
+  <div class="logo">XAHOO</div>
+  <div class="sub">PRIVATE TERMINAL</div>
+  <label>Password <input id="pw" type="password" autocomplete="current-password" required autofocus></label>
+  <label id="codewrap" hidden>2-step code <input id="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" maxlength="7"></label>
+  <button type="submit">ENTER</button>
+  <div id="err" class="err" role="alert"></div>
+</form>
+<script src="/login.js"></script>
+</body>
+</html>

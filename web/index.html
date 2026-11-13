@@ -3,9 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#06080b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="XAHOO">
 <title>XAHOO Terminal</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/favicon-32.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -25,7 +33,17 @@
     <span class="sess" id="sess-london">LDN</span>
     <span class="sess" id="sess-newyork">NY</span>
     <span id="clock" class="clock">--:--:-- IST</span>
+    <button id="install" class="icon" hidden title="Install XAHOO as an app">⬇ APP</button>
+    <button id="notif" class="icon" title="Device notifications">🔕</button>
+    <div class="bellwrap">
+      <button id="bell" class="icon bell" title="Alerts" aria-haspopup="true">🔔<span id="bellcount" class="bellcount" hidden>0</span></button>
+      <div id="bellpanel" class="bellpanel" hidden>
+        <div class="ph">ALERTS <button id="markread" class="icon">mark all read</button></div>
+        <div id="belllist" class="belllist"><div class="pad dim">No alerts yet.</div></div>
+      </div>
+    </div>
     <button id="theme" class="icon" title="Toggle theme">◐</button>
+    <button id="logout" class="icon" title="Log out">⏻</button>
   </div>
 </header>
 
@@ -120,6 +138,22 @@
   <div class="ph">SIGNAL <span id="d-id" class="dim"></span><button class="icon" id="d-close">✕</button></div>
   <div id="d-body"></div>
 </aside>
+
+<!-- pop-up toasts -->
+<div id="toasts" class="toasts" aria-live="polite"></div>
+
+<!-- install help (iPhone/iPad has no install prompt) -->
+<div id="installhelp" class="cmdk" hidden>
+  <div class="panel helpbox">
+    <div class="ph">INSTALL XAHOO <button class="icon" id="installclose">✕</button></div>
+    <div class="pad">
+      <p><b>iPhone / iPad (Safari):</b> tap <b>Share</b> → <b>Add to Home Screen</b> → Add. Open XAHOO from the home screen, then tap 🔕 to allow notifications (iOS 16.4+).</p>
+      <p><b>Android (Chrome):</b> menu ⋮ → <b>Install app</b>.</p>
+      <p><b>Windows / Mac (Chrome, Edge):</b> the install icon in the address bar, or menu → <b>Install XAHOO</b>.</p>
+      <p class="dim small">Installing needs the private HTTPS address of your server. Nothing is published to any app store.</p>
+    </div>
+  </div>
+</div>
 
 <!-- command bar -->
 <div id="cmdk" class="cmdk" hidden>

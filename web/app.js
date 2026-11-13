@@ -20,16 +20,11 @@
 
   async function api(path) {
     const r = await fetch(path, { credentials: "same-origin" });
-    if (r.status === 401) { await login(); return api(path); }
+    if (r.status === 401) { location.replace("/login"); throw new Error("login required"); }
     if (!r.ok) throw new Error(`${path}: ${r.status}`);
     return r.json();
   }
-  async function login() {
-    const pw = prompt("XAHOO admin password");
-    if (pw == null) throw new Error("login cancelled");
-    const r = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: pw }) });
-    if (!r.ok) { alert("Wrong password"); return login(); }
-  }
+
 
   // ------------------------------------------------------------ log
   function log(msg, kind = "") {
@@ -373,8 +368,129 @@
     refreshLive();
   }
 
+  // ------------------------------------------------------------ alerts: bell, toasts, sound, device notifications
+  const AL = { list: [], maxId: 0, seen: 0, ready: false };
+  try { AL.seen = +(localStorage.getItem("xahoo-seen") || 0); } catch (e) { /* storage unavailable */ }
+  let audio;
+  function beep(kind) {
+    try {
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      const tones = kind === "signal" ? [880, 1175, 1568] : kind === "prealert" ? [660, 880] : [520];
+      tones.forEach((f, i) => {
+        const o = audio.createOscillator(), g = audio.createGain();
+        o.frequency.value = f; o.type = "sine"; o.connect(g); g.connect(audio.destination);
+        const t = audio.currentTime + i * 0.16;
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.25, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+        o.start(t); o.stop(t + 0.15);
+      });
+    } catch (e) { /* audio blocked until first click */ }
+  }
+  function toast(a) {
+    const el = document.createElement("div");
+    el.className = `toast lv-${a.level}`;
+    el.innerHTML = `<b>${esc(a.title)}</b><span>${esc(a.body)}</span>`;
+    el.onclick = () => { el.remove(); openBell(); };
+    $("#toasts").prepend(el);
+    setTimeout(() => el.remove(), a.kind === "signal" || a.kind === "prealert" ? 20000 : 8000);
+    while ($("#toasts").children.length > 4) $("#toasts").lastChild.remove();
+  }
+  function renderBell() {
+    const unread = AL.list.filter(a => a.id > AL.seen).length;
+    $("#bellcount").hidden = !unread;
+    $("#bellcount").textContent = unread > 99 ? "99+" : unread;
+    $("#belllist").innerHTML = AL.list.length ? AL.list.slice(0, 60).map(a => `
+      <div class="alert lv-${a.level} ${a.id > AL.seen ? "unread" : ""}">
+        <i class="abar"></i><span class="at">${esc(a.title)}</span><span class="tm">${tIST(a.ts)}</span>
+        <span class="ab">${esc(a.body)}</span>
+      </div>`).join("") : `<div class="pad dim">No alerts yet.</div>`;
+  }
+  function markRead() {
+    AL.seen = AL.maxId;
+    try { localStorage.setItem("xahoo-seen", String(AL.seen)); } catch (e) { /* ignore */ }
+    renderBell();
+  }
+  function openBell() { $("#bellpanel").hidden = false; renderBell(); }
+  async function pollAlerts() {
+    try {
+      const r = await api(`/api/alerts?since=${AL.maxId}&limit=100`);
+      const fresh = (r.alerts || []).sort((a, b) => a.id - b.id);
+      if (!fresh.length) { AL.ready = true; return; }
+      AL.maxId = Math.max(AL.maxId, ...fresh.map(a => a.id));
+      AL.list = [...fresh.reverse(), ...AL.list].slice(0, 200);
+      if (AL.ready) {
+        for (const a of fresh.slice(0, 3)) {
+          toast(a);
+          log(`${esc(a.title)} · ${esc(a.body)}`, a.level === "bad" ? "dn" : a.level === "good" ? "up" : "");
+          if (document.hidden && !st.pushOn && typeof Notification !== "undefined" && Notification.permission === "granted" && navigator.serviceWorker) {
+            navigator.serviceWorker.ready.then(reg => reg.showNotification(a.title, { body: a.body, tag: "xahoo-" + a.id, icon: "/icons/icon-192.png" }));
+          }
+        }
+        beep(fresh[0].kind);
+        $("#bell").classList.remove("ring"); void $("#bell").offsetWidth; $("#bell").classList.add("ring");
+      }
+      AL.ready = true;
+      renderBell();
+    } catch (e) { /* offline / login: next poll */ }
+  }
+
+  // ------------------------------------------------------------ device push (works with the app closed)
+  const b64u = s => { const p = "=".repeat((4 - s.length % 4) % 4); const b = atob((s + p).replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from(b, c => c.charCodeAt(0)); };
+  async function pushState() {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window) || typeof Notification === "undefined") { $("#notif").title = "Notifications not supported here (iPhone: install to home screen first)"; return; }
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    st.pushOn = !!sub && Notification.permission === "granted";
+    $("#notif").textContent = st.pushOn ? "🔔 ON" : "🔕";
+    $("#notif").title = st.pushOn ? "Device notifications on — tap to send a test" : "Turn on device notifications";
+  }
+  async function enablePush() {
+    try {
+      if (typeof Notification === "undefined" || !("PushManager" in window)) { $("#installhelp").hidden = false; return; }
+      if (st.pushOn) { await fetch("/api/push/test", { method: "POST", credentials: "same-origin" }); return; }
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") { log("notifications blocked in browser settings", "dn"); return; }
+      const { key } = await api("/api/push/key");
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u(key) });
+      const r = await fetch("/api/push/subscribe", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sub.toJSON()) });
+      if (!r.ok) throw new Error("subscribe failed " + r.status);
+      await fetch("/api/push/test", { method: "POST", credentials: "same-origin" });
+      log("device notifications on — a test alert was sent", "up");
+    } catch (e) { log("notifications: " + esc(e.message || e), "dn"); }
+    pushState();
+  }
+
+  // ------------------------------------------------------------ install as app (desktop + mobile)
+  let deferredInstall = null;
+  const standalone = () => window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  function initInstall() {
+    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferredInstall = e; $("#install").hidden = false; });
+    window.addEventListener("appinstalled", () => { $("#install").hidden = true; log("XAHOO installed as an app", "up"); });
+    if (!standalone() && ios) $("#install").hidden = false;
+    $("#install").onclick = async () => {
+      if (deferredInstall) { deferredInstall.prompt(); await deferredInstall.userChoice; deferredInstall = null; $("#install").hidden = true; }
+      else $("#installhelp").hidden = false;
+    };
+    $("#installclose").onclick = () => { $("#installhelp").hidden = true; };
+  }
+
+  function initAlerts() {
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").then(pushState).catch(() => {});
+    initInstall();
+    $("#bell").onclick = e => { e.stopPropagation(); $("#bellpanel").hidden ? openBell() : ($("#bellpanel").hidden = true); };
+    $("#bellpanel").onclick = e => e.stopPropagation();
+    document.addEventListener("click", () => { if (!$("#bellpanel").hidden) { $("#bellpanel").hidden = true; markRead(); } });
+    $("#markread").onclick = markRead;
+    $("#notif").onclick = enablePush;
+    $("#logout").onclick = async () => { await fetch("/api/logout", { method: "POST", credentials: "same-origin" }); location.replace("/login"); };
+    document.addEventListener("click", () => { if (!audio) beep("none"); }, { once: true });   // unlock audio
+    pollAlerts();
+    setInterval(pollAlerts, 5000);
+  }
+
   async function boot() {
-    initTheme(); bind(); initChart(); calc();
+    initTheme(); bind(); initChart(); calc(); initAlerts();
     try {
       const h = await api("/api/health");
       $("#mode").textContent = h.mode;

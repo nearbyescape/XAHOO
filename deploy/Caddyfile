@@ -1,0 +1,11 @@
+# Automatic HTTPS (Let's Encrypt) in front of XAHOO. Set XAHOO_DOMAIN in .env, e.g. x7k2.yourdomain.com
+# (use an unguessable subdomain; it is never linked anywhere and robots/no-index are enforced by the app too).
+{$XAHOO_DOMAIN} {
+	encode zstd gzip
+	header {
+		X-Robots-Tag "noindex, nofollow, noarchive, nosnippet"
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+	reverse_proxy xahoo:8000
+}
