@@ -267,6 +267,17 @@ entry and target.
 
 Inconsistent (worse in 2024, equal in 2025, better in 2026), so **not adopted**.
 
+## Run 14: drawdown and losing streaks, impulse 4 / TP 2R
+
+| | Year | Net R | Max drawdown | Longest losing streak |
+|---|---|---|---|---|
+| 1 lot | 2024 / 2025 / 2026 | −1.9 / +12.2 / +13.9 | −11.0 / −11.5 / −16.5R | 5 / 6 / 5 |
+| **Scale-in** | 2024 / 2025 / 2026 | +8.6 / +21.9 / +36.4 | **−15.4 / −17.7 / −18.8R** | 5 / 6 / 5 |
+
+Drawdowns are about the size of a year's profit, so position size decides whether this is survivable.
+At 0.5% account risk per lot: ≈ +4% to +18% a year, max drawdown ≈ −8% to −9%. At 1%: ≈ +9% to +36%, drawdown ≈ −15% to −19%.
+At the trader's ~2.5% per lot, drawdowns of −40% to −47% would have occurred.
+
 ## Caveats
 - ~150 trades in total on one metal. That is enough to tell clearly losing rules from promising ones, but not enough to prove an edge.
 - Dukascopy prices differ slightly from any retail broker's prices; spread is modelled as fixed; no slippage; no news blackout yet (calendar feed not connected).

@@ -82,13 +82,15 @@ for label, (a, b_) in PERIODS.items():
                 add_px = e12 if between else r.entry - r.dir * 0.5 * r.risk
                 for mode, ap in (("1 lot", None), ("scale-in", add_px)):
                     R, n, res = sim(lo, hi, cl, i, b, r.dir, r.entry, r.sl, r.tp1, ap, SYMBOLS[sym].spread)
-                    rows.append({"variant": f"impulse {K:.0f} | TP {TPR}R | {mode}", "period": label,
+                    rows.append({"t": r.close_time, "variant": f"impulse {K:.0f} | TP {TPR}R | {mode}", "period": label,
                                  "symbol": sym, "R": R, "lots": n})
                 last_exit = idx[min(b, len(idx) - 1)]
-df = pd.DataFrame(rows)
+df = pd.DataFrame(rows).sort_values("t")
 g = df.groupby(["variant", "period"])
 out = pd.DataFrame({"trades": g.size(), "win%": g.R.apply(lambda x: round((x > 0.05).mean() * 100, 1)),
                     "avg R": g.R.mean().round(3), "net R": g.R.sum().round(1),
-                    "worst R": g.R.min().round(1), "added%": g.lots.apply(lambda x: round((x > 1).mean() * 100, 1))})
+                    "worst R": g.R.min().round(1), "added%": g.lots.apply(lambda x: round((x > 1).mean() * 100, 1)),
+                    "max DD R": g.R.apply(lambda x: round((x.cumsum() - x.cumsum().cummax()).min(), 1)),
+                    "worst streak": g.R.apply(lambda x: max((len(list(v)) for k, v in __import__("itertools").groupby(x < -0.05) if k), default=0))})
 pd.set_option("display.width", 200)
 print(out.to_string())
