@@ -7,7 +7,7 @@
   const st = { sym: "XAUUSD", tf: "5m", signals: [], selected: null, overview: null, stats: null };
   const DIG = { XAUUSD: 2, XAGUSD: 3 };
   const CONTRACT = { XAUUSD: 100, XAGUSD: 5000 };
-  const SETUP = { ema12_pullback: "EMA12 pullback", ema200_retest: "EMA200 retest", range: "Range edge", sweep: "Liq. sweep" };
+  const SETUP = { impulse_pullback: "Impulse→EMA12→break", ema12_pullback: "EMA12 pullback", ema200_retest: "EMA200 retest", range: "Range edge", sweep: "Liq. sweep" };
   const px = (v, s) => v == null ? "—" : Number(v).toLocaleString("en-US", { minimumFractionDigits: DIG[s] ?? 2, maximumFractionDigits: DIG[s] ?? 2 });
   const sgn = (v, d = 2) => (v > 0 ? "+" : "") + Number(v).toFixed(d);
   const cls = v => v > 0.0001 ? "up" : v < -0.0001 ? "dn" : "flat";
@@ -151,12 +151,19 @@
   function renderFeed() {
     const list = st.signals.slice(0, 80);
     $("#feedcount").textContent = `${st.signals.length} in window`;
-    $("#feed").innerHTML = list.map(s => `
+    const forming = (st.watch || []).map(x => `
+      <div class="sig forming">
+        <span class="side" style="color:var(--amber)">${x.dir === 1 ? "BUY" : "SELL"}?</span>
+        <span>${x.symbol.slice(0, 3)} · 5m · <span class="gr" style="color:var(--amber)">FORMING</span></span>
+        <span class="res" style="color:var(--amber)">≤ ${x.bars_left * 5}m</span>
+        <span class="meta">trigger: 5m close ${x.dir === 1 ? "above" : "below"} ${px(x.trigger, x.symbol)} · stop ≈ ${px(x.sl_est, x.symbol)} · impulse ${x.impulse_atr}× ATR</span>
+      </div>`).join("");
+    $("#feed").innerHTML = forming + list.map(s => `
       <div class="sig ${st.selected && st.selected.id === s.id ? "sel" : ""}" data-id="${esc(s.id)}">
         <span class="side ${s.dir === 1 ? "up" : "dn"}">${s.dir === 1 ? "BUY" : "SELL"}</span>
         <span>${s.symbol.slice(0, 3)} · ${s.tf} · ${srcTag(s)}</span>
         <span class="res">${resTxt(s)}</span>
-        <span class="meta">${tIST(s.close_time)} · ${SETUP[s.setup] || s.setup} · @ ${px(s.entry, s.symbol)}</span>
+        <span class="meta">${tIST(s.close_time)} · ${SETUP[s.setup] || s.setup} · @ ${px(s.entry, s.symbol)}${s.news_impulse ? " · 📰 NEWS" : ""}</span>
         <span class="meta" style="grid-column:3;text-align:right">${s.result || ""}</span>
       </div>`).join("") || `<div class="pad dim">No signals in window.</div>`;
     $$(".sig").forEach(el => el.onclick = () => select(el.dataset.id));
@@ -320,7 +327,10 @@
   // ------------------------------------------------------------ live mode
   async function refreshLive() {
     try {
-      const [f, o, sg, g] = await Promise.all([api("/api/feed"), api("/api/overview"), api("/api/signals?limit=500"), api("/api/guard")]);
+      const [f, o, sg, g, w] = await Promise.all([api("/api/feed"), api("/api/overview"), api("/api/signals?limit=500"), api("/api/guard"), api("/api/watch")]);
+      const newWatch = (w.watch || []).filter(x => !(st.watch || []).some(y => y.key === x.key));
+      for (const x of newWatch) log(`GET READY · ${x.dir === 1 ? "BUY" : "SELL"} ${x.symbol} setup forming · trigger ${x.dir === 1 ? "above" : "below"} ${px(x.trigger, x.symbol)}`, "");
+      st.watch = w.watch || [];
       renderGuard(g);
       const st0 = f.status || {};
       const age = st0.last_quote ? Math.round(Date.now() / 1000 - st0.last_quote) : null;

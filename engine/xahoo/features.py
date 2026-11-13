@@ -62,6 +62,18 @@ def daily_trend(m1: pd.DataFrame) -> pd.Series:
     return t.reindex(full).ffill()   # weekends/holidays carry the last known state
 
 
+def news_spikes(m1: pd.DataFrame, mult: float = 5.0, days: int = 20) -> pd.DatetimeIndex:
+    """Times (bar close) of probable US news releases detected from price: a 1m bar at :00/:30 between 12:00 and
+    19:30 UTC whose range is >= `mult` x its median over the previous `days` days. (Free historical calendars
+    aren't available; docs/BACKTEST.md run 17.)"""
+    rng = m1["high"] - m1["low"]
+    med = rng.shift(1).rolling(days * 1440, min_periods=days * 720).median()
+    t = m1.index
+    window = ((t.minute == 0) | (t.minute == 30)) & (t.hour >= 12) & ((t.hour < 19) | ((t.hour == 19) & (t.minute <= 30)))
+    spike = (rng >= mult * med).to_numpy() & window
+    return pd.DatetimeIndex(t[spike]) + pd.Timedelta(minutes=1)
+
+
 def session_label(ts: pd.DatetimeIndex, p: StrategyParams) -> tuple[np.ndarray, np.ndarray]:
     mins = ts.hour * 60 + ts.minute
     label = np.full(len(ts), "off", dtype=object)

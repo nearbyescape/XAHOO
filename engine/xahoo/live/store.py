@@ -6,7 +6,14 @@ import sqlite3
 import threading
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
+
+
+def _jsonable(o):
+    if isinstance(o, np.generic):
+        return o.item()
+    return str(o)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS bars (symbol TEXT, ts INTEGER, open REAL, high REAL, low REAL, close REAL,
@@ -43,7 +50,7 @@ class Store:
             self.db.execute("""INSERT INTO signals VALUES (?,?,?,?,?,?,?)
                                ON CONFLICT(id) DO UPDATE SET state=excluded.state, payload=excluded.payload,
                                msg_id=COALESCE(excluded.msg_id, signals.msg_id), updated=excluded.updated""",
-                            (sig["id"], sig["created"], sig["symbol"], state, json.dumps(sig, default=str), msg_id,
+                            (sig["id"], sig["created"], sig["symbol"], state, json.dumps(sig, default=_jsonable), msg_id,
                              sig.get("updated", sig["created"])))
             self.db.commit()
 
@@ -54,7 +61,7 @@ class Store:
 
     def put(self, k: str, v) -> None:
         with self.lock:
-            self.db.execute("INSERT OR REPLACE INTO kv VALUES (?,?)", (k, json.dumps(v)))
+            self.db.execute("INSERT OR REPLACE INTO kv VALUES (?,?)", (k, json.dumps(v, default=_jsonable)))
             self.db.commit()
 
     def event(self, signal_id: str, ts: int, state: str, price: float | None, note: str = ""):

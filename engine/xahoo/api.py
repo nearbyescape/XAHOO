@@ -262,6 +262,11 @@ def signal_events(sid: str):
     return {"events": S.runner.store.events(sid) if S.runner is not None else []}
 
 
+@app.get("/api/watch")
+def watch():
+    return {"watch": list(S.runner.watch.values()) if S.runner is not None else []}
+
+
 @app.get("/api/guard")
 def guard():
     return S.runner.guard(notify=False) if S.runner is not None else {"state": "N/A"}

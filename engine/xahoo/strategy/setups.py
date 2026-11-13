@@ -264,6 +264,53 @@ def impulse_pullback(f: pd.DataFrame, p: StrategyParams, d: int) -> pd.DataFrame
     return _pack(f, mask, d, "impulse_pullback", sl_s, q, pd.Series(0.5, index=idx), trig, _liquidity(f, d))
 
 
+def impulse_forming(f: pd.DataFrame, p: StrategyParams, d: int) -> pd.DataFrame:
+    """Pre-alert for `impulse_pullback`: the impulse is done and a pullback is under way, but no breakdown close yet.
+
+    At bar t (closed): the impulse extreme k lies 1..ip_max_wait-1 bars back, the impulse is >= ip_impulse_atr ATR,
+    the pullback so far retraces <= ip_max_retrace, and bar t did not trigger. Reports the level a candle must close
+    beyond to trigger (the pullback's extreme so far), an estimated stop, whether the EMA12 zone has been reached,
+    and how many bars remain. Daily-trend / 1h-bias / session filters are applied as for real signals.
+    """
+    sg = 1 if d == 1 else -1
+    hi = (f["high"] if d == 1 else -f["low"]).to_numpy()
+    lo = (f["low"] if d == 1 else -f["high"]).to_numpy()
+    cl = (sg * f["close"]).to_numpy()
+    e12 = (sg * f["ema_fast"]).to_numpy()
+    atr = f["atr"].to_numpy()
+    rows = {}
+    for t in range(p.ip_impulse_bars + p.ip_max_wait + 2, len(f)):
+        a = atr[t]
+        if not np.isfinite(a) or a <= 0:
+            continue
+        w0 = t - p.ip_max_wait + 1
+        k = int(np.argmax(hi[w0:t + 1])) + w0
+        wait = t - k
+        if wait < 1 or wait > p.ip_max_wait - 1:
+            continue
+        imp = hi[k] - lo[k - p.ip_impulse_bars:k + 1].min()
+        if imp < p.ip_impulse_atr * a:
+            continue
+        pb_lo, pb_hi = lo[k + 1:t + 1].min(), hi[k + 1:t + 1].max()
+        if (hi[k] - pb_lo) > p.ip_max_retrace * imp:
+            continue
+        prev_hi = hi[k + 1:t].max() if t > k + 1 else -np.inf
+        if wait >= p.ip_min_wait + 1 and cl[t] > prev_hi and cl[t] > e12[t]:
+            continue                                      # this bar already triggered -> it's a signal, not a pre-alert
+        rows[f.index[t]] = {"dir": d, "trigger": sg * pb_hi, "sl_est": sg * (pb_lo - 0.1 * a),
+                            "ema12": sg * e12[t], "ema_touched": bool(pb_lo <= e12[t] + p.ip_ema_touch_atr * a),
+                            "impulse_atr": round(imp / a, 1), "bars_left": p.ip_max_wait - 1 - wait,
+                            "extreme_time": f["close_time"].iloc[k]}
+    out = pd.DataFrame.from_dict(rows, orient="index")
+    if out.empty:
+        return out
+    j = f.loc[out.index]
+    keep = j["session"].ne("off") & (j["1h_bias"] == d) & (j["d_trend"] == d if p.require_daily_trend else True)
+    out = out[keep.to_numpy()]
+    out["close_time"] = j.loc[out.index, "close_time"]
+    return out
+
+
 DETECTORS = {
     "impulse_pullback": impulse_pullback,
     "liquidity_pressure": liquidity_pressure,

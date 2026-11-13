@@ -76,3 +76,40 @@ def test_guard_blocks_signals_when_paused(tmp_path):
     assert r.resume()["state"] == "ACTIVE"
     sigs = r.evaluate(t)
     assert sigs and all(s["risk_mult"] == 1.0 for s in sigs)
+
+
+class _RecTG(Telegram):
+    def __init__(self):
+        super().__init__("x", "y")
+        self.sent = []
+
+    def send(self, text, reply_to=None):
+        self.sent.append((len(self.sent) + 1, text, reply_to))
+        return len(self.sent)
+
+
+@pytest.mark.skipif(not (CACHE / "XAUUSD").exists(), reason="no cached Dukascopy data")
+def test_prealert_then_signal_as_reply(tmp_path):
+    p = StrategyParams.trader()
+    data = {s: dukascopy.load(s, CACHE, date(2026, 9, 1), date(2026, 11, 11)) for s in ("XAUUSD", "XAGUSD")}
+    sigs = generate(data, p, p.exec_tfs)
+    sigs = sigs[sigs["close_time"] >= pd.Timestamp("2026-10-15", tz="UTC")]
+    for rec in sigs.itertuples():
+        t = rec.close_time
+        for back in range(5, 45, 5):
+            tg = _RecTG()
+            r = LiveRunner(p, db=tmp_path / f"{rec.Index}_{back}.db", telegram=tg, feed=_NoFeed())
+            pre_t = t - pd.Timedelta(minutes=back)
+            r.m1 = {s: m[m.index < pre_t] for s, m in data.items()}
+            r.update_watch(pre_t, set())
+            pre = r.store.get(f"prealert:{rec.symbol}")
+            if not pre or pre["dir"] != rec.dir:
+                continue
+            assert "GET READY" in tg.sent[-1][1]
+            r.m1 = {s: m[m.index < t] for s, m in data.items()}
+            out = [x for x in r.evaluate(t) if x["symbol"] == rec.symbol]
+            assert out and "news_impulse" in out[0]
+            assert tg.sent[-1][2] == pre["msg_id"]            # signal threaded under its pre-alert
+            assert r.store.get(f"prealert:{rec.symbol}") is None
+            return
+    pytest.fail("no signal with a preceding pre-alert found in the sample window")

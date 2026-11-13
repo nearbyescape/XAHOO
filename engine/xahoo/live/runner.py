@@ -22,9 +22,11 @@ import pandas as pd
 
 from ..config import SYMBOLS, TF_MINUTES, StrategyParams
 from ..data import dukascopy
+from .. import features
 from ..engine import generate
+from ..strategy.setups import impulse_forming
 from ..providers.free import FreeFeed, Quote
-from ..telegram import Telegram, format_signal, format_update
+from ..telegram import Telegram, format_prealert, format_signal, format_update
 from ..tracker import simulate_scalein
 from .guard import GuardConfig, evaluate as guard_eval
 from .store import Store
@@ -52,6 +54,10 @@ class LiveRunner:
         self.status = {"feed": "starting", "last_quote": None, "last_bar": None, "ready": False, "errors": 0}
         self._lock = threading.Lock()
         self._next_history = time.time() + 3600
+        self.watch: dict[str, dict] = {}
+        self.prealerts = os.environ.get("XAHOO_PREALERTS", "on").lower() != "off"
+        self.watch: dict[str, dict] = {}
+        self.prealerts = os.environ.get("XAHOO_PREALERTS", "on").lower() != "off"
 
     # ------------------------------------------------------------ history
     def backfill(self, download: bool = True) -> None:
@@ -184,9 +190,17 @@ class LiveRunner:
                 "d_trend": int(rec["d_trend"]), "close_time": int(bar_close.timestamp()), "source": "live",
                 "components": rec.get("components", {}), "risk_mult": g["risk_mult"],
             }
+            spikes = features.news_spikes(window[sym][window[sym].index >= bar_close - pd.Timedelta(days=25)])
+            sig["news_impulse"] = bool(len(spikes) and ((bar_close - spikes[spikes <= bar_close]).min()
+                                                         <= pd.Timedelta(minutes=90) if (spikes <= bar_close).any() else False))
+            pre = self.store.get(f"prealert:{sym}")
+            reply_to = pre["msg_id"] if pre and pre.get("dir") == sig["dir"] else None
+            if pre:
+                self.store.put(f"prealert:{sym}", None)
+                self.watch.pop(sym, None)
             msg_id = None
             try:
-                msg_id = self.tg.send(format_signal(sig))
+                msg_id = self.tg.send(format_signal(sig), reply_to=reply_to)
             except Exception as e:  # noqa: BLE001 - a Telegram outage must not stop signal generation
                 log.warning("telegram: %s", e)
             self.store.upsert_signal(sig, "OPEN", msg_id)
@@ -194,6 +208,51 @@ class LiveRunner:
             out.append(sig)
             open_syms.add(sym)
         return out
+
+    def update_watch(self, bar_close: pd.Timestamp, fired: set[str]) -> None:
+        """Pre-alerts: setups whose impulse is done and whose pullback has reached the EMA12 zone, but that
+        haven't triggered yet. One active pre-alert per symbol; cancelled with a reply when it expires."""
+        g = self.guard(notify=False)
+        for sym, m in self.m1.items():
+            if sym in fired or not self.ready(sym):
+                continue
+            win = m[m.index >= bar_close - pd.Timedelta(days=HISTORY_DAYS)]
+            f = features.build(win, "5m", self.p)
+            f = f[f["close_time"] <= bar_close]
+            if f.empty or f["close_time"].iloc[-1] != bar_close:
+                continue
+            tail = f.iloc[-(self.p.ip_impulse_bars + self.p.ip_max_wait + 5):]
+            best = None
+            for d in (1, -1):
+                fm = impulse_forming(f.iloc[-400:], self.p, d)
+                if fm.empty or fm.index[-1] != tail.index[-1]:
+                    continue
+                row = fm.iloc[-1]
+                risk_ok = abs(row["trigger"] - row["sl_est"]) <= self.p.sl_max_atr * f["atr"].iloc[-1]
+                if row["ema_touched"] and risk_ok:
+                    best = {"symbol": sym, "dir": d, **{k: (float(v) if isinstance(v, (int, float, np.floating)) else v)
+                                                       for k, v in row.items() if k not in ("dir",)}}
+            pre = self.store.get(f"prealert:{sym}")
+            if best and g["risk_mult"] > 0:
+                key = f"{best['dir']}:{pd.Timestamp(best['extreme_time']).isoformat()}"
+                best.update(key=key, extreme_time=str(best["extreme_time"]), close_time=int(bar_close.timestamp()))
+                self.watch[sym] = best
+                if not pre or pre.get("key") != key:
+                    msg_id = None
+                    if self.prealerts:
+                        try:
+                            msg_id = self.tg.send(format_prealert(best))
+                        except Exception as e:  # noqa: BLE001
+                            log.warning("telegram: %s", e)
+                    self.store.put(f"prealert:{sym}", {**best, "msg_id": msg_id})
+            elif pre:
+                self.watch.pop(sym, None)
+                self.store.put(f"prealert:{sym}", None)
+                if self.prealerts and pre.get("msg_id"):
+                    try:
+                        self.tg.send(format_update("CANCELLED"), reply_to=pre["msg_id"])
+                    except Exception as e:  # noqa: BLE001
+                        log.warning("telegram: %s", e)
 
     def _sl_today(self, sym: str) -> int:
         day0 = int(pd.Timestamp.now(tz="UTC").normalize().timestamp())
@@ -273,8 +332,11 @@ class LiveRunner:
         self.track()
         if bar_close.minute % TF_MINUTES["5m"] == 0 and bar_close != self.last_eval:
             self.last_eval = bar_close
+            fired = set()
             for sig in self.evaluate(bar_close):
                 log.info("signal %s", sig["id"])
+                fired.add(sig["symbol"])
+            self.update_watch(bar_close, fired)
 
     def run_forever(self, stop: threading.Event | None = None) -> None:
         stop = stop or threading.Event()

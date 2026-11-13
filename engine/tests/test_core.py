@@ -198,3 +198,21 @@ def test_scalein_trailing_stop_locks_profit():
     trail = np.array([np.nan, 100.5, 102.8, 103.0])     # EMA rising behind price
     o = simulate_scalein(lo, hi, cl, 0, 4, 1, 100.0, 98.0, 110.0, None, 0.0, 1.0, trail, 0.0)
     assert o.result == "TRAIL" and o.r == pytest.approx((102.8 - 100.0) / 2)   # stopped at the trailed EMA level
+
+
+@pytest.mark.parametrize("sign", [1, -1])
+def test_forming_fires_before_trigger_only(sign):
+    from xahoo.strategy.setups import impulse_forming
+    df = _pattern(sign)
+    df["ema_fast"] = ind.ema(df["close"], 12)
+    df["atr"] = 0.6
+    df["close_time"] = df.index + pd.Timedelta(minutes=5)
+    df["session"], df["1h_bias"], df["d_trend"] = "london", sign, sign
+    p = StrategyParams.trader()
+    p.ip_ema_touch_atr = 1.0
+    out = impulse_forming(df, p, sign)
+    last = df.index[-1]
+    assert len(out) >= 1 and last not in out.index          # forming during the pullback, not on the trigger bar
+    row = out.iloc[-1]
+    # the trigger level is the pullback's extreme so far, and the trigger bar closes beyond it
+    assert (df["close"].iloc[-1] - row["trigger"]) * sign > 0

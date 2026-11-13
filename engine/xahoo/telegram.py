@@ -50,6 +50,8 @@ def format_signal(s: dict) -> str:
         f"Bias 4h{ARROW[int(s.get('4h_bias', 0))]} 1h{ARROW[int(s.get('1h_bias', 0))]}  ·  "
         f"Setup: {escape(SETUP_LABEL.get(s['setup'], s['setup']))}",
         f"Session: {s.get('session', '-')}{' (overlap)' if s.get('overlap') else ''}",
+        *(["📰 <b>NEWS IMPULSE</b> — historically the strongest signals (no size increase until proven live)"]
+          if s.get("news_impulse") else []),
         manage,
         f"<code>{escape(str(s.get('id', '')))}</code>",
     ]
@@ -69,7 +71,23 @@ UPDATE_TEXT = {
     "SL": "❌ Stop loss hit — {r:.2f}R",
     "EXPIRED": "⏱ Time limit — closed at market, {r:+.2f}R",
     "INVALIDATED": "🚫 Setup invalidated before entry",
+    "CANCELLED": "✖️ Setup cancelled — no breakdown in time. No trade.",
 }
+
+
+def format_prealert(w: dict) -> str:
+    sym, d = w["symbol"], w["dir"]
+    side = "SELL" if d == -1 else "BUY"
+    beyond = "below" if d == -1 else "above"
+    return "\n".join([
+        f"⏳ <b>GET READY — {side} {NAMES.get(sym, sym)}</b> setup forming (5m)",
+        "<pre>",
+        f"Impulse  {w['impulse_atr']:.1f}× ATR done, pullback reached EMA12 ({_px(w['ema12'], sym)})",
+        f"Trigger  5m candle CLOSES {beyond} {_px(w['trigger'], sym)}  (≤ {w['bars_left'] * 5} min)",
+        f"Stop ≈   {_px(w['sl_est'], sym)}",
+        "</pre>",
+        "Not a trade yet — about 1 in 5 of these becomes a signal.",
+    ])
 
 
 def format_update(state: str, r: float = 0.0, price: float | None = None) -> str:
