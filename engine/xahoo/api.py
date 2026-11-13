@@ -12,6 +12,7 @@ login; without it the API runs open in dev mode and the UI shows a warning.
 from __future__ import annotations
 
 import hashlib
+import time
 import hmac
 import math
 import os
@@ -45,7 +46,8 @@ app = FastAPI(title="XAHOO", docs_url=None, redoc_url=None)
 
 # ---------------------------------------------------------------- state
 class State:
-    params = StrategyParams()
+    params = StrategyParams.trader()
+    runner = None
     m1: dict[str, pd.DataFrame] = {}
     signals: pd.DataFrame = pd.DataFrame()
     now: pd.Timestamp | None = None
@@ -79,9 +81,39 @@ def load_state() -> None:
     S.signals = bt
 
 
+MODE = os.environ.get("XAHOO_MODE", "replay").lower()
+
+
+def _live_loop() -> None:
+    """Backfill, then run the free-feed live service inside this process."""
+    import logging
+    import threading
+
+    from .live.runner import LiveRunner
+    r = LiveRunner(S.params)
+    S.runner = r
+    r.backfill(download=os.environ.get("XAHOO_BACKFILL", "1") == "1")
+    S.m1 = r.m1
+    stop = threading.Event()
+    while not stop.is_set():
+        t0 = time.time()
+        try:
+            r.step()
+            last = max((m.index[-1] for m in r.m1.values() if len(m)), default=None)
+            if last is not None:
+                S.now = last + pd.Timedelta(minutes=1)
+        except Exception:  # noqa: BLE001
+            logging.getLogger("xahoo.live").exception("live step failed")
+        stop.wait(max(0.2, r.poll - (time.time() - t0)))
+
+
 @app.on_event("startup")
 def _startup() -> None:
-    load_state()
+    load_state()                      # backtest replay of the last N days (analytics + "BT" signals)
+    if MODE == "live":
+        import threading
+        S.mode = "LIVE"
+        threading.Thread(target=_live_loop, name="xahoo-live", daemon=True).start()
 
 
 # ---------------------------------------------------------------- auth
@@ -133,10 +165,12 @@ def _clean(v):
 
 def _sig_dict(r: pd.Series) -> dict:
     keys = ["id", "symbol", "tf", "dir", "setup", "grade", "score", "entry", "sl", "tp1", "tp2", "tp3", "risk",
+            "add_price", "lots",
             "close_time", "exit_time", "exit_price", "result", "r", "tp_hits", "mfe_r", "mae_r", "minutes",
             "session", "overlap", "1h_bias", "4h_bias", "atr"]
     d = {k: _clean(r[k]) for k in keys if k in r}
     d["components"] = r.get("components", {})
+    d["source"] = "backtest"
     return d
 
 
@@ -208,14 +242,34 @@ def candles(symbol: str = "XAUUSD", tf: str = "5m", limit: int = 600, end: int |
 
 @app.get("/api/signals")
 def signals(limit: int = 200, symbol: str | None = None, tf: str | None = None):
+    live = S.runner.store.signals(limit) if S.runner is not None else []
+    for x in live:
+        x.setdefault("result", None if x["state"] not in ("TP", "SL", "BE", "TIME") else x["state"])
     df = S.signals
-    if df.empty:
-        return {"signals": []}
-    if symbol:
-        df = df[df["symbol"] == symbol]
-    if tf:
-        df = df[df["tf"] == tf]
-    return {"signals": [_sig_dict(r) for _, r in df.head(limit).iterrows()]}
+    bt = []
+    if not df.empty:
+        if symbol:
+            df = df[df["symbol"] == symbol]
+        if tf:
+            df = df[df["tf"] == tf]
+        bt = [_sig_dict(r) for _, r in df.head(limit).iterrows()]
+    live = [x for x in live if (not symbol or x["symbol"] == symbol) and (not tf or x["tf"] == tf)]
+    return {"signals": live + bt}
+
+
+@app.get("/api/signals/{sid}/events")
+def signal_events(sid: str):
+    return {"events": S.runner.store.events(sid) if S.runner is not None else []}
+
+
+@app.get("/api/feed")
+def feed():
+    if S.runner is None:
+        return {"mode": S.mode}
+    r = S.runner
+    q = {s: {"bid": v.bid, "ask": v.ask, "ts": v.ts, "source": v.source} for s, v in r.quotes.items()}
+    return {"mode": S.mode, "status": r.status, "quotes": q,
+            "ready": {s: bool(r.ready(s)) for s in r.m1}, "open": len(r.store.signals(open_only=True))}
 
 
 @app.get("/api/stats")

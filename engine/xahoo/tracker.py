@@ -64,3 +64,52 @@ def simulate(lo: np.ndarray, hi: np.ndarray, cl: np.ndarray, start: int, end: in
     realized += remaining * (px - entry) * d / risk
     return Outcome("EXPIRED" if stage == 0 else f"TP{stage}", round(realized, 3), stage, i, px,
                    round(mfe, 2), round(mae, 2))
+
+
+@dataclass
+class ScaleOutcome:
+    result: str          # SL | BE | TP | TIME
+    r: float             # in units of ONE lot's initial risk, after spread
+    lots: int            # 1 or 2
+    add_idx: int | None  # index of the bar where lot 2 filled
+    be_idx: int | None   # index of the bar after which the stop sits at the average entry
+    exit_idx: int
+    exit_price: float
+    mfe_r: float
+    mae_r: float
+
+
+def simulate_scalein(lo: np.ndarray, hi: np.ndarray, cl: np.ndarray, start: int, end: int, d: int,
+                     entry: float, sl: float, tp: float, add_px: float | None, spread: float,
+                     be_at_r: float | None = 1.0) -> ScaleOutcome:
+    """Trader-style position: 1 lot at entry, a 2nd lot when price returns to `add_px` (limit, filled at touch),
+    one shared stop, one target. Once price has moved `be_at_r` R in favour (from the first entry) the stop moves
+    to the average entry. Same-bar ambiguity is resolved against us: an add and a stop in the same bar both count.
+    Bars are BID; shorts trade at ask (bid + spread)."""
+    off = 0.0 if d == 1 else spread
+    risk = abs(entry - sl)
+    lots = [(entry, 1.0)]
+    stop, add_i, be_i = sl, None, None
+    mfe = mae = 0.0
+    end = min(end, len(lo))
+    for k in range(start, end):
+        l, h = lo[k] + off, hi[k] + off
+        mfe = max(mfe, ((h - entry) if d == 1 else (entry - l)) / risk)
+        mae = max(mae, ((entry - l) if d == 1 else (h - entry)) / risk)
+        if add_i is None and add_px is not None and np.isfinite(add_px) and ((l <= add_px) if d == 1 else (h >= add_px)):
+            lots.append((add_px, 1.0))
+            add_i = k
+        if (l <= stop) if d == 1 else (h >= stop):
+            r = sum(q * (stop - px) * d for px, q in lots) / risk
+            return ScaleOutcome("BE" if be_i is not None else "SL", round(r, 3), len(lots), add_i, be_i, k, stop,
+                                round(mfe, 2), round(mae, 2))
+        if (h >= tp) if d == 1 else (l <= tp):
+            r = sum(q * (tp - px) * d for px, q in lots) / risk
+            return ScaleOutcome("TP", round(r, 3), len(lots), add_i, be_i, k, tp, round(mfe, 2), round(mae, 2))
+        if be_i is None and be_at_r is not None and mfe >= be_at_r:
+            stop = sum(px * q for px, q in lots) / sum(q for _, q in lots)
+            be_i = k
+    k = end - 1
+    px = cl[k] + off
+    r = sum(q * (px - p0) * d for p0, q in lots) / risk
+    return ScaleOutcome("TIME", round(r, 3), len(lots), add_i, be_i, k, px, round(mfe, 2), round(mae, 2))

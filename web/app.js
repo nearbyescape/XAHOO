@@ -109,6 +109,7 @@
     if (!s || s.symbol !== st.sym) return;
     const add = (price, color, title, style = 2) => priceLines.push(candleS.createPriceLine({ price, color, lineWidth: 1, lineStyle: style, axisLabelVisible: true, title }));
     add(s.entry, css("--blue"), "ENTRY", 0);
+    if (s.add_price) add(s.add_price, css("--amber"), "ADD LOT 2", 1);
     add(s.sl, css("--red"), "SL");
     add(s.tp1, css("--green"), "TP1");
     add(s.tp2, css("--green"), "TP2");
@@ -145,14 +146,16 @@
   }
 
   // ------------------------------------------------------------ signals
-  const resTxt = s => s.result ? `<span class="${cls(s.r)}">${sgn(s.r)}R</span>` : `<span class="up">OPEN</span>`;
+  const STATE = { OPEN: "OPEN", ADDED: "LOT 2 IN", RISK_FREE: "RISK-FREE" };
+  const resTxt = s => s.result ? `<span class="${cls(s.r)}">${sgn(s.r)}R</span>` : `<span class="up">${STATE[s.state] || "OPEN"}</span>`;
+  const srcTag = s => s.source === "live" ? `<span class="gr gA">LIVE</span>` : `<span class="gr gB" title="backtest replay">BT</span>`;
   function renderFeed() {
     const list = st.signals.slice(0, 80);
     $("#feedcount").textContent = `${st.signals.length} in window`;
     $("#feed").innerHTML = list.map(s => `
       <div class="sig ${st.selected && st.selected.id === s.id ? "sel" : ""}" data-id="${esc(s.id)}">
         <span class="side ${s.dir === 1 ? "up" : "dn"}">${s.dir === 1 ? "BUY" : "SELL"}</span>
-        <span>${s.symbol.slice(0, 3)} · ${s.tf} · <span class="gr g${s.grade}">${s.grade}</span> ${Math.round(s.score)}</span>
+        <span>${s.symbol.slice(0, 3)} · ${s.tf} · ${srcTag(s)}</span>
         <span class="res">${resTxt(s)}</span>
         <span class="meta">${tIST(s.close_time)} · ${SETUP[s.setup] || s.setup} · @ ${px(s.entry, s.symbol)}</span>
         <span class="meta" style="grid-column:3;text-align:right">${s.result || ""}</span>
@@ -184,6 +187,7 @@
         <span class="k">Setup</span><span></span><span class="v">${SETUP[s.setup] || s.setup}</span>
         <span class="k">Signal time</span><span></span><span class="v">${tIST(s.close_time)} IST</span>
         <span class="k">Entry</span><span></span><span class="v">${px(s.entry, s.symbol)}</span>
+        ${s.add_price ? `<span class="k">Add lot 2</span><span class="dim">EMA12</span><span class="v" style="color:var(--amber)">${px(s.add_price, s.symbol)}</span>` : ""}
         <span class="k">Stop loss</span><span class="dim">-${px(s.risk, s.symbol)}</span><span class="v dn">${px(s.sl, s.symbol)}</span>
         <span class="k">TP1</span><span class="dim">${R(s.tp1).toFixed(1)}R</span><span class="v up">${px(s.tp1, s.symbol)}</span>
         <span class="k">TP2</span><span class="dim">${R(s.tp2).toFixed(1)}R</span><span class="v up">${px(s.tp2, s.symbol)}</span>
@@ -194,14 +198,15 @@
       <div class="ph">OUTCOME</div>
       <div class="dl">
         <span class="k">Result</span><span></span><span class="v">${s.result || "OPEN"} ${s.result ? `· ${resTxt(s)}` : ""}</span>
-        <span class="k">Targets hit</span><span></span><span class="v">${s.tp_hits ?? 0}/3</span>
+        <span class="k">Lots</span><span></span><span class="v">${s.lots ?? (s.state === "ADDED" || s.state === "RISK_FREE" ? 2 : 1)}</span>
+        <span class="k">Source</span><span></span><span class="v">${s.source === "live" ? "LIVE signal" : "Backtest replay"}</span>
         <span class="k">Exit</span><span></span><span class="v">${s.exit_time ? tIST(s.exit_time) + " @ " + px(s.exit_price, s.symbol) : "—"}</span>
         <span class="k">Duration</span><span></span><span class="v">${s.minutes ?? "—"} min</span>
         <span class="k">Best / worst</span><span></span><span class="v"><span class="up">+${s.mfe_r}R</span> / <span class="dn">-${s.mae_r}R</span></span>
       </div>
       <div class="ph">CONFLUENCE SCORE</div>
       ${comps.map(([k, v]) => `<div class="comp"><span class="dim">${k}</span><span class="bar"><i style="width:${v * 100}%"></i></span><span>${Math.round(v * 100)}</span></div>`).join("")}
-      <div class="pad dim small">Management: 50% at TP1 → SL to entry (cost to cost) · 25% TP2 · 25% TP3.</div>`;
+      <div class="pad dim small">${s.add_price ? "Management: lot 1 at entry · lot 2 at the add zone (EMA12) · one stop · at +1R move stop to average entry · target 2R from entry." : "Management: 50% at TP1 → SL to entry · 25% TP2 · 25% TP3."}</div>`;
     $("#drawer").hidden = false;
   }
 
@@ -312,6 +317,33 @@
     $("#clock").textContent = tIST(now, false) + " IST";
   }
 
+  // ------------------------------------------------------------ live mode
+  async function refreshLive() {
+    try {
+      const [f, o, sg] = await Promise.all([api("/api/feed"), api("/api/overview"), api("/api/signals?limit=500")]);
+      const st0 = f.status || {};
+      const age = st0.last_quote ? Math.round(Date.now() / 1000 - st0.last_quote) : null;
+      $("#mode").textContent = `LIVE · ${st0.feed || "—"}${age != null && age > 30 ? ` · ${age}s old` : ""}`;
+      $("#mode").style.borderColor = $("#mode").style.color = (age != null && age <= 30) ? css("--green") : css("--red");
+      for (const [sym, q] of Object.entries(f.quotes || {})) {
+        if (o.symbols[sym]) { o.symbols[sym].price = q.bid; o.symbols[sym].spread = +(q.ask - q.bid).toFixed(3); }
+      }
+      st.overview = o; renderTickers(o); renderMatrix(o); renderSession(o);
+      const before = new Set(st.signals.filter(x => x.source === "live").map(x => x.id + x.state));
+      st.signals = sg.signals;
+      for (const x of st.signals.filter(x => x.source === "live" && !before.has(x.id + x.state)))
+        if (before.size) log(`${x.id} · ${x.dir === 1 ? "BUY" : "SELL"} ${x.symbol} · ${STATE[x.state] || x.state}`, x.r < 0 ? "dn" : "up");
+      renderFeed();
+      if (!f.ready || !Object.values(f.ready).every(Boolean)) $("#feedcount").textContent += " · warming up";
+    } catch (e) { log(esc(e.message), "dn"); }
+  }
+  function startLive() {
+    setInterval(() => tickClock(Math.floor(Date.now() / 1000)), 1000);
+    setInterval(refreshLive, 5000);
+    setInterval(() => { if (!st.selected) loadChart(); }, 30000);
+    refreshLive();
+  }
+
   async function boot() {
     initTheme(); bind(); initChart(); calc();
     try {
@@ -330,7 +362,7 @@
       renderFeed();
       await loadChart();
       log(`${st.signals.length} signals loaded · TP1 hit ${s.summary.tp1_hit_rate ?? "–"}% · net ${s.summary.total_r ?? 0}R`);
-      if (h.mode !== "REPLAY") setInterval(() => tickClock(Math.floor(Date.now() / 1000)), 1000);
+      if (h.mode === "LIVE") startLive();
     } catch (e) {
       log(esc(e.message), "dn");
     }

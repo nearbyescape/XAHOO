@@ -1,0 +1,12 @@
+# XAHOO live service: free feed -> signals -> dashboard + Telegram. Data persists in ./data.
+services:
+  xahoo:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      XAHOO_MODE: live
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "127.0.0.1:8000:8000"   # put Caddy/Nginx with HTTPS in front, or use an SSH tunnel

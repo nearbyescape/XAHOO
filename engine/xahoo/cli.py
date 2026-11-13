@@ -32,7 +32,9 @@ def cmd_download(args):
 
 
 def cmd_backtest(args):
-    p = StrategyParams()
+    p = StrategyParams.trader() if args.profile == "trader" else StrategyParams()
+    if args.tf is None:
+        args.tf = list(p.exec_tfs)
     if args.min_score is not None:
         p.min_score_dashboard = args.min_score
     # Indicators need history before the test window (EMA200 on 4h ~ 33 days).
@@ -68,7 +70,8 @@ def main(argv=None):
         sp.add_argument("--symbols", nargs="+", default=["XAUUSD", "XAGUSD"])
         sp.set_defaults(fn=fn)
         if name == "backtest":
-            sp.add_argument("--tf", nargs="+", default=list(StrategyParams().exec_tfs))
+            sp.add_argument("--tf", nargs="+", default=None)
+            sp.add_argument("--profile", choices=["trader", "v1"], default="trader")
             sp.add_argument("--min-score", type=int, default=None)
             sp.add_argument("--warmup-days", type=int, default=40)
     args = ap.parse_args(argv)

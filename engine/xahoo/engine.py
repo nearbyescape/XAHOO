@@ -18,7 +18,7 @@ import pandas as pd
 from . import features
 from .config import EXEC_TFS, SYMBOLS, TF_MINUTES, StrategyParams
 from .strategy import scoring, setups
-from .tracker import simulate
+from .tracker import simulate, simulate_scalein
 
 
 def generate(data: dict[str, pd.DataFrame], p: StrategyParams, tfs=EXEC_TFS) -> pd.DataFrame:
@@ -76,8 +76,14 @@ def run_backtest(data: dict[str, pd.DataFrame], p: StrategyParams, tfs=EXEC_TFS,
         end = idx.searchsorted(stop_t)
         if start >= len(idx):
             continue
-        o = simulate(lo, hi, cl, start, end, c.dir, c.entry, c.sl, (c.tp1, c.tp2, c.tp3),
-                     p.partials, SYMBOLS[c.symbol].spread, p.move_sl_to_be_at_tp1, p.be_at_r)
+        if p.scale_in:
+            so = simulate_scalein(lo, hi, cl, start, end, c.dir, c.entry, c.sl, c.tp1, rec.get("add_price"),
+                                  SYMBOLS[c.symbol].spread, p.be_at_r)
+            o = _Row(result=so.result if so.result != "TIME" else "EXPIRED", r=so.r, tp_hits=int(so.result == "TP"),
+                     exit_idx=so.exit_idx, exit_price=so.exit_price, mfe_r=so.mfe_r, mae_r=so.mae_r, lots=so.lots)
+        else:
+            o = simulate(lo, hi, cl, start, end, c.dir, c.entry, c.sl, (c.tp1, c.tp2, c.tp3),
+                         p.partials, SYMBOLS[c.symbol].spread, p.move_sl_to_be_at_tp1, p.be_at_r)
         exit_t = idx[o.exit_idx] + pd.Timedelta(minutes=1)
         open_until[key] = exit_t
         last_sig[key] = t
@@ -85,7 +91,8 @@ def run_backtest(data: dict[str, pd.DataFrame], p: StrategyParams, tfs=EXEC_TFS,
             sl_log[(c.symbol, day)].append(exit_t)
         r = dict(rec)
         r.update(result=o.result, r=o.r, tp_hits=o.tp_hits, exit_time=exit_t, exit_price=o.exit_price,
-                 mfe_r=o.mfe_r, mae_r=o.mae_r, minutes=int((exit_t - t).total_seconds() // 60))
+                 mfe_r=o.mfe_r, mae_r=o.mae_r, minutes=int((exit_t - t).total_seconds() // 60),
+                 lots=getattr(o, "lots", 1) if not isinstance(o, dict) else o.get("lots", 1))
         rows.append(r)
     return pd.DataFrame(rows)
 

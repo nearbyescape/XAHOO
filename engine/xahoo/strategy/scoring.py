@@ -17,7 +17,7 @@ def finalize(cand: pd.DataFrame, f: pd.DataFrame, p: StrategyParams, spec: Symbo
     """Attach filters, entry/SL/TP and score to raw setup candidates. Drops rejected rows."""
     if cand.empty:
         return cand
-    cols = ["close_time", "atr", "close", "1h_bias", "4h_bias", "session", "overlap",
+    cols = ["close_time", "atr", "close", "ema_fast", "d_trend", "1h_bias", "4h_bias", "session", "overlap",
             "last_sh", "last_sl", "pdh", "pdl", "asia_h", "asia_l"] + (["15m_bias"] if "15m_bias" in f else [])
     c = cand.join(f[cols], how="left")
     d = c["dir"]
@@ -33,6 +33,8 @@ def finalize(cand: pd.DataFrame, f: pd.DataFrame, p: StrategyParams, spec: Symbo
     if p.require_15m_bias and "15m_bias" in c:
         trend_setup = c["setup"] != "range"
         keep &= np.where(trend_setup, c["15m_bias"] == d, True)
+    if p.require_daily_trend:
+        keep &= (c["d_trend"] == d).to_numpy()
     if p.use_sessions:
         keep &= c["session"] != "off"
     keep &= c["atr"] >= p.min_atr_frac * c["close"]
@@ -81,6 +83,11 @@ def finalize(cand: pd.DataFrame, f: pd.DataFrame, p: StrategyParams, spec: Symbo
     tp1_r = (c["tp1"] - c["entry"]) * d / c["risk"]
     c = c[~has_fixed | (tp1_r >= 0.8)].copy()
     c = c.drop(columns=["last_sh", "last_sl", "pdh", "pdl", "asia_h", "asia_l"])
+    d = c["dir"]
+    # scale-in level: EMA12 at signal time if it lies between entry and stop, else halfway (0.5R) toward the stop
+    e12 = c["ema_fast"]
+    between = np.where(d == 1, (e12 > c["sl"]) & (e12 < c["entry"]), (e12 < c["sl"]) & (e12 > c["entry"]))
+    c["add_price"] = np.where(between, e12, c["entry"] - d * 0.5 * c["risk"]) if p.scale_in else np.nan
     if c.empty:
         return c
     c = c.drop(columns=[x for x in c.columns if x.endswith("_fixed")])

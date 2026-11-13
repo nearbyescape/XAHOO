@@ -49,6 +49,19 @@ def daily_levels(m1: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def daily_trend(m1: pd.DataFrame) -> pd.Series:
+    """Yesterday's daily trend state per calendar day: +1 if the daily close is above its 50-day EMA and the
+    20-day return is positive, -1 for the mirror case, else 0. Indexed by day (UTC midnight); known at the open."""
+    d = m1["close"].resample("1D").last().dropna()
+    d = d[d.index.dayofweek < 5]
+    ema50 = d.ewm(span=50, adjust=False).mean()
+    mom20 = d / d.shift(20) - 1
+    t = np.where((d > ema50) & (mom20 > 0), 1, np.where((d < ema50) & (mom20 < 0), -1, 0))
+    t = pd.Series(t, index=d.index).shift(1)
+    full = pd.date_range(d.index.min(), d.index.max() + pd.Timedelta(days=3), freq="1D", tz="UTC")
+    return t.reindex(full).ffill()   # weekends/holidays carry the last known state
+
+
 def session_label(ts: pd.DatetimeIndex, p: StrategyParams) -> tuple[np.ndarray, np.ndarray]:
     mins = ts.hour * 60 + ts.minute
     label = np.full(len(ts), "off", dtype=object)
@@ -114,6 +127,9 @@ def build(m1: pd.DataFrame, tf: str, p: StrategyParams, ctx: dict[str, pd.DataFr
     lv = daily_levels(m1)
     last_min = f["close_time"] - pd.Timedelta(minutes=1)
     f = f.join(lv.reindex(pd.DatetimeIndex(last_min)).set_axis(f.index))
+
+    dt = daily_trend(m1)
+    f["d_trend"] = dt.reindex(pd.DatetimeIndex(f["close_time"] - pd.Timedelta(minutes=1)).normalize()).values
 
     label, overlap = session_label(pd.DatetimeIndex(f["close_time"]), p)
     f["session"] = label

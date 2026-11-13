@@ -121,9 +121,30 @@ class StrategyParams:
     min_score_telegram: int = 75
 
     # ema200_retest lost money on both metals in every test window (docs/BACKTEST.md run 4): off by default
+    require_daily_trend: bool = False  # only trade with yesterday's daily trend (close vs 50-day EMA + 20-day momentum)
+    scale_in: bool = False             # add a 2nd lot at the add price (EMA12 at signal time); shared stop
     enabled_setups: tuple[str, ...] = ("sweep", "ema12_pullback", "range")
     exec_tfs: tuple[str, ...] = ("5m", "15m")   # 1m entries lost money in every test; available but off
     sessions: Sessions = field(default_factory=Sessions)
+
+    @classmethod
+    def trader(cls) -> "StrategyParams":
+        """The live profile: the trader's impulse -> EMA12 pullback -> breakdown setup on 5m, daily-trend filter,
+        scale-in at the EMA12, single target 2R from the first entry, stop to average entry at +1R.
+        Positive in 2024, 2025 and 2026 (docs/BACKTEST.md runs 12, 14)."""
+        p = cls()
+        p.enabled_setups = ("impulse_pullback",)
+        p.exec_tfs = ("5m",)
+        p.trade_asia = True
+        p.ip_impulse_atr = 4.0
+        p.tp_r = (2.0, 2.0, 2.0)
+        p.partials = (1.0, 0.0, 0.0)
+        p.move_sl_to_be_at_tp1 = False
+        p.be_at_r = 1.0
+        p.require_daily_trend = True
+        p.scale_in = True
+        p.max_hold_minutes = {"1m": 90, "5m": 300, "15m": 720}
+        return p
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), sort_keys=True, default=str)

@@ -6,3 +6,4 @@ __pycache__/
 /reports/*.csv
 .env
 *.egg-info/
+/data/live.db

@@ -13,7 +13,8 @@ import requests
 API = "https://api.telegram.org/bot{token}/{method}"
 NAMES = {"XAUUSD": "XAUUSD · Gold", "XAGUSD": "XAGUSD · Silver"}
 SETUP_LABEL = {"ema12_pullback": "EMA12 pullback", "ema200_retest": "EMA200 retest",
-               "range": "Range edge", "sweep": "Liquidity sweep"}
+               "range": "Range edge", "sweep": "Liquidity sweep", "impulse_pullback": "Impulse → EMA12 pullback → breakdown",
+               "liquidity_pressure": "Liquidity sweep + pressure"}
 ARROW = {1: "▲", 0: "■", -1: "▼"}
 
 
@@ -25,37 +26,52 @@ def format_signal(s: dict) -> str:
     sym, d = s["symbol"], s["dir"]
     side = "🟢 BUY" if d == 1 else "🔴 SELL"
     risk = s["risk"]
+    if s.get("add_price"):
+        levels = [
+            f"Entry  {_px(s['entry'], sym)}   lot 1 now",
+            f"Add    {_px(s['add_price'], sym)}   lot 2 (limit, EMA12)",
+            f"SL     {_px(s['sl'], sym)}   (-{_px(risk, sym)} per lot)",
+            f"TP     {_px(s['tp1'], sym)}   {abs(s['tp1'] - s['entry']) / risk:.1f}R from entry",
+        ]
+        manage = "At +1R move SL to average entry. Size: 0.5% risk per lot."
+    else:
+        levels = [
+            f"Entry  {_px(s['entry'], sym)}",
+            f"SL     {_px(s['sl'], sym)}   (-{_px(risk, sym)})",
+            f"TP1    {_px(s['tp1'], sym)}   {abs(s['tp1'] - s['entry']) / risk:.1f}R",
+            f"TP2    {_px(s['tp2'], sym)}   {abs(s['tp2'] - s['entry']) / risk:.1f}R",
+            f"TP3    {_px(s['tp3'], sym)}   {abs(s['tp3'] - s['entry']) / risk:.1f}R",
+        ]
+        manage = "TP1 hit → move SL to entry (cost to cost). Risk ≤ 1%."
     lines = [
         f"<b>{side}  {NAMES.get(sym, sym)}</b>  ·  <b>{s['grade']}</b> ({s['score']:.0f})  ·  {s['tf']}",
-        "<pre>",
-        f"Entry  {_px(s['entry'], sym)}",
-        f"SL     {_px(s['sl'], sym)}   (-{_px(risk, sym)})",
-        f"TP1    {_px(s['tp1'], sym)}   {abs(s['tp1'] - s['entry']) / risk:.1f}R",
-        f"TP2    {_px(s['tp2'], sym)}   {abs(s['tp2'] - s['entry']) / risk:.1f}R",
-        f"TP3    {_px(s['tp3'], sym)}   {abs(s['tp3'] - s['entry']) / risk:.1f}R",
-        "</pre>",
+        "<pre>", *levels, "</pre>",
         f"Bias 4h{ARROW[int(s.get('4h_bias', 0))]} 1h{ARROW[int(s.get('1h_bias', 0))]}  ·  "
         f"Setup: {escape(SETUP_LABEL.get(s['setup'], s['setup']))}",
         f"Session: {s.get('session', '-')}{' (overlap)' if s.get('overlap') else ''}",
-        "TP1 hit → move SL to entry (cost to cost). Risk ≤ 1%.",
+        manage,
         f"<code>{escape(str(s.get('id', '')))}</code>",
     ]
     return "\n".join(lines)
 
 
 UPDATE_TEXT = {
+    "ADDED": "➕ Lot 2 filled at the add zone{px}",
+    "RISK_FREE": "🛡 +1R reached — move SL to average entry (trade is risk-free)",
+    "TP": "🏁 Target hit — {r:+.2f}R",
+    "TIME": "⏱ Time limit — closed at market, {r:+.2f}R",
     "TP1": "🎯 TP1 hit (+{r:.1f}R so far) — move SL to entry",
     "TP2": "🎯🎯 TP2 hit (+{r:.1f}R so far) — trail the rest",
     "TP3": "🏁 TP3 hit — trade closed +{r:.2f}R",
-    "BE": "⚖️ Closed at entry after TP1 — +{r:.2f}R",
+    "BE": "⚖️ Closed at the protected stop — {r:+.2f}R",
     "SL": "❌ Stop loss hit — {r:.2f}R",
     "EXPIRED": "⏱ Time limit — closed at market, {r:+.2f}R",
     "INVALIDATED": "🚫 Setup invalidated before entry",
 }
 
 
-def format_update(state: str, r: float = 0.0) -> str:
-    return UPDATE_TEXT[state].format(r=r)
+def format_update(state: str, r: float = 0.0, price: float | None = None) -> str:
+    return UPDATE_TEXT[state].format(r=r, px=f" @ {price:,.2f}" if price else "")
 
 
 def format_daily(stats: dict, day: str) -> str:
