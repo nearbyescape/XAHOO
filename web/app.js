@@ -308,7 +308,10 @@
     ["#acc", "#riskpct", "#sldist", "#calcsym"].forEach(s => $(s).oninput = calc);
     document.addEventListener("keydown", e => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); $("#cmdk").hidden = false; $("#cmdin").value = ""; $("#cmdin").focus(); }
-      else if (e.key === "Escape") { $("#cmdk").hidden = true; $("#drawer").hidden = true; }
+      else if (e.key === "Escape") {
+        if (!$("#cmdk").hidden || !$("#drawer").hidden) { $("#cmdk").hidden = true; $("#drawer").hidden = true; }
+        else { const t = $("#toasts").firstElementChild; if (t) t.remove(); }       // Esc closes the newest notification
+      }
       else if (/^F[1-4]$/.test(e.key)) { e.preventDefault(); showView(["terminal", "signals", "analytics", "settings"][+e.key[1] - 1]); }
     });
     $("#cmdin").addEventListener("keydown", e => { if (e.key === "Enter") { runCmd(e.target.value); $("#cmdk").hidden = true; } });
@@ -386,13 +389,19 @@
     } catch (e) { /* audio blocked until first click */ }
   }
   function toast(a) {
+    const sticky = a.kind === "signal" || a.kind === "prealert";
     const el = document.createElement("div");
-    el.className = `toast lv-${a.level}`;
-    el.innerHTML = `<b>${esc(a.title)}</b><span>${esc(a.body)}</span>`;
-    el.onclick = () => { el.remove(); openBell(); };
+    el.className = `toast lv-${a.level}${sticky ? " sticky" : ""}`;
+    el.innerHTML = `<button class="x" title="Close" aria-label="Close">✕</button><b>${esc(a.title)}</b><span>${esc(a.body)}</span><div class="tt">${tIST(a.ts)} IST</div>`;
+    el.querySelector(".x").onclick = e => { e.stopPropagation(); el.remove(); };
+    el.onclick = () => openBell();
     $("#toasts").prepend(el);
-    setTimeout(() => el.remove(), a.kind === "signal" || a.kind === "prealert" ? 20000 : 8000);
-    while ($("#toasts").children.length > 4) $("#toasts").lastChild.remove();
+    if (!sticky) setTimeout(() => el.remove(), 10000);
+    // keep at most 5 on screen: drop the oldest non-sticky first
+    while ($("#toasts").children.length > 5) {
+      const old = [...$("#toasts").children].reverse().find(t => !t.classList.contains("sticky")) || $("#toasts").lastChild;
+      old.remove();
+    }
   }
   function renderBell() {
     const unread = AL.list.filter(a => a.id > AL.seen).length;
@@ -416,16 +425,16 @@
       const fresh = (r.alerts || []).sort((a, b) => a.id - b.id);
       if (!fresh.length) { AL.ready = true; return; }
       AL.maxId = Math.max(AL.maxId, ...fresh.map(a => a.id));
-      AL.list = [...fresh.reverse(), ...AL.list].slice(0, 200);
+      AL.list = [...fresh].reverse().concat(AL.list).slice(0, 200);
       if (AL.ready) {
-        for (const a of fresh.slice(0, 3)) {
+        for (const a of fresh.slice(-5)) {                // oldest first, so the newest ends up on top
           toast(a);
           log(`${esc(a.title)} · ${esc(a.body)}`, a.level === "bad" ? "dn" : a.level === "good" ? "up" : "");
           if (document.hidden && !st.pushOn && typeof Notification !== "undefined" && Notification.permission === "granted" && navigator.serviceWorker) {
             navigator.serviceWorker.ready.then(reg => reg.showNotification(a.title, { body: a.body, tag: "xahoo-" + a.id, icon: "/icons/icon-192.png" }));
           }
         }
-        beep(fresh[0].kind);
+        beep((fresh.find(a => a.kind === "signal") || fresh[fresh.length - 1]).kind);
         $("#bell").classList.remove("ring"); void $("#bell").offsetWidth; $("#bell").classList.add("ring");
       }
       AL.ready = true;

@@ -166,13 +166,24 @@ kbd { font-size: 9px; color: var(--dim); border: 1px solid var(--line2); padding
 .alert.unread { background: var(--sel); }
 .lv-signal .abar { background: var(--blue); } .lv-warn .abar { background: var(--amber); } .lv-good .abar { background: var(--green); }
 .lv-bad .abar { background: var(--red); } .lv-info .abar { background: var(--line2); } .lv-muted .abar { background: var(--line); }
-/* toasts */
-.toasts { position: fixed; right: 12px; bottom: 12px; display: flex; flex-direction: column; gap: 8px; z-index: 40; width: min(360px, calc(100vw - 24px)); }
-.toast { background: var(--panel2); border: 1px solid var(--line2); border-left: 4px solid var(--amber); padding: 10px 12px;
-  box-shadow: 0 10px 24px #0009; animation: tin .25s ease-out; cursor: pointer; }
-.toast b { display: block; margin-bottom: 2px; } .toast span { color: var(--dim); font-size: 11px; }
-.toast.lv-signal { border-left-color: var(--blue); } .toast.lv-good { border-left-color: var(--green); } .toast.lv-bad { border-left-color: var(--red); }
-@keyframes tin { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
+/* toasts: top-right, large, signals/pre-alerts stay until closed */
+.toasts { position: fixed; right: 14px; top: 58px; display: flex; flex-direction: column; gap: 10px; z-index: 40;
+  width: min(440px, calc(100vw - 28px)); pointer-events: none; }
+.toast { position: relative; pointer-events: auto; background: var(--panel2); border: 1px solid var(--line2);
+  border-left: 6px solid var(--amber); padding: 14px 44px 14px 16px; box-shadow: 0 14px 34px #000a; animation: tin .25s ease-out; cursor: pointer; }
+.toast b { display: block; font-size: 16px; margin-bottom: 6px; letter-spacing: .3px; }
+.toast span { display: block; color: var(--text); font-size: 13px; line-height: 1.5; }
+.toast .tt { color: var(--dim); font-size: 10.5px; margin-top: 6px; }
+.toast .x { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; background: none; border: 1px solid var(--line2);
+  color: var(--text); cursor: pointer; font-size: 14px; line-height: 1; }
+.toast .x:hover { border-color: var(--text); }
+.toast.lv-signal { border-left-color: var(--blue); box-shadow: 0 0 0 1px var(--blue), 0 14px 34px #000a; }
+.toast.lv-signal b { color: var(--blue); font-size: 18px; }
+.toast.lv-warn { border-left-color: var(--amber); } .toast.lv-warn b { color: var(--amber); }
+.toast.lv-good { border-left-color: var(--green); } .toast.lv-good b { color: var(--green); }
+.toast.lv-bad { border-left-color: var(--red); } .toast.lv-bad b { color: var(--red); }
+.toast.sticky .tt::after { content: "  ·  stays until closed (✕ or Esc)"; }
+@keyframes tin { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 .helpbox { width: min(520px, 92vw); } .helpbox p { margin: 0 0 10px; }
 /* login */
 body.login { display: grid; place-items: center; min-height: 100vh; }
@@ -193,4 +204,6 @@ body.login { display: grid; place-items: center; min-height: 100vh; }
   .status #mode, .status #guard { font-size: 9px; padding: 1px 4px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
   .views { order: 3; width: 100%; overflow-x: auto; }
   .bellpanel { position: fixed; top: 52px; right: 8px; left: 8px; width: auto; }
+  .toasts { top: 8px; right: 8px; left: 8px; width: auto; }
+  .toast b { font-size: 15px; }
 }

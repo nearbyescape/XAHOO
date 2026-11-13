@@ -1,6 +1,6 @@
 # XAHOO Live: YouTube broadcast mode + probability & pro features (plan)
 
-Status: **plan only, nothing built yet.** Waiting for the owner's go-ahead and the decisions in §6.
+Status: **shelved (2026-11-13): owner decided on personal use only, no YouTube.** Kept for reference.
 
 ---
 
