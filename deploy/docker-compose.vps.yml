@@ -1,0 +1,34 @@
+# XAHOO on a shared VPS (next to NearbyEscape / XP). It does NOT touch ports 80/443: it listens only on
+# 127.0.0.1:${XAHOO_PORT:-8010} and your existing reverse proxy forwards xahoo.chaliyaboy.com to it.
+# Hard limits keep it from ever slowing the other sites down.
+#   docker compose -f deploy/docker-compose.vps.yml --env-file .env up -d --build
+name: xahoo
+services:
+  xahoo:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: xahoo:latest
+    container_name: xahoo
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      XAHOO_MODE: live
+    volumes:
+      - ../data:/app/data
+    ports:
+      - "127.0.0.1:${XAHOO_PORT:-8010}:8000"
+    mem_limit: 1g
+    cpus: 1.0
+    pids_limit: 200
+    read_only: false
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/robots.txt', timeout=5)"]
+      interval: 60s
+      timeout: 10s
+      retries: 3

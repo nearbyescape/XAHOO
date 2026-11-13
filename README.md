@@ -53,5 +53,6 @@ cd engine && XAHOO_MODE=live uvicorn xahoo.api:app --port 8000     # or: docker 
 - **Alerts:** 🔔 bell with unread count and alert list, pop-up toasts with sound, and **device notifications even when
   the app is closed** (tap 🔕 → allow). Pushes carry no content: the app fetches the alert from your own server,
   so signal details never pass through Google/Apple push servers. iPhone needs iOS 16.4+ and the home-screen app.
-- **Deploy:** `docker compose up -d` (XAHOO + Caddy automatic HTTPS). HTTPS is required for installing on phones and
+- **Deploy (shared VPS):** see [deploy/DEPLOY_VPS.md](deploy/DEPLOY_VPS.md) — one container on 127.0.0.1:8010 behind the existing reverse proxy.
+  Standalone server: `docker compose up -d` (XAHOO + Caddy automatic HTTPS). HTTPS is required for installing on phones and
   for push. See `.env.example`.

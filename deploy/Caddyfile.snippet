@@ -1,0 +1,6 @@
+# Only if the VPS already uses CADDY. Add this block to the existing Caddyfile, then: caddy reload (or restart the container).
+# If Caddy runs in Docker, use the host gateway (e.g. host.docker.internal:8010) or join XAHOO to Caddy's network and use xahoo:8000.
+xahoo.chaliyaboy.com {
+	header X-Robots-Tag "noindex, nofollow, noarchive, nosnippet"
+	reverse_proxy 127.0.0.1:8010
+}

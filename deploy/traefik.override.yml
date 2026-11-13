@@ -1,0 +1,17 @@
+# Only if the VPS uses TRAEFIK (in Docker) for NearbyEscape/XP. Replace "web" with the network Traefik uses
+# (see: docker network ls) and "letsencrypt" with your certresolver name.
+#   docker compose -f deploy/docker-compose.vps.yml -f deploy/traefik.override.yml --env-file .env up -d --build
+services:
+  xahoo:
+    networks: [web]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.xahoo.rule=Host(`xahoo.chaliyaboy.com`)
+      - traefik.http.routers.xahoo.entrypoints=websecure
+      - traefik.http.routers.xahoo.tls.certresolver=letsencrypt
+      - traefik.http.services.xahoo.loadbalancer.server.port=8000
+      - traefik.http.middlewares.xahoo-noindex.headers.customresponseheaders.X-Robots-Tag=noindex, nofollow, noarchive
+      - traefik.http.routers.xahoo.middlewares=xahoo-noindex
+networks:
+  web:
+    external: true

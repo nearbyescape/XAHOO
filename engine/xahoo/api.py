@@ -102,6 +102,10 @@ def _live_loop() -> None:
     r = LiveRunner(S.params)
     S.runner = r
     r.backfill(download=os.environ.get("XAHOO_BACKFILL", "1") == "1")
+    try:
+        load_state()                  # fresh server: history just arrived, so build the analytics replay now
+    except Exception:  # noqa: BLE001
+        logging.getLogger("xahoo.live").exception("replay after backfill failed")
     S.m1 = r.m1
     stop = threading.Event()
     while not stop.is_set():
