@@ -59,6 +59,7 @@ UPDATE_TEXT = {
     "ADDED": "➕ Lot 2 filled at the add zone{px}",
     "RISK_FREE": "🛡 +1R reached — move SL to average entry (trade is risk-free)",
     "TP": "🏁 Target hit — {r:+.2f}R",
+    "TRAIL": "🏁 Trailing stop hit in profit — {r:+.2f}R",
     "TIME": "⏱ Time limit — closed at market, {r:+.2f}R",
     "TP1": "🎯 TP1 hit (+{r:.1f}R so far) — move SL to entry",
     "TP2": "🎯🎯 TP2 hit (+{r:.1f}R so far) — trail the rest",

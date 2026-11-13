@@ -33,6 +33,7 @@ def cmd_download(args):
 
 def cmd_backtest(args):
     p = StrategyParams.trader() if args.profile == "trader" else StrategyParams()
+    p.exit_mode = getattr(args, "exit", "fixed")
     if args.tf is None:
         args.tf = list(p.exec_tfs)
     if args.min_score is not None:
@@ -72,6 +73,7 @@ def main(argv=None):
         if name == "backtest":
             sp.add_argument("--tf", nargs="+", default=None)
             sp.add_argument("--profile", choices=["trader", "v1"], default="trader")
+            sp.add_argument("--exit", choices=["fixed", "trail_ema"], default="fixed")
             sp.add_argument("--min-score", type=int, default=None)
             sp.add_argument("--warmup-days", type=int, default=40)
     args = ap.parse_args(argv)

@@ -108,3 +108,12 @@ def candle_shape(df: pd.DataFrame, wick_body: float = 2.0) -> pd.DataFrame:
         "bear_engulf": (c < o) & (pc > po) & (c <= po) & (o >= pc),
         "body_frac": body / rng,
     }, index=df.index)
+
+
+def ema_closed_on_1m(m1, tf_minutes: int = 5, n: int = 12):
+    """EMA(n) of CLOSED tf bars as known at the open of every 1m bar (no look-ahead). Returns a numpy array."""
+    import pandas as _pd
+    f = m1[["close"]].resample(f"{tf_minutes}min", label="left", closed="left").last().dropna()
+    e = ema(f["close"], n)
+    s = _pd.Series(e.values, index=f.index + _pd.Timedelta(minutes=tf_minutes))
+    return s.reindex(m1.index, method="ffill").to_numpy()

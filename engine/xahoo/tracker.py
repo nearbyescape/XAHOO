@@ -81,11 +81,14 @@ class ScaleOutcome:
 
 def simulate_scalein(lo: np.ndarray, hi: np.ndarray, cl: np.ndarray, start: int, end: int, d: int,
                      entry: float, sl: float, tp: float, add_px: float | None, spread: float,
-                     be_at_r: float | None = 1.0) -> ScaleOutcome:
+                     be_at_r: float | None = 1.0, trail: np.ndarray | None = None,
+                     trail_buf: float = 0.0) -> ScaleOutcome:
     """Trader-style position: 1 lot at entry, a 2nd lot when price returns to `add_px` (limit, filled at touch),
     one shared stop, one target. Once price has moved `be_at_r` R in favour (from the first entry) the stop moves
     to the average entry. Same-bar ambiguity is resolved against us: an add and a stop in the same bar both count.
-    Bars are BID; shorts trade at ask (bid + spread)."""
+    Bars are BID; shorts trade at ask (bid + spread).
+    trail: optional per-bar trailing level (e.g. 5m EMA12 known at each 1m bar); once the stop is at the average
+    entry it follows trail -/+ trail_buf, only ever tightening."""
     off = 0.0 if d == 1 else spread
     risk = abs(entry - sl)
     lots = [(entry, 1.0)]
@@ -101,7 +104,8 @@ def simulate_scalein(lo: np.ndarray, hi: np.ndarray, cl: np.ndarray, start: int,
             add_i = k
         if (l <= stop) if d == 1 else (h >= stop):
             r = sum(q * (stop - px) * d for px, q in lots) / risk
-            return ScaleOutcome("BE" if be_i is not None else "SL", round(r, 3), len(lots), add_i, be_i, k, stop,
+            res = "SL" if be_i is None else ("TRAIL" if r > 0.05 else "BE")
+            return ScaleOutcome(res, round(r, 3), len(lots), add_i, be_i, k, stop,
                                 round(mfe, 2), round(mae, 2))
         if (h >= tp) if d == 1 else (l <= tp):
             r = sum(q * (tp - px) * d for px, q in lots) / risk
@@ -109,6 +113,10 @@ def simulate_scalein(lo: np.ndarray, hi: np.ndarray, cl: np.ndarray, start: int,
         if be_i is None and be_at_r is not None and mfe >= be_at_r:
             stop = sum(px * q for px, q in lots) / sum(q for _, q in lots)
             be_i = k
+        if trail is not None and be_i is not None and np.isfinite(trail[k]):
+            c = trail[k] - d * trail_buf
+            if (c - stop) * d > 0:
+                stop = c
     k = end - 1
     px = cl[k] + off
     r = sum(q * (px - p0) * d for p0, q in lots) / risk

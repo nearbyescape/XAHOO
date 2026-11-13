@@ -278,6 +278,22 @@ Drawdowns are about the size of a year's profit, so position size decides whethe
 At 0.5% account risk per lot: ≈ +4% to +18% a year, max drawdown ≈ −8% to −9%. At 1%: ≈ +9% to +36%, drawdown ≈ −15% to −19%.
 At the trader's ~2.5% per lot, drawdowns of −40% to −47% would have occurred.
 
+## Run 15: exit study on the live strategy (`engine/research/exits.py`), gold + silver
+
+Same entries (StrategyParams.trader()), five exits fixed in advance. R = first lot's risk. Pessimistic same-bar rules.
+
+| Exit | 2024 avg R / net | 2025 (dev) avg R / net | 2026 avg R / net | 3-yr net | Win % | Max DD |
+|---|---|---|---|---|---|---|
+| **E0 both lots at 2R, stop to avg at +1R (current)** | +0.072 / +8.6 | **+0.098 / +21.9** | +0.210 / +37.8 | **+68.3** | 32–40 | −15 … −18.5 |
+| E1 after +1R trail 5m EMA12 (cap 5R) | +0.223 / +26.5 | +0.034 / +7.5 | +0.188 / +33.8 | +67.8 | 46–51 | −11 … −19 |
+| E2 lot 1 at 1R, lot 2 trails EMA12 | +0.075 / +9.0 | +0.021 / +4.6 | +0.160 / +28.7 | +42.3 | 48–53 | −12 … −17 |
+| E3 lot 1 at 1R, lot 2 at 3R | +0.013 / +1.6 | +0.015 / +3.4 | +0.173 / +31.1 | +36.1 | 48–53 | −12 … −20 |
+| E4 E0 + exit if +1R not reached in 60 min | +0.105 / +12.5 | +0.072 / +16.1 | +0.076 / +13.7 | +42.3 | 37–40 | −9 … −22 |
+
+**E0 stays the default** (best on the dev year, joint-best 3-year total). E1 makes about the same 3-year profit with a higher
+win rate and smaller drawdowns in 2 of 3 years, but it was weak on the dev year. It is available as `exit_mode="trail_ema"`
+(`--exit trail_ema`). Engine check, E0 vs E1: 2025 +0.084 vs +0.015R, 2026 +0.199 vs +0.173R.
+
 ## Caveats
 - ~150 trades in total on one metal. That is enough to tell clearly losing rules from promising ones, but not enough to prove an edge.
 - Dukascopy prices differ slightly from any retail broker's prices; spread is modelled as fixed; no slippage; no news blackout yet (calendar feed not connected).

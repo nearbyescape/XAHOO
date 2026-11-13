@@ -21,7 +21,7 @@ import pandas as pd
 import requests
 
 BASE = "https://datafeed.dukascopy.com/datafeed"
-DIVISOR = {"XAUUSD": 1000.0, "XAGUSD": 1000.0}
+DIVISOR = {"XAUUSD": 1000.0, "XAGUSD": 1000.0, "USATECHIDXUSD": 1000.0, "USA30IDXUSD": 1000.0, "EURUSD": 100000.0}
 REC = struct.Struct(">5if")
 
 

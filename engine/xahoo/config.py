@@ -27,6 +27,12 @@ SYMBOLS = {
     "XAUUSD": SymbolSpec("XAUUSD", spread=0.25, max_spread=0.45, digits=2),
     "XAGUSD": SymbolSpec("XAGUSD", spread=0.025, max_spread=0.045, digits=3),
 }
+# Research-only markets (multi-market robustness test, docs/BACKTEST.md run 16). Not traded live.
+EXTRA_SYMBOLS = {
+    "USATECHIDXUSD": SymbolSpec("USATECHIDXUSD", spread=1.2, max_spread=3.0, digits=2),   # NAS100
+    "USA30IDXUSD": SymbolSpec("USA30IDXUSD", spread=2.5, max_spread=6.0, digits=2),       # US30
+    "EURUSD": SymbolSpec("EURUSD", spread=0.00008, max_spread=0.0002, digits=5),
+}
 
 
 @dataclass
@@ -123,6 +129,8 @@ class StrategyParams:
     # ema200_retest lost money on both metals in every test window (docs/BACKTEST.md run 4): off by default
     require_daily_trend: bool = False  # only trade with yesterday's daily trend (close vs 50-day EMA + 20-day momentum)
     scale_in: bool = False             # add a 2nd lot at the add price (EMA12 at signal time); shared stop
+    exit_mode: str = "fixed"           # "fixed": target tp_r[0] · "trail_ema": after +1R trail the 5m EMA12, target capped at 5R
+                                       # (run 15: same 3-year profit, win rate ~48% vs ~35%; fixed was better on the dev year)
     enabled_setups: tuple[str, ...] = ("sweep", "ema12_pullback", "range")
     exec_tfs: tuple[str, ...] = ("5m", "15m")   # 1m entries lost money in every test; available but off
     sessions: Sessions = field(default_factory=Sessions)
@@ -152,6 +160,10 @@ class StrategyParams:
     @property
     def version(self) -> str:
         return hashlib.sha1(self.to_json().encode()).hexdigest()[:10]
+
+
+def spec_for(symbol: str) -> SymbolSpec:
+    return SYMBOLS.get(symbol) or EXTRA_SYMBOLS[symbol]
 
 
 def grade(score: float) -> str:

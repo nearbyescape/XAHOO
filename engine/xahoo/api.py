@@ -244,7 +244,7 @@ def candles(symbol: str = "XAUUSD", tf: str = "5m", limit: int = 600, end: int |
 def signals(limit: int = 200, symbol: str | None = None, tf: str | None = None):
     live = S.runner.store.signals(limit) if S.runner is not None else []
     for x in live:
-        x.setdefault("result", None if x["state"] not in ("TP", "SL", "BE", "TIME") else x["state"])
+        x.setdefault("result", None if x["state"] not in ("TP", "SL", "BE", "TRAIL", "TIME") else x["state"])
     df = S.signals
     bt = []
     if not df.empty:

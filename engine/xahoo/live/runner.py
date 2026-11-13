@@ -32,7 +32,7 @@ log = logging.getLogger("xahoo.live")
 ROOT = Path(__file__).resolve().parents[3]
 CACHE = ROOT / "data" / "dukascopy"
 HISTORY_DAYS = 45
-CLOSED = {"TP", "SL", "BE", "TIME"}
+CLOSED = {"TP", "SL", "BE", "TRAIL", "TIME"}
 
 
 class LiveRunner:
@@ -173,9 +173,15 @@ class LiveRunner:
             start = m.index.searchsorted(pd.Timestamp(sig["created"], unit="s", tz="UTC"))
             if start >= len(m):
                 continue
+            trail = None
+            tp = sig["tp1"]
+            if self.p.exit_mode == "trail_ema":
+                from ..indicators import ema_closed_on_1m
+                trail = ema_closed_on_1m(m)
+                tp = sig["entry"] + sig["dir"] * 5.0 * sig["risk"]
             o = simulate_scalein(m["low"].to_numpy(), m["high"].to_numpy(), m["close"].to_numpy(), start, len(m),
-                                 sig["dir"], sig["entry"], sig["sl"], sig["tp1"], sig.get("add_price"),
-                                 SYMBOLS[sig["symbol"]].spread, self.p.be_at_r)
+                                 sig["dir"], sig["entry"], sig["sl"], tp, sig.get("add_price"),
+                                 SYMBOLS[sig["symbol"]].spread, self.p.be_at_r, trail, 0.1 * sig["atr"])
             age_min = (m.index[-1] - pd.Timestamp(sig["created"], unit="s", tz="UTC")).total_seconds() / 60
             if o.result == "TIME" and age_min < self.p.max_hold_minutes[sig["tf"]]:
                 state = "RISK_FREE" if o.be_idx is not None else ("ADDED" if o.add_idx is not None else "OPEN")

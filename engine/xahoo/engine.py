@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 
 from . import features
-from .config import EXEC_TFS, SYMBOLS, TF_MINUTES, StrategyParams
+from .config import EXEC_TFS, TF_MINUTES, StrategyParams, spec_for
 from .strategy import scoring, setups
 from .tracker import simulate, simulate_scalein
 
@@ -34,7 +34,7 @@ def generate(data: dict[str, pd.DataFrame], p: StrategyParams, tfs=EXEC_TFS) -> 
                 from .data.resample import align_closed
                 other = align_closed(ctx[others[0]]["1h"], f["close_time"], ["bias"], "o_")["o_bias"]
             cand = setups.detect(f, p)
-            sig = scoring.finalize(cand, f, p, SYMBOLS[sym], other)
+            sig = scoring.finalize(cand, f, p, spec_for(sym), other)
             if len(sig):
                 sig = sig.assign(symbol=sym, tf=tf)
                 out.append(sig)
@@ -55,6 +55,8 @@ def run_backtest(data: dict[str, pd.DataFrame], p: StrategyParams, tfs=EXEC_TFS,
         return cand
     arrays = {s: (m1["low"].to_numpy(), m1["high"].to_numpy(), m1["close"].to_numpy(), m1.index)
               for s, m1 in data.items()}
+    from .indicators import ema_closed_on_1m
+    trails = {s: ema_closed_on_1m(m1) for s, m1 in data.items()} if p.exit_mode == "trail_ema" else {}
     open_until: dict[tuple, pd.Timestamp] = {}
     last_sig: dict[tuple, pd.Timestamp] = {}
     sl_log: dict[tuple, list] = defaultdict(list)   # (symbol, day) -> exit times of SL trades
@@ -77,13 +79,14 @@ def run_backtest(data: dict[str, pd.DataFrame], p: StrategyParams, tfs=EXEC_TFS,
         if start >= len(idx):
             continue
         if p.scale_in:
-            so = simulate_scalein(lo, hi, cl, start, end, c.dir, c.entry, c.sl, c.tp1, rec.get("add_price"),
-                                  SYMBOLS[c.symbol].spread, p.be_at_r)
+            tp = c.tp1 if p.exit_mode != "trail_ema" else c.entry + c.dir * 5.0 * c.risk
+            so = simulate_scalein(lo, hi, cl, start, end, c.dir, c.entry, c.sl, tp, rec.get("add_price"),
+                                  spec_for(c.symbol).spread, p.be_at_r, trails.get(c.symbol), 0.1 * c.atr)
             o = _Row(result=so.result if so.result != "TIME" else "EXPIRED", r=so.r, tp_hits=int(so.result == "TP"),
                      exit_idx=so.exit_idx, exit_price=so.exit_price, mfe_r=so.mfe_r, mae_r=so.mae_r, lots=so.lots)
         else:
             o = simulate(lo, hi, cl, start, end, c.dir, c.entry, c.sl, (c.tp1, c.tp2, c.tp3),
-                         p.partials, SYMBOLS[c.symbol].spread, p.move_sl_to_be_at_tp1, p.be_at_r)
+                         p.partials, spec_for(c.symbol).spread, p.move_sl_to_be_at_tp1, p.be_at_r)
         exit_t = idx[o.exit_idx] + pd.Timedelta(minutes=1)
         open_until[key] = exit_t
         last_sig[key] = t

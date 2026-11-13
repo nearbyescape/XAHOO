@@ -177,3 +177,24 @@ def test_impulse_pullback_fires_on_pattern(sign):
     assert len(out) >= 1 and out.index[-1] == df.index[-1]
     assert (out["sl"].iloc[-1] < df["close"].iloc[-1]) == (sign == 1)
     assert impulse_pullback(df, p, -sign).empty
+
+
+def test_ema_closed_on_1m_no_lookahead():
+    m1 = synth(600)
+    e = ind.ema_closed_on_1m(m1, 5, 12)
+    f = resample(m1, "5m")
+    full = ind.ema(f["close"], 12)
+    # at the 1m bar opening 00:10 only the 5m bars 00:00 and 00:05 are closed -> value of the 00:05 bar
+    k = m1.index.get_loc(pd.Timestamp("2026-03-02 00:10", tz="UTC"))
+    assert e[k] == pytest.approx(full.loc[pd.Timestamp("2026-03-02 00:05", tz="UTC")])
+    assert np.isnan(e[m1.index.get_loc(pd.Timestamp("2026-03-02 00:03", tz="UTC"))])
+
+
+def test_scalein_trailing_stop_locks_profit():
+    from xahoo.tracker import simulate_scalein
+    lo = np.array([99.9, 101.9, 103.5, 102.4])
+    hi = np.array([100.5, 102.5, 104.6, 103.0])
+    cl = np.array([100.2, 102.3, 104.4, 102.5])
+    trail = np.array([np.nan, 100.5, 102.8, 103.0])     # EMA rising behind price
+    o = simulate_scalein(lo, hi, cl, 0, 4, 1, 100.0, 98.0, 110.0, None, 0.0, 1.0, trail, 0.0)
+    assert o.result == "TRAIL" and o.r == pytest.approx((102.8 - 100.0) / 2)   # stopped at the trailed EMA level

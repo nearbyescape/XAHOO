@@ -53,7 +53,7 @@ class Store:
 
     def signals(self, limit: int = 500, open_only: bool = False) -> list[dict]:
         q = "SELECT payload, state, msg_id FROM signals"
-        q += " WHERE state NOT IN ('TP','SL','BE','TIME')" if open_only else ""
+        q += " WHERE state NOT IN ('TP','SL','BE','TRAIL','TIME')" if open_only else ""
         q += " ORDER BY created DESC LIMIT ?"
         with self.lock:
             rows = self.db.execute(q, (limit,)).fetchall()
