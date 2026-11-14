@@ -383,6 +383,32 @@ Worst years −51R (2010), −53R (2015), −62R (2018), −66R (2020). Positive
 had most of 2024's silver data missing. **Conclusion: the scalper's 2024–2026 result does not hold up; it should
 not be traded with real money.** See [PLAN_V3_SWING.md](PLAN_V3_SWING.md).
 
+### Run 22: crude oil in the swing plan (`engine/research/swing_oil.py`)
+
+HistData WTI (WTIUSD) and Brent (BCOUSD) CFD prices, Nov 2010 → Oct 2026, spread $0.04. Rules unchanged from gold/silver.
+Includes the April 2020 collapse (lowest close $12.88, one 38% daily move).
+
+| Market / strategy | Trades | Win % | Avg R | PF | Max DD | With harsh financing (12% / 6% a year) |
+|---|---|---|---|---|---|---|
+| WTI S1 daily | 59 | 37.3 | +0.158 | 1.49 | −6.7R | +0.100 |
+| WTI S2 4h (daily-filtered) | 144 | 45.8 | +0.064 | 1.22 | −6.9R | +0.043 |
+| Brent S1 daily | 61 | 34.4 | +0.214 | 1.65 | −6.7R | +0.150 |
+| Brent S2 4h (daily-filtered) | 161 | 41.6 | +0.078 | 1.23 | −9.2R | +0.056 |
+
+All eight cells positive. WTI's profit came from short trades (+0.27R, 79 trades); longs were flat (−0.02R, 124 trades).
+
+Portfolio, common period June 2011 → Oct 2026 (S1 + S2 on each market):
+
+| | Trades / yr | Win % | Avg R | R / yr | Max DD | Losing years | Worst year |
+|---|---|---|---|---|---|---|---|
+| Gold + silver | 30 | 42.9 | +0.182 | 5.5 | −16.4R | 8 of 16 | −9.3R |
+| **Gold + silver + WTI** | 43 | 43.0 | +0.154 | **6.7** | **−13.7R** | 7 of 16 | **−3.7R** |
+
+Oil is a weaker edge per trade than the metals, but it trends at different times (2015: oil +16R while metals lost 5R),
+so the portfolio earns more with a smaller drawdown. Caveats: CFD prices, not futures; real holding costs for oil vary
+with the futures curve (the harsh-financing column is the stress test); no free real-time oil quote was found, so live
+data would come from Dukascopy's hourly files (about an hour behind), which is enough for daily and 4-hour decisions.
+
 ## Caveats
 - ~150 trades in total on one metal. That is enough to tell clearly losing rules from promising ones, but not enough to prove an edge.
 - Dukascopy prices differ slightly from any retail broker's prices; spread is modelled as fixed; no slippage; no news blackout yet (calendar feed not connected).

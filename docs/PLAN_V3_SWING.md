@@ -1,6 +1,7 @@
-# XAHOO v3: swing trend strategies for gold and silver (plan)
+# XAHOO v3: swing trend strategies for gold, silver and crude oil (plan)
 
-Status: **plan, not built.** Evidence: [BACKTEST.md](BACKTEST.md) runs 18–21 (17 years, 2009–2026).
+Status: **plan, not built.** Evidence: [BACKTEST.md](BACKTEST.md) runs 18–22 (17 years, 2009–2026).
+Markets: XAUUSD, XAGUSD and WTI crude oil (added 2026-11-14 at the owner's request, after run 22).
 
 ## 1. What 17 years of data say
 
@@ -18,7 +19,7 @@ So v3 does not aim for a high win rate. It aims for a positive, durable expectan
 
 ## 2. The strategies
 
-Both use the same logic, on two timeframes, for XAUUSD and XAGUSD.
+Both use the same logic, on two timeframes, for XAUUSD, XAGUSD and WTI crude oil.
 
 ### S1: Daily trend breakout (core)
 | Rule | Definition |
@@ -47,6 +48,23 @@ Both use the same logic, on two timeframes, for XAUUSD and XAGUSD.
 
 Losing years: 8 of 17, six of them smaller than −2R. Profit is concentrated: 2011, 2013, 2020, 2024, 2025 and 2026 carry most of it.
 
+### With crude oil added (run 22, June 2011 → Oct 2026)
+| | Trades a year | Win % | Avg R | R a year | Max DD | Losing years | Worst year |
+|---|---|---|---|---|---|---|---|
+| Gold + silver | 30 | 43 | +0.18 | 5.5 | −16.4R | 8 of 16 | −9.3R |
+| **Gold + silver + WTI** | 43 (3–4 a month) | 43 | +0.15 | **6.7** | **−13.7R** | 7 of 16 | **−3.7R** |
+
+- Oil on its own is the weaker edge: S1 +0.16R per trade, S2 +0.06R (Brent, as a cross-check: +0.21R and +0.08R).
+  Still positive under a harsh holding-cost assumption.
+- Its value is diversification: it trends at different times from the metals (2015: oil +16R, metals −5R), so the
+  three-market portfolio earned more with a smaller drawdown and a much milder worst year.
+- Oil's profit came from short trades; long trades were flat. S2 on oil is the thinnest piece of the plan and the first
+  to drop if paper trading disappoints.
+- Oil specifics: weekend and news gaps are larger than in gold (one 38% day in April 2020), so the 1% risk can be exceeded
+  on a gap; holding costs for oil CFDs change with the futures curve; MCX crude oil futures are the route in India.
+- Live price: no free real-time oil quote was found. Dukascopy's hourly files (about an hour behind) are enough for
+  daily and 4-hour decisions; to be confirmed on the VPS during the build.
+
 ## 3. What to expect
 
 - **At 1% risk per trade:** roughly +6–7% a year on average; +15–26% in strong-trend years; 0 to −9% in sideways years;
@@ -59,7 +77,7 @@ Losing years: 8 of 17, six of them smaller than −2R. Profit is concentrated: 2
 
 ## 4. Risk rules
 - 1% of the account per trade to start (R = entry-to-stop distance).
-- Up to 4 positions can be open at once (2 metals × 2 timeframes). Cap total open risk at 3%.
+- Up to 6 positions can be open at once (3 markets × 2 timeframes). Cap total open risk at 3%.
 - Gold and silver usually trend together: when both signal the same direction, take the second at half size.
 - Stop rules (existing guard, re-tuned): half size at −10R drawdown, pause at −24R (1.5 × the backtest's worst).
 - Never widen a stop. Never add to a losing position.
@@ -76,7 +94,7 @@ Losing years: 8 of 17, six of them smaller than −2R. Profit is concentrated: 2
 
 ## 6. Research queue after the build (each tested on the 17 years before use)
 1. **Pyramiding:** add to winning positions (the classic trend-following profit lever).
-2. **Nasdaq 100 and crude oil** with the same rules: more trades, and they don't trend at the same times as metals.
+2. **Nasdaq 100** with the same rules (+0.13R per trade untuned): more trades, different trend timing from metals and oil.
 3. **Volatility-scaled position size.**
 4. **MCX gold option selling with capped risk:** the only route to a genuinely high win rate; needs MCX options history.
 
