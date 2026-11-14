@@ -330,6 +330,59 @@ price): a 1m candle at :00/:30 between 12:00 and 19:30 UTC with range ≥ 5× it
 - **Post-news signals were 3–6× better than average in every year**, but are rare (44 in 3 years, t ≈ 2). Avoiding news
   would *lower* profit. Action: keep all signals and **tag** post-news ones; no size increase until confirmed live.
 
+## Runs 18–21 (2026-11-14): 17-year tests, swing strategies, and the live scalper re-tested
+
+Data: HistData.com 1-minute bars 2009 → Oct 2026 for gold and silver (4,550 trading days), rebuilt into daily
+(New York close), 4h and 1h bars. Daily closes match Dukascopy to the cent on the overlapping 2024–2026 days.
+Costs: spread ($0.30 gold, $0.03 silver) + overnight financing (longs 5%/yr of notional, shorts 1%/yr).
+Signals at a bar's close, fills at the next bar's open, stops checked on highs/lows. R = initial stop distance.
+Periods: 2009–2012 bull · 2013–2018 bear/range · 2019–2026 bull.
+
+### Run 18: textbook swing strategies, daily bars, untuned (`engine/research/swing.py`)
+
+| Strategy (gold + silver) | Trades | Win % | Avg R | PF | 2009–12 | 2013–18 | 2019–26 |
+|---|---|---|---|---|---|---|---|
+| T1 Donchian 55/20 breakout, long + short | 138 | 31 | +0.24 | 1.4 | +0.52 | −0.24 | +0.53 |
+| **T2 50/200-day trend + 20-day breakout, 3-ATR trailing stop** | 147 | 47.6 | **+0.25** | **1.84** | +0.38 | 0.00 | +0.40 |
+| T3 12-month momentum, monthly | 404 | 52 | +0.04 | 1.1 | +0.04 | +0.01 | +0.06 |
+| P1 RSI(2) dip-buying in the 200-day trend | 330 | 58 | −0.06 | 0.7 | +0.03 | −0.09 | −0.08 |
+| P2 three down closes in a trend | 349 | 60 | −0.05 | 0.8 | −0.06 | −0.06 | −0.04 |
+| P3 pullback to the 20-day EMA, 2R target | 315 | 42 | +0.02 | 1.0 | 0.00 | −0.09 | +0.11 |
+
+Trend-following made money; the high-win-rate dip-buying strategies (55–66% wins) lost money.
+
+### Run 19: is T2 robust? (`swing_robust.py`, `swing_markets.py`)
+- **Settings:** breakout 10/20/40/55 days × trail 2/3/4 ATR → **12 of 12 profitable** (avg R +0.10 … +0.33, PF 1.3–2.05).
+  Weak spot in every version: 2013–2018 is flat to slightly negative.
+- **Timeframes:** same rules on 4h bars (55-bar breakout): 661 trades, +0.137R, PF 1.43, positive in all three periods.
+  On 1h bars the edge is nearly gone (+0.01 … +0.05R). **4h with the daily trend as filter:** 376 trades (~23/yr),
+  43.6% wins, **+0.193R, PF 1.61, max DD −11.4R**.
+- **Variants that did not help:** half off at +1R or +2R (win rate 48 → 50%, less profit), 12-month-momentum filter, ADX filter.
+- **Other markets, same untuned daily rules, 2009/10–2026:** gold +0.26R, silver +0.24R, Nasdaq 100 +0.13R,
+  crude oil +0.16R, S&P 500 +0.02R, **EUR/USD −0.12R, GBP/USD −0.22R, USD/JPY −0.08R**. Not a universal edge: it works
+  on strongly trending markets (metals, oil, Nasdaq), not on major currency pairs.
+
+### Run 20: proposed pair — daily T2 + 4h T2 (daily-filtered), gold + silver, 2010–2026
+
+| Trades | Per yr | Win % | Avg win / loss | Avg R | PF | Net R | Max DD | Losing years | Worst year | Longest losing streak |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 523 | 31.6 | 44.7 | +1.16R / −0.56R | **+0.209** | 1.67 | +109.3 (6.6R/yr) | −16.2R | 8 of 17 (6 of them within ±2R) | −9.3R (2021) | 8 |
+
+By year (R): 2010 +9.3 · 2011 +17.4 · 2012 −0.4 · 2013 +16.3 · 2014 +0.2 · 2015 −5.0 · 2016 −0.2 · 2017 −1.0 ·
+2018 −0.2 · 2019 +8.9 · 2020 +26.3 · 2021 −9.3 · 2022 −0.9 · 2023 −1.7 · 2024 +15.2 · 2025 +23.2 · 2026 +11.3.
+Longs +0.28R (327 trades), shorts +0.09R (196). Gold and silver contribute about equally. Up to 4 positions open at once.
+
+### Run 21: the live scalping strategy (`StrategyParams.trader()`) on 2010–2026 (`scalp_17y.py`)
+
+| | Net R | Losing years | Gold | Silver |
+|---|---|---|---|---|
+| 2010–2026, rules unchanged | **−267R** | **11 of 17** | −54R | −213R |
+
+Worst years −51R (2010), −53R (2015), −62R (2018), −66R (2020). Positive in 2011–2014, 2016 and 2026. On this feed
+2024 = −4.7R and 2025 = −3.7R (gold positive, silver negative both years). The earlier positive 2024 result (run 12)
+had most of 2024's silver data missing. **Conclusion: the scalper's 2024–2026 result does not hold up; it should
+not be traded with real money.** See [PLAN_V3_SWING.md](PLAN_V3_SWING.md).
+
 ## Caveats
 - ~150 trades in total on one metal. That is enough to tell clearly losing rules from promising ones, but not enough to prove an edge.
 - Dukascopy prices differ slightly from any retail broker's prices; spread is modelled as fixed; no slippage; no news blackout yet (calendar feed not connected).

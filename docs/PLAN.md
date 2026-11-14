@@ -1,6 +1,6 @@
 # XAHOO — Gold & Silver Scalp Signal Terminal
 
-**Status:** Phase 1–2 built (engine, backtester, terminal UI prototype). **Current rules show no proven edge — see [BACKTEST.md](BACKTEST.md); not for real-money use.** Next: [PLAN_V2_HIGH_WINRATE.md](PLAN_V2_HIGH_WINRATE.md) · **Owner:** single admin (private) · **Instruments:** XAUUSD, XAGUSD
+**Status:** Phase 1–2 built (engine, backtester, terminal UI prototype). **Current rules show no proven edge — see [BACKTEST.md](BACKTEST.md); not for real-money use.** Current plan: [PLAN_V3_SWING.md](PLAN_V3_SWING.md) (swing trend strategies; the scalper failed a 17-year test) · **Owner:** single admin (private) · **Instruments:** XAUUSD, XAGUSD
 **Execution timeframes:** 1m · 5m · 15m · **Context timeframes:** 1h · 4h
 
 ---
