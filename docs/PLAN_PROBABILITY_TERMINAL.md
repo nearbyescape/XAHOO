@@ -60,7 +60,7 @@ Expect honest values mostly between 40% and 60%, occasionally 65–70% in strong
 ### 3.2 Four layers, each tested separately
 | Layer | Question | Inputs | Why it may work |
 |---|---|---|---|
-| **A. Trend / regime** | Is the market trending, ranging or reversing on 4h–1d? | Price vs long averages, breakout state, trend strength | Trend persistence on 4h and daily bars held up over 17 years on gold, silver, oil and Nasdaq (runs 18–22) |
+| **A. Trend / regime** | Is the market trending, ranging or reversing on 4h–1d? | Price vs long averages, breakout state, trend strength | Trend persistence on 4h and daily bars held up over 17 years on gold, silver, oil and Nasdaq (v1 backtest runs 18–22, see commit `33e7d6f`) |
 | **B. Order flow** | Who is pushing right now? | Taker buy − sell volume (CVD), its divergence from price, book-depth imbalance, large-trade bursts | Published work on order-flow imbalance shows short-horizon predictive power; never testable before because spot data lacked it |
 | **C. Positioning** | Is one side crowded? | Open-interest change with price, funding rate, long/short ratios, liquidation clusters | Extreme funding and one-sided positioning tend to precede squeezes |
 | **D. Cross-market** | What are the leaders doing? | BTC's move vs each coin, gold vs silver, correlation regime | Smaller coins follow BTC with a lag; silver follows gold |
