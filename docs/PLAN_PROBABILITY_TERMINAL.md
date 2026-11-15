@@ -6,7 +6,9 @@ This replaces the signal application (engine, dashboard, deploy files), which wi
 ## 1. What it is
 
 A live, private, terminal-style screen that answers one question for 10 markets:
-**"How likely is this market to be higher or lower in 15 minutes, 1 hour, 4 hours and 1 day — and how far could it move?"**
+**"How likely is this market to be higher or lower in 1 minute, 5 minutes, 15 minutes, 1 hour, 4 hours and 1 day — and how far could it move?"**
+
+Six horizons: **1m · 5m · 15m · 1h · 4h · 1d** (1m and 5m added 2026-11-15 at the owner's request).
 
 It shows probabilities, not trade instructions. Every number on screen is a measured frequency from history,
 and the screen keeps a public-to-you scorecard of how its past probabilities turned out.
@@ -64,27 +66,44 @@ Expect honest values mostly between 40% and 60%, occasionally 65–70% in strong
 | **D. Cross-market** | What are the leaders doing? | BTC's move vs each coin, gold vs silver, correlation regime | Smaller coins follow BTC with a lag; silver follows gold |
 
 ### 3.3 Combining them
-- One model per horizon (15m, 1h, 4h, 1d), trained across all coins together so each learns from ~5 years × 8 markets.
+- One model per horizon (1m, 5m, 15m, 1h, 4h, 1d), trained across all coins together so each learns from ~5 years × 8 markets.
 - Gradient-boosted trees, then isotonic calibration. Plain logistic regression is the baseline to beat.
 - **Walk-forward testing only:** train on the past, test on the following months, roll forward. No shuffling.
 - Scored by Brier score and calibration curve against two baselines: 50/50 and "same direction as the last move".
 - Costs don't enter (this is a forecast screen), but a "tradable edge" flag marks forecasts whose expected move
   exceeds typical fees.
 
-### 3.4 Volatility and range (the most reliable part)
+### 3.4 The 1-minute and 5-minute horizons
+These two work differently from the longer ones:
+- **Main input is order flow, not trend.** Research on order-flow imbalance finds its predictive power is strongest
+  over seconds to a few minutes, so these are the horizons where layer B has the best chance. Inputs: buy − sell
+  volume over the last 5–60 seconds, order-book imbalance near the price, trade bursts, liquidations, and BTC's
+  last few seconds for the other coins.
+- **Training data:** 1-minute candles with buyer/seller volume (5 years) plus order-book depth snapshots (every
+  30 seconds in the archive). Tick-level trades are very large (gigabytes a month for BTC), so they are used for the
+  most recent 3–6 months only.
+- **Update rate:** recalculated every 2–5 seconds live; a 1m forecast resolves a minute later, so the scoreboard fills
+  quickly: about 1,400 scored forecasts per market per day. Live accuracy becomes visible within the first day.
+- **What to expect:** the moves are tiny. A typical 1-minute move in BTC is a few hundredths of a percent, about the
+  size of trading fees and spread. So each 1m/5m cell shows the probability **and** the expected move size, with a
+  "too small to trade" mark when the move is below typical costs. A good 1m model is right perhaps 52–56% of the time.
+- **Latency matters here:** the forecast is only as fresh as the data path (Binance → VPS → your screen), so the
+  screen shows the data age in milliseconds, and cells grey out if the feed lags.
+
+### 3.5 Volatility and range (the most reliable part)
 How far a market moves is far more predictable than which way. For each market and horizon the screen shows:
 - the **expected range** (for example "68% chance BTC stays between 63,900 and 65,800 in the next 4h"),
 - the chance of reaching chosen levels (previous day's high/low, round numbers),
 - a volatility state: quiet, normal, expanding.
 
-### 3.5 Gold and silver
+### 3.6 Gold and silver
 Binance has under a year of gold/silver history, too little to train on alone. Plan: the metals use the shared
 model's order-flow and positioning layers (learned on crypto, then checked on the metals' 10–11 months), and the
 trend layer is trained on the 17 years of gold/silver prices already downloaded. Their probabilities carry a
 "limited history" mark until a year of out-of-sample scoring exists. Gold and silver futures on Binance also trade
 around the clock, including weekends when the underlying market is closed; weekend readings are flagged.
 
-### 3.6 What happened last time I tried this
+### 3.7 What happened last time I tried this
 Run 10 trained a model on gold candles and it had no skill out of sample (AUC 0.51). The difference now is the
 input data (true order flow and positioning) and five years across eight markets. It may still find little at some
 horizons; phase 1 exists to find out before any screen is built around it.
@@ -93,9 +112,13 @@ horizons; phase 1 exists to find out before any screen is built around it.
 
 Terminal style: dark, monospace, dense; more polished than the previous build. Motion carries information.
 
-**Main board: 10 rows × 4 horizons**
+**Main board: 10 rows × 6 horizons (1m · 5m · 15m · 1h · 4h · 1d)**
 - Each cell: probability of up (for example `▲ 58%`), tinted green→red by value, with a thin confidence bar.
-- **Direction needle** per market: an animated gauge that swings as the blended probability changes.
+- The 1m and 5m cells update every few seconds and carry a small countdown ring to the end of their window;
+  the longer horizons update on each new candle.
+- **Direction needle** per market: an animated gauge that swings as the blended probability changes. A second, faster
+  needle shows the short-term (1m–5m) push, so you can see at a glance when short-term flow agrees or disagrees
+  with the longer trend.
 - **Probability ribbon:** a small strip behind each row showing how the probability evolved over the last hours.
 - **Flow meter:** a live buy-versus-sell bar that pulses with each burst of trades.
 - Numbers roll when they change; cells flash briefly on a meaningful change (≥ 3 points); a new liquidation cluster ripples.
@@ -107,7 +130,8 @@ Terminal style: dark, monospace, dense; more polished than the previous build. M
 - **Track record for this market:** calibration chart and hit rate of past forecasts.
 
 **Scoreboard**
-- Every forecast is stored and resolves when its horizon ends; resolved forecasts tick over with ✓ or ✗.
+- Every forecast is stored and resolves when its horizon ends; resolved forecasts tick over with ✓ or ✗
+  (1m and 5m are sampled once a minute for the scoreboard so it stays readable).
 - Running calibration: "said 60–65% → happened 61% (n = 412)". If live calibration drifts, the affected cells turn grey.
 
 **Other**
@@ -131,7 +155,7 @@ Terminal style: dark, monospace, dense; more polished than the previous build. M
 | Phase | What | Result |
 |---|---|---|
 | **0. Clean slate** | Tag the current code (`v1-signals`) so it stays recoverable; remove engine, web app, deploy files and old docs from `main`; stop the old container on the VPS | Empty project with this plan |
-| **1. Research** | Download archive data for the 10 markets; build layers A–D; walk-forward tests per horizon; calibration report | **Go / no-go per horizon and market**, with real numbers |
+| **1. Research** | Download archive data for the 10 markets; build layers A–D; walk-forward tests for all six horizons (the 1m/5m models on 1-minute and order-book data); calibration report | **Go / no-go per horizon and market**, with real numbers |
 | **2. Live engine** | Collector, feature pipeline, model serving, forecast store and scoring; replay tests against archive data | Probabilities updating live on the VPS |
 | **3. Screen** | Board, needles, ribbons, flow meters, detail view, scoreboard | The terminal |
 | **4. Run-in** | Two weeks live; compare live calibration with the tests; tune update rates | Trustworthy numbers on screen |
