@@ -1,0 +1,1171 @@
+{
+ "version": "2026.11.15",
+ "trained_through": "2026-10-31",
+ "features": [
+  "a_ret5",
+  "a_ret15",
+  "a_ret60",
+  "a_ret240",
+  "a_ret1440",
+  "a_ret4320",
+  "a_ret10080",
+  "a_sma60",
+  "a_sma240",
+  "a_sma1440",
+  "a_sma10080",
+  "a_pos240",
+  "a_pos1440",
+  "a_pos10080",
+  "a_vol_1h_1d",
+  "a_vol_1d_7d",
+  "a_tod_sin",
+  "a_tod_cos",
+  "a_dow",
+  "b_imb1",
+  "b_imb5",
+  "b_imb15",
+  "b_imb60",
+  "b_imb240",
+  "b_vol1",
+  "b_vol5",
+  "b_vol60",
+  "b_cnt5",
+  "b_tsize5",
+  "b_ret1",
+  "b_clv1",
+  "b_clv5",
+  "b_range1",
+  "b_div15",
+  "b_div60",
+  "c_oi_5m",
+  "c_oi_1h",
+  "c_oi_4h",
+  "c_oi_1d",
+  "c_ls_acct_z",
+  "c_ls_acct_ch1h",
+  "c_top_ls_acct_z",
+  "c_top_ls_acct_ch1h",
+  "c_top_ls_pos_z",
+  "c_top_ls_pos_ch1h",
+  "c_taker",
+  "c_taker_1h",
+  "c_oi_x_ret_1h",
+  "c_oi_x_ret_4h",
+  "c_funding",
+  "c_funding_z",
+  "d_ret1",
+  "d_ret5",
+  "d_ret15",
+  "d_ret60",
+  "d_imb1",
+  "d_imb5",
+  "d_lag1",
+  "d_lag5",
+  "d_rel60",
+  "d_rel1d",
+  "d_corr1d"
+ ],
+ "families": {
+  "coin": {
+   "1m": {
+    "files": {
+     "dir": "coin_dir_1m.txt",
+     "q68": "q68_1m.txt",
+     "q95": "q95_1m.txt"
+    },
+    "calibration": {
+     "x": [
+      0.375737,
+      0.404567,
+      0.420452,
+      0.433051,
+      0.443627,
+      0.452405,
+      0.459794,
+      0.466104,
+      0.471575,
+      0.476479,
+      0.480938,
+      0.485073,
+      0.488963,
+      0.492669,
+      0.496259,
+      0.501546,
+      0.506853,
+      0.510496,
+      0.514283,
+      0.518301,
+      0.522586,
+      0.52725,
+      0.532439,
+      0.538221,
+      0.54482,
+      0.552553,
+      0.561949,
+      0.574356,
+      0.598799
+     ],
+     "y": [
+      0.40922,
+      0.42769,
+      0.43891,
+      0.45166,
+      0.45578,
+      0.46545,
+      0.46992,
+      0.4772,
+      0.48071,
+      0.4842,
+      0.48562,
+      0.4919,
+      0.49251,
+      0.4977,
+      0.49788,
+      0.50209,
+      0.50362,
+      0.51214,
+      0.51242,
+      0.5125,
+      0.51694,
+      0.52093,
+      0.52551,
+      0.53154,
+      0.53486,
+      0.5434,
+      0.55159,
+      0.56275,
+      0.5779
+     ]
+    },
+    "q68_scale": 1.061,
+    "q95_scale": 1.0737
+   },
+   "5m": {
+    "files": {
+     "dir": "coin_dir_5m.txt",
+     "q68": "q68_5m.txt",
+     "q95": "q95_5m.txt"
+    },
+    "calibration": {
+     "x": [
+      0.409851,
+      0.432602,
+      0.447509,
+      0.457974,
+      0.463602,
+      0.468642,
+      0.475352,
+      0.481553,
+      0.485435,
+      0.489202,
+      0.4929,
+      0.496526,
+      0.500094,
+      0.50546,
+      0.510854,
+      0.516398,
+      0.522133,
+      0.526129,
+      0.530392,
+      0.534995,
+      0.540053,
+      0.545752,
+      0.552454,
+      0.560805,
+      0.57267,
+      0.599894
+     ],
+     "y": [
+      0.43818,
+      0.45182,
+      0.46568,
+      0.47376,
+      0.47558,
+      0.47965,
+      0.48168,
+      0.48348,
+      0.48489,
+      0.49021,
+      0.49553,
+      0.49811,
+      0.50097,
+      0.50405,
+      0.50679,
+      0.50872,
+      0.5155,
+      0.51826,
+      0.51947,
+      0.52205,
+      0.52233,
+      0.53046,
+      0.53223,
+      0.54314,
+      0.55022,
+      0.56424
+     ]
+    },
+    "q68_scale": 1.01,
+    "q95_scale": 1.0301
+   },
+   "15m": {
+    "files": {
+     "dir": "coin_dir_15m.txt",
+     "q68": "q68_15m.txt",
+     "q95": "q95_15m.txt"
+    },
+    "calibration": {
+     "x": [
+      0.402693,
+      0.427045,
+      0.438607,
+      0.447161,
+      0.454258,
+      0.460396,
+      0.46586,
+      0.470925,
+      0.4757,
+      0.480175,
+      0.484505,
+      0.488729,
+      0.49281,
+      0.496832,
+      0.502823,
+      0.510837,
+      0.516969,
+      0.521203,
+      0.525588,
+      0.530194,
+      0.535066,
+      0.540327,
+      0.546137,
+      0.552706,
+      0.560464,
+      0.570241,
+      0.584468,
+      0.617964
+     ],
+     "y": [
+      0.42692,
+      0.44267,
+      0.45513,
+      0.46097,
+      0.46476,
+      0.4693,
+      0.47271,
+      0.48002,
+      0.48207,
+      0.48559,
+      0.489,
+      0.49203,
+      0.4968,
+      0.49714,
+      0.49854,
+      0.50383,
+      0.51055,
+      0.51146,
+      0.51502,
+      0.51926,
+      0.52119,
+      0.52517,
+      0.526,
+      0.53244,
+      0.53519,
+      0.54511,
+      0.54864,
+      0.56375
+     ]
+    },
+    "q68_scale": 0.9695,
+    "q95_scale": 1.024
+   },
+   "1h": {
+    "files": {
+     "dir": "coin_dir_1h.txt",
+     "q68": "q68_1h.txt",
+     "q95": "q95_1h.txt"
+    },
+    "calibration": {
+     "x": [
+      0.380994,
+      0.4121,
+      0.426525,
+      0.436966,
+      0.445587,
+      0.453041,
+      0.462874,
+      0.477269,
+      0.487911,
+      0.495459,
+      0.505216,
+      0.512543,
+      0.520072,
+      0.530297,
+      0.538471,
+      0.544238,
+      0.55384,
+      0.564805,
+      0.573785,
+      0.584996,
+      0.600749,
+      0.635644
+     ],
+     "y": [
+      0.44496,
+      0.45033,
+      0.45056,
+      0.46622,
+      0.47454,
+      0.47953,
+      0.48269,
+      0.4883,
+      0.49349,
+      0.50061,
+      0.50276,
+      0.50734,
+      0.50912,
+      0.52085,
+      0.52126,
+      0.52293,
+      0.52697,
+      0.53261,
+      0.54048,
+      0.54472,
+      0.54865,
+      0.5771
+     ]
+    },
+    "q68_scale": 0.9979,
+    "q95_scale": 1.004
+   },
+   "4h": {
+    "files": {
+     "dir": "coin_dir_4h.txt",
+     "q68": "q68_4h.txt",
+     "q95": "q95_4h.txt"
+    },
+    "calibration": {
+     "x": [
+      0.383668,
+      0.413625,
+      0.437529,
+      0.463108,
+      0.47721,
+      0.482408,
+      0.487524,
+      0.492461,
+      0.497371,
+      0.504813,
+      0.512417,
+      0.517636,
+      0.531693,
+      0.546962,
+      0.553897,
+      0.565448,
+      0.578762,
+      0.589476,
+      0.603821,
+      0.632414
+     ],
+     "y": [
+      0.45742,
+      0.4609,
+      0.47174,
+      0.48332,
+      0.48571,
+      0.48586,
+      0.48828,
+      0.48918,
+      0.49486,
+      0.4966,
+      0.50635,
+      0.50756,
+      0.51165,
+      0.51785,
+      0.52814,
+      0.5323,
+      0.53767,
+      0.54297,
+      0.57005,
+      0.58411
+     ]
+    },
+    "q68_scale": 0.9912,
+    "q95_scale": 1.0438
+   },
+   "1d": {
+    "files": {
+     "dir": "coin_dir_1d.txt",
+     "q68": "q68_1d.txt",
+     "q95": "q95_1d.txt"
+    },
+    "calibration": {
+     "x": [
+      0.355408,
+      0.398625,
+      0.4254,
+      0.451965,
+      0.47437,
+      0.487178,
+      0.493166,
+      0.501874,
+      0.510467,
+      0.521489,
+      0.541285,
+      0.560933,
+      0.576604,
+      0.591524,
+      0.61431,
+      0.661245
+     ],
+     "y": [
+      0.44034,
+      0.46578,
+      0.47396,
+      0.47769,
+      0.48435,
+      0.48698,
+      0.49122,
+      0.49485,
+      0.49909,
+      0.4995,
+      0.5053,
+      0.51061,
+      0.52121,
+      0.52424,
+      0.54667,
+      0.59333
+     ]
+    },
+    "q68_scale": 0.9694,
+    "q95_scale": 1.1383
+   }
+  },
+  "metal": {
+   "1m": {
+    "files": {
+     "q68": "q68_1m.txt",
+     "q95": "q95_1m.txt",
+     "dir": "coin_dir_1m.txt"
+    },
+    "q68_scale": 0.8762,
+    "q95_scale": 1.004,
+    "calibration": {
+     "x": [
+      0.385862,
+      0.421496,
+      0.450712,
+      0.482134,
+      0.49907,
+      0.50695,
+      0.515241,
+      0.524618,
+      0.535979,
+      0.549864,
+      0.567332,
+      0.597774
+     ],
+     "y": [
+      0.40834,
+      0.44821,
+      0.47832,
+      0.48281,
+      0.49794,
+      0.50062,
+      0.50678,
+      0.51973,
+      0.53144,
+      0.53679,
+      0.56062,
+      0.57266
+     ]
+    }
+   },
+   "5m": {
+    "files": {
+     "q68": "q68_5m.txt",
+     "q95": "q95_5m.txt"
+    },
+    "q68_scale": 0.904,
+    "q95_scale": 1.0033
+   },
+   "15m": {
+    "files": {
+     "q68": "q68_15m.txt",
+     "q95": "q95_15m.txt"
+    },
+    "q68_scale": 0.8762,
+    "q95_scale": 0.9951
+   },
+   "1h": {
+    "files": {
+     "q68": "q68_1h.txt",
+     "q95": "q95_1h.txt"
+    },
+    "q68_scale": 0.9291,
+    "q95_scale": 1.0116
+   },
+   "4h": {
+    "files": {
+     "q68": "q68_4h.txt",
+     "q95": "q95_4h.txt",
+     "dir": "metal_dir_4h.txt"
+    },
+    "q68_scale": 1.0352,
+    "q95_scale": 1.066,
+    "calibration": {
+     "x": [
+      0.418717,
+      0.443402,
+      0.455359,
+      0.467422,
+      0.476784,
+      0.487287,
+      0.510856,
+      0.537677,
+      0.562042,
+      0.614375
+     ],
+     "y": [
+      0.48011,
+      0.48479,
+      0.49734,
+      0.50287,
+      0.50713,
+      0.5072,
+      0.5126,
+      0.52372,
+      0.53553,
+      0.58277
+     ]
+    },
+    "features_dir": [
+     "a_ret5",
+     "a_ret15",
+     "a_ret60",
+     "a_ret240",
+     "a_ret1440",
+     "a_ret4320",
+     "a_ret10080",
+     "a_sma60",
+     "a_sma240",
+     "a_sma1440",
+     "a_sma10080",
+     "a_pos240",
+     "a_pos1440",
+     "a_pos10080",
+     "a_vol_1h_1d",
+     "a_vol_1d_7d",
+     "a_tod_sin",
+     "a_tod_cos",
+     "a_dow"
+    ]
+   },
+   "1d": {
+    "files": {
+     "q68": "q68_1d.txt",
+     "q95": "q95_1d.txt"
+    },
+    "q68_scale": 1.0228,
+    "q95_scale": 1.1894
+   }
+  }
+ },
+ "skill": {
+  "BTCUSDT": {
+   "1m": {
+    "n": 246911,
+    "auc": 0.5504,
+    "accuracy": 0.5349,
+    "conf55_share": 0.2993,
+    "conf55_hit": 0.571,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "5m": {
+    "n": 148828,
+    "auc": 0.5359,
+    "accuracy": 0.5253,
+    "conf55_share": 0.1303,
+    "conf55_hit": 0.5602,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "15m": {
+    "n": 99250,
+    "auc": 0.5413,
+    "accuracy": 0.5299,
+    "conf55_share": 0.1524,
+    "conf55_hit": 0.5641,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "1h": {
+    "n": 49625,
+    "auc": 0.5424,
+    "accuracy": 0.533,
+    "conf55_share": 0.1794,
+    "conf55_hit": 0.5627,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "4h": {
+    "n": 24807,
+    "auc": 0.541,
+    "accuracy": 0.5279,
+    "conf55_share": 0.2289,
+    "conf55_hit": 0.5722,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "1d": {
+    "n": 6192,
+    "auc": 0.5324,
+    "accuracy": 0.5268,
+    "conf55_share": 0.1673,
+    "conf55_hit": 0.5618,
+    "tier": 1,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   }
+  },
+  "ETHUSDT": {
+   "1m": {
+    "n": 247588,
+    "auc": 0.5437,
+    "accuracy": 0.5312,
+    "conf55_share": 0.2453,
+    "conf55_hit": 0.5653,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "5m": {
+    "n": 148838,
+    "auc": 0.538,
+    "accuracy": 0.5281,
+    "conf55_share": 0.1223,
+    "conf55_hit": 0.5651,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "15m": {
+    "n": 99243,
+    "auc": 0.5456,
+    "accuracy": 0.5319,
+    "conf55_share": 0.1507,
+    "conf55_hit": 0.5736,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "1h": {
+    "n": 49622,
+    "auc": 0.5431,
+    "accuracy": 0.5321,
+    "conf55_share": 0.1782,
+    "conf55_hit": 0.566,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "4h": {
+    "n": 24806,
+    "auc": 0.5375,
+    "accuracy": 0.5269,
+    "conf55_share": 0.2337,
+    "conf55_hit": 0.562,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "1d": {
+    "n": 6192,
+    "auc": 0.532,
+    "accuracy": 0.5191,
+    "conf55_share": 0.1691,
+    "conf55_hit": 0.5769,
+    "tier": 1,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   }
+  },
+  "SOLUSDT": {
+   "1m": {
+    "n": 245501,
+    "auc": 0.5343,
+    "accuracy": 0.5233,
+    "conf55_share": 0.2227,
+    "conf55_hit": 0.5561,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "5m": {
+    "n": 148252,
+    "auc": 0.5296,
+    "accuracy": 0.5215,
+    "conf55_share": 0.1065,
+    "conf55_hit": 0.5553,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "15m": {
+    "n": 98981,
+    "auc": 0.5345,
+    "accuracy": 0.5244,
+    "conf55_share": 0.1443,
+    "conf55_hit": 0.5584,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "1h": {
+    "n": 49563,
+    "auc": 0.5302,
+    "accuracy": 0.5212,
+    "conf55_share": 0.1797,
+    "conf55_hit": 0.5488,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "4h": {
+    "n": 24792,
+    "auc": 0.5288,
+    "accuracy": 0.5202,
+    "conf55_share": 0.2348,
+    "conf55_hit": 0.5422,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "1d": {
+    "n": 6190,
+    "auc": 0.5214,
+    "accuracy": 0.5081,
+    "conf55_share": 0.185,
+    "conf55_hit": 0.5345,
+    "tier": 1,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   }
+  },
+  "XRPUSDT": {
+   "1m": {
+    "n": 243291,
+    "auc": 0.5341,
+    "accuracy": 0.523,
+    "conf55_share": 0.2313,
+    "conf55_hit": 0.5537,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "5m": {
+    "n": 147773,
+    "auc": 0.5302,
+    "accuracy": 0.5224,
+    "conf55_share": 0.0979,
+    "conf55_hit": 0.5482,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "15m": {
+    "n": 98886,
+    "auc": 0.5358,
+    "accuracy": 0.5255,
+    "conf55_share": 0.1248,
+    "conf55_hit": 0.5582,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "1h": {
+    "n": 49524,
+    "auc": 0.5352,
+    "accuracy": 0.5216,
+    "conf55_share": 0.1698,
+    "conf55_hit": 0.561,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "4h": {
+    "n": 24780,
+    "auc": 0.5281,
+    "accuracy": 0.5154,
+    "conf55_share": 0.2234,
+    "conf55_hit": 0.5481,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "1d": {
+    "n": 6190,
+    "auc": 0.5455,
+    "accuracy": 0.5258,
+    "conf55_share": 0.2066,
+    "conf55_hit": 0.5457,
+    "tier": 1,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   }
+  },
+  "BNBUSDT": {
+   "1m": {
+    "n": 246687,
+    "auc": 0.5496,
+    "accuracy": 0.5336,
+    "conf55_share": 0.2832,
+    "conf55_hit": 0.5722,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "5m": {
+    "n": 148670,
+    "auc": 0.5304,
+    "accuracy": 0.5209,
+    "conf55_share": 0.1135,
+    "conf55_hit": 0.554,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "15m": {
+    "n": 99181,
+    "auc": 0.5306,
+    "accuracy": 0.5215,
+    "conf55_share": 0.1344,
+    "conf55_hit": 0.5516,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "1h": {
+    "n": 49610,
+    "auc": 0.5297,
+    "accuracy": 0.523,
+    "conf55_share": 0.1753,
+    "conf55_hit": 0.5507,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "4h": {
+    "n": 24803,
+    "auc": 0.5338,
+    "accuracy": 0.5255,
+    "conf55_share": 0.2158,
+    "conf55_hit": 0.561,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "1d": {
+    "n": 6192,
+    "auc": 0.5274,
+    "accuracy": 0.5276,
+    "conf55_share": 0.1867,
+    "conf55_hit": 0.5528,
+    "tier": 1,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   }
+  },
+  "DOGEUSDT": {
+   "1m": {
+    "n": 245014,
+    "auc": 0.5399,
+    "accuracy": 0.527,
+    "conf55_share": 0.2238,
+    "conf55_hit": 0.566,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "5m": {
+    "n": 148158,
+    "auc": 0.5322,
+    "accuracy": 0.5227,
+    "conf55_share": 0.1017,
+    "conf55_hit": 0.5595,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "15m": {
+    "n": 98979,
+    "auc": 0.5363,
+    "accuracy": 0.5257,
+    "conf55_share": 0.1348,
+    "conf55_hit": 0.5609,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "1h": {
+    "n": 49565,
+    "auc": 0.5327,
+    "accuracy": 0.5231,
+    "conf55_share": 0.1773,
+    "conf55_hit": 0.5465,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "4h": {
+    "n": 24786,
+    "auc": 0.5289,
+    "accuracy": 0.517,
+    "conf55_share": 0.2426,
+    "conf55_hit": 0.5399,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "1d": {
+    "n": 6191,
+    "auc": 0.5241,
+    "accuracy": 0.5094,
+    "conf55_share": 0.2008,
+    "conf55_hit": 0.5294,
+    "tier": 1,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   }
+  },
+  "ADAUSDT": {
+   "1m": {
+    "n": 239501,
+    "auc": 0.5355,
+    "accuracy": 0.5255,
+    "conf55_share": 0.2542,
+    "conf55_hit": 0.5528,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "5m": {
+    "n": 146680,
+    "auc": 0.5266,
+    "accuracy": 0.5189,
+    "conf55_share": 0.1046,
+    "conf55_hit": 0.5481,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "15m": {
+    "n": 98495,
+    "auc": 0.5298,
+    "accuracy": 0.5192,
+    "conf55_share": 0.1278,
+    "conf55_hit": 0.5513,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "1h": {
+    "n": 49410,
+    "auc": 0.5293,
+    "accuracy": 0.516,
+    "conf55_share": 0.1694,
+    "conf55_hit": 0.5399,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "4h": {
+    "n": 24754,
+    "auc": 0.529,
+    "accuracy": 0.5189,
+    "conf55_share": 0.2258,
+    "conf55_hit": 0.5292,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "1d": {
+    "n": 6186,
+    "auc": 0.5119,
+    "accuracy": 0.4964,
+    "conf55_share": 0.1974,
+    "conf55_hit": 0.4939,
+    "tier": 1,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   }
+  },
+  "LINKUSDT": {
+   "1m": {
+    "n": 245614,
+    "auc": 0.5525,
+    "accuracy": 0.5362,
+    "conf55_share": 0.2459,
+    "conf55_hit": 0.5816,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "5m": {
+    "n": 148263,
+    "auc": 0.531,
+    "accuracy": 0.5215,
+    "conf55_share": 0.104,
+    "conf55_hit": 0.5502,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "15m": {
+    "n": 99011,
+    "auc": 0.5289,
+    "accuracy": 0.5205,
+    "conf55_share": 0.1346,
+    "conf55_hit": 0.5388,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "1h": {
+    "n": 49568,
+    "auc": 0.5301,
+    "accuracy": 0.521,
+    "conf55_share": 0.1748,
+    "conf55_hit": 0.5374,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "4h": {
+    "n": 24785,
+    "auc": 0.5279,
+    "accuracy": 0.5214,
+    "conf55_share": 0.2404,
+    "conf55_hit": 0.546,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   },
+   "1d": {
+    "n": 6187,
+    "auc": 0.5261,
+    "accuracy": 0.513,
+    "conf55_share": 0.1854,
+    "conf55_hit": 0.5501,
+    "tier": 1,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10"
+   }
+  },
+  "XAUUSDT": {
+   "1m": {
+    "n": 72989,
+    "auc": 0.5448,
+    "accuracy": 0.5307,
+    "conf55_share": 0.2595,
+    "conf55_hit": 0.5685,
+    "tier": 1,
+    "show": true,
+    "basis": "coin model applied to Binance gold, 2026 (limited history)"
+   },
+   "5m": {
+    "tier": 0,
+    "show": false,
+    "basis": "no out-of-sample skill"
+   },
+   "15m": {
+    "n": 30188,
+    "auc": 0.4933,
+    "accuracy": 0.4995,
+    "conf55_share": 0.0486,
+    "conf55_hit": 0.5341,
+    "tier": 0,
+    "show": false,
+    "basis": "trend model (17y spot) validated on Binance 2026"
+   },
+   "1h": {
+    "n": 15121,
+    "auc": 0.5087,
+    "accuracy": 0.5069,
+    "conf55_share": 0.0497,
+    "conf55_hit": 0.5226,
+    "tier": 0,
+    "show": false,
+    "basis": "trend model (17y spot) validated on Binance 2026"
+   },
+   "4h": {
+    "n": 7563,
+    "auc": 0.5167,
+    "accuracy": 0.4982,
+    "conf55_share": 0.068,
+    "conf55_hit": 0.5292,
+    "tier": 1,
+    "show": true,
+    "basis": "trend model (17y spot) validated on Binance 2026"
+   },
+   "1d": {
+    "tier": 0,
+    "show": false,
+    "basis": "no out-of-sample skill"
+   }
+  },
+  "XAGUSDT": {
+   "1m": {
+    "tier": 0,
+    "show": false,
+    "basis": "no out-of-sample skill"
+   },
+   "5m": {
+    "tier": 0,
+    "show": false,
+    "basis": "no out-of-sample skill"
+   },
+   "15m": {
+    "n": 27383,
+    "auc": 0.5137,
+    "accuracy": 0.5144,
+    "conf55_share": 0.0427,
+    "conf55_hit": 0.5497,
+    "tier": 0,
+    "show": false,
+    "basis": "trend model (17y spot) validated on Binance 2026"
+   },
+   "1h": {
+    "n": 13780,
+    "auc": 0.5115,
+    "accuracy": 0.5072,
+    "conf55_share": 0.0442,
+    "conf55_hit": 0.5567,
+    "tier": 0,
+    "show": false,
+    "basis": "trend model (17y spot) validated on Binance 2026"
+   },
+   "4h": {
+    "n": 6901,
+    "auc": 0.5304,
+    "accuracy": 0.4998,
+    "conf55_share": 0.0706,
+    "conf55_hit": 0.5462,
+    "tier": 1,
+    "show": true,
+    "basis": "trend model (17y spot) validated on Binance 2026"
+   },
+   "1d": {
+    "tier": 0,
+    "show": false,
+    "basis": "no out-of-sample skill"
+   }
+  }
+ },
+ "target": "Binance mark price higher at the end of the horizon than at forecast time"
+}

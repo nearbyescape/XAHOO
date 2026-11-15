@@ -1,0 +1,130 @@
+import json
+import math
+import tempfile
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import pytest
+
+from xahoo import binance, features
+from xahoo.config import DATA, MODELS
+from xahoo.model import apply_cal, binned_isotonic
+from xahoo.store import Store
+
+HAVE_DATA = (DATA / "binance" / "BTCUSDT_1m.parquet").exists()
+HAVE_MODELS = (MODELS / "manifest.json").exists()
+
+
+def synth(n=4000, seed=1):
+    rng = np.random.default_rng(seed)
+    idx = pd.date_range("2026-03-02", periods=n, freq="1min", tz="UTC")
+    c = 100 * np.exp(np.cumsum(rng.normal(0, 0.0005, n)))
+    o = np.r_[c[0], c[:-1]]
+    v = rng.uniform(50, 150, n)
+    return pd.DataFrame({"open": o, "high": np.maximum(o, c) * 1.0002, "low": np.minimum(o, c) * 0.9998, "close": c,
+                         "volume": v, "count": rng.integers(50, 500, n).astype(float),
+                         "taker_buy_volume": v * rng.uniform(0.3, 0.7, n)}, index=idx)
+
+
+def test_features_are_causal():
+    """The newest feature row must not change when later bars are appended."""
+    k, lead = synth(4000, 1), synth(4000, 2)
+    met = pd.DataFrame({"oi": 1000 + np.arange(800.0), "top_ls_acct": 1.2, "top_ls_pos": 1.1, "ls_acct": 1.5,
+                        "taker_ratio": 1.0}, index=pd.date_range("2026-03-02", periods=800, freq="5min", tz="UTC"))
+    full = features.build(k, met, None, lead)
+    part = features.build(k.iloc[:3000], met, None, lead.iloc[:3000])
+    a, b = full.iloc[2999], part.iloc[2999]
+    both = a.notna() & b.notna()
+    assert both.sum() > 40
+    assert np.allclose(a[both], b[both], rtol=1e-4, atol=1e-4)
+
+
+def test_flow_imbalance_sign():
+    k = synth(3000)
+    k["taker_buy_volume"] = k["volume"]            # every trade is a buy
+    f = features.build(k)
+    assert (f["b_imb5"].dropna() > 0.99).all()
+
+
+def test_parse_ws_messages():
+    kl = {"stream": "btcusdt@kline_1m", "data": {"e": "kline", "E": 1700000030000, "s": "BTCUSDT", "k": {
+        "t": 1700000000000, "T": 1700000059999, "s": "BTCUSDT", "i": "1m", "o": "100.0", "c": "101.0", "h": "102.0",
+        "l": "99.0", "v": "12.5", "n": 42, "x": True, "q": "1250", "V": "7.5", "Q": "750"}}}
+    ev = binance.parse_ws(kl)
+    assert ev["type"] == "bar" and ev["closed"] and ev["close"] == 101.0 and ev["taker_buy_volume"] == 7.5 and ev["count"] == 42
+    mp = {"data": {"e": "markPriceUpdate", "E": 1700000030000, "s": "XAUUSDT", "p": "3900.5", "i": "3900.1", "r": "0.0001", "T": 1700006400000}}
+    ev = binance.parse_ws(mp)
+    assert ev == {"type": "mark", "sym": "XAUUSDT", "mark": 3900.5, "index": 3900.1, "funding": 0.0001,
+                  "next_funding": 1700006400000, "ts": 1700000030000}
+    fo = {"data": {"e": "forceOrder", "E": 1, "o": {"s": "ETHUSDT", "S": "SELL", "q": "2", "p": "1800", "ap": "1795", "z": "2", "T": 5}}}
+    ev = binance.parse_ws(fo)
+    assert ev["type"] == "liq" and ev["side"] == "long" and ev["usd"] == 3590.0
+    assert binance.parse_ws({"data": {"e": "something_else"}}) is None
+    assert "btcusdt@kline_1m" in binance.streams(["BTCUSDT"]) and "btcusdt@markPrice@1s" in binance.streams(["BTCUSDT"])
+
+
+def test_parse_klines():
+    rows = [[1700000000000, "1", "2", "0.5", "1.5", "10", 1700000059999, "15", 7, "6", "9", "0"]]
+    df = binance.parse_klines(rows)
+    assert list(df.columns) == binance.BAR_COLS and df.iloc[0]["taker_buy_volume"] == 6 and df.iloc[0]["count"] == 7
+    assert df.index[0] == pd.Timestamp("2023-11-14 22:13:20", tz="UTC")
+
+
+def test_binned_isotonic_is_monotone_and_bounded():
+    rng = np.random.default_rng(0)
+    raw = rng.uniform(0.3, 0.7, 20000)
+    y = (rng.uniform(0, 1, 20000) < 0.5 + 0.5 * (raw - 0.5)).astype(float)     # true slope 0.5: raw is overconfident
+    cal = binned_isotonic(raw, y, 20)
+    assert all(b >= a for a, b in zip(cal["y"], cal["y"][1:]))
+    assert 0.38 < cal["y"][0] < 0.46 and 0.54 < cal["y"][-1] < 0.62
+    assert apply_cal(cal, np.array([0.99]))[0] == cal["y"][-1]                 # never extrapolates beyond the data
+
+
+def test_store_scoreboard():
+    s = Store(Path(tempfile.mkdtemp()) / "t.db")
+    s.add([(100, 160, "BTCUSDT", "1m", 0.58, 50000.0, 1.0, 0.001, "v"), (100, 160, "ETHUSDT", "1m", 0.44, 2000.0, 1.0, 0.001, "v"),
+           (100, 400, "BTCUSDT", "5m", 0.51, 50000.0, 1.0, 0.001, "v")])
+    due = s.due(200)
+    assert len(due) == 2
+    s.resolve([(1, 0.001, due[0][0]), (1, 0.002, due[1][0])])
+    sb = s.scoreboard()
+    assert sb["1m"]["n"] == 2 and sb["1m"]["hits"] == 1 and sb["1m"]["conf_n"] == 2
+    assert s.scoreboard(sym="ETHUSDT")["1m"]["hit_rate"] == 0.0
+    assert len(s.due(200)) == 0 and len(s.recent()) == 2
+
+
+@pytest.mark.skipif(not (HAVE_DATA and HAVE_MODELS), reason="needs data/binance and models/")
+def test_engine_replay_matches_research_features():
+    """The live path must compute the same features, and so the same probabilities, as the research tables."""
+    from xahoo.engine import Engine
+    from xahoo.model import Models
+    from xahoo.replay import SimClock, run_fast
+    start = pd.Timestamp("2026-10-20 12:00", tz="UTC")
+    clock = SimClock(start.timestamp())
+    eng = Engine(Models(MODELS), Store(Path(tempfile.mkdtemp()) / "t.db"), clock)
+    assert run_fast(eng, clock, start, 12) == 12
+    row = eng.feature_row("ETHUSDT")
+    ref = pd.read_parquet(DATA / "features" / "ETHUSDT.parquet").loc[start + pd.Timedelta(minutes=11)]
+    cols = [c for c in eng.models.features if row[c] == row[c] and ref[c] == ref[c]]
+    assert len(cols) > 50
+    diff = (row[cols].astype(float) - ref[cols].astype(float)).abs()
+    assert (diff < 2e-2).mean() > 0.97, diff.sort_values().tail(5).to_dict()
+    fc = eng.m["BTCUSDT"].forecast["h"]
+    assert set(fc) == {"1m", "5m", "15m", "1h", "4h", "1d"}
+    for h, v in fc.items():
+        assert 0.3 < v["p"] < 0.7 and v["lo68"] < eng.m["BTCUSDT"].forecast["ref"] < v["hi68"] and v["lo95"] < v["lo68"]
+    assert not eng.m["XAGUSDT"].forecast["h"]["1m"]["show"] and eng.m["BTCUSDT"].forecast["h"]["1m"]["show"]
+    assert eng.store.scoreboard()["1m"]["n"] > 50
+    json.dumps(eng.snapshot(), default=str)
+
+
+def test_manifest_skill_table():
+    if not HAVE_MODELS:
+        pytest.skip("no models")
+    man = json.loads((MODELS / "manifest.json").read_text())
+    assert len(man["features"]) == 62 and set(man["skill"]) >= {"BTCUSDT", "XAUUSDT", "XAGUSDT"}
+    for sym, hz in man["skill"].items():
+        for h, s in hz.items():
+            assert s["show"] == (s["tier"] > 0)
+    assert all(math.isfinite(v) for v in man["families"]["coin"]["1m"]["calibration"]["y"])

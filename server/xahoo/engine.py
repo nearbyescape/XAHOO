@@ -181,13 +181,13 @@ class Engine:
                     d = pr[h]
                     s_h = sig * math.sqrt(n)
                     b68, b95 = d["u68"] * s_h, d["u95"] * s_h
-                    skill = self.models.skill(KIND[sym], h)
+                    skill = self.models.skill(sym, h)
                     fc[h] = {"p": round(d["p"], 4), "band68": round(b68, 6), "band95": round(b95, 6),
                              "lo68": ref * math.exp(-b68), "hi68": ref * math.exp(b68),
                              "lo95": ref * math.exp(-b95), "hi95": ref * math.exp(b95),
                              "move_bp": round(b68 * 1e4, 1), "tradable": bool(b68 * 1e4 > ROUND_TRIP_FEE_BP),
                              "layers": {k: round(v, 3) for k, v in d["layers"].items()},
-                             "show": bool(skill.get("show", True))}
+                             "show": bool(skill.get("show", False)) and d["has_dir"], "tier": int(skill.get("tier", 0))}
                     if minute_idx % STORE_EVERY[h] == 0:
                         to_store.append((now, now + n * 60, sym, h, d["p"], ref, d["u68"], s_h, self.models.version))
                 mk.forecast = {"ts": now, "ref": ref, "h": fc}
@@ -253,8 +253,7 @@ class Engine:
             }
         return {"type": "snapshot", "ts": self.clock(), "markets": MARKETS, "horizons": list(HORIZONS),
                 "m": mk_out, "model": {"version": self.models.version, "trained_through": self.models.manifest.get("trained_through"),
-                                       "skill": {fam: {h: v.get("skill", {}) for h, v in hz.items()}
-                                                 for fam, hz in self.models.manifest["families"].items()}},
+                                       "skill": self.models.manifest["skill"]},
                 "status": self.status, "resolved": list(self.resolved_recent)[-40:]}
 
     def candles(self, sym: str, tf_min: int = 1, limit: int = 500) -> dict:

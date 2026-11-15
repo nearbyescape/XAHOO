@@ -67,40 +67,41 @@ class Models:
             for h, files in hz.items():
                 for kind, fn in files["files"].items():
                     self.boosters[f"{fam}/{h}/{kind}"] = lgb.Booster(model_file=str(self.path / fn))
-        self._layer_idx = {g: [i for i, c in enumerate(self.features) if c.startswith(g + "_")] for g in LAYERS}
 
     @property
     def version(self) -> str:
         return self.manifest["version"]
 
-    def skill(self, family: str, h: str) -> dict:
-        return self.manifest["families"][family][h].get("skill", {})
+    def skill(self, sym: str, h: str) -> dict:
+        return self.manifest["skill"].get(sym, {}).get(h, {})
 
     def predict(self, feats: pd.DataFrame, families: list[str]) -> list[dict]:
-        """feats: one row per market (columns = self.features). families: 'coin' or 'metal' per row.
-        Returns, per row, {horizon: {p, raw, band68, band95, layers}}."""
-        X = feats[self.features].to_numpy(dtype=np.float64)
-        out = [dict() for _ in range(len(X))]
+        """feats: one row per market (columns include self.features). families: 'coin' or 'metal' per row.
+        Returns, per row, {horizon: {p, u68, u95, layers, has_dir}}. Without a direction model p is 0.5."""
+        out = [dict() for _ in range(len(feats))]
         for fam in set(families):
             rows = [i for i, f in enumerate(families) if f == fam]
-            if not rows:
-                continue
-            Xf = X[rows]
+            sub = feats.iloc[rows]
+            X = sub[self.features].to_numpy(dtype=np.float64)
             for h in HORIZONS:
                 spec = self.manifest["families"][fam].get(h)
                 if not spec:
                     continue
-                b = self.boosters[f"{fam}/{h}/dir"]
-                raw = b.predict(Xf)
-                p = apply_cal(spec["calibration"], raw)
-                contrib = b.predict(Xf, pred_contrib=True)          # per-feature log-odds contributions (+ bias)
-                q68 = np.maximum(self.boosters[f"{fam}/{h}/q68"].predict(Xf), 1e-6) * spec["q68_scale"]
-                q95 = np.maximum(self.boosters[f"{fam}/{h}/q95"].predict(Xf), 1e-6) * spec["q95_scale"]
+                q68 = np.maximum(self.boosters[f"{fam}/{h}/q68"].predict(X), 1e-6) * spec["q68_scale"]
+                q95 = np.maximum(self.boosters[f"{fam}/{h}/q95"].predict(X), 1e-6) * spec["q95_scale"]
                 q95 = np.maximum(q95, q68 * 1.2)
+                b = self.boosters.get(f"{fam}/{h}/dir")
+                if b is not None:
+                    fcols = spec.get("features_dir") or self.features
+                    Xd = sub[fcols].to_numpy(dtype=np.float64)
+                    raw = b.predict(Xd)
+                    p = apply_cal(spec["calibration"], raw)
+                    contrib = b.predict(Xd, pred_contrib=True)      # per-feature log-odds contributions (+ bias)
+                    lidx = {g: [i for i, c in enumerate(fcols) if c.startswith(g + "_")] for g in LAYERS}
                 for j, i in enumerate(rows):
-                    out[i][h] = {
-                        "p": float(np.clip(p[j], 0.01, 0.99)), "raw": float(raw[j]),
-                        "u68": float(q68[j]), "u95": float(q95[j]),
-                        "layers": {LAYERS[g]: float(contrib[j, idx].sum()) for g, idx in self._layer_idx.items()},
-                    }
+                    d = {"p": 0.5, "u68": float(q68[j]), "u95": float(q95[j]), "layers": {}, "has_dir": b is not None}
+                    if b is not None:
+                        d["p"] = float(np.clip(p[j], 0.01, 0.99))
+                        d["layers"] = {LAYERS[g]: float(contrib[j, idx].sum()) for g, idx in lidx.items() if idx}
+                    out[i][h] = d
         return out
