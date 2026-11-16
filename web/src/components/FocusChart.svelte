@@ -59,7 +59,7 @@
     // keep the buyers / sellers area clear of candles: leave that much empty space after the live candle
     const spacing = (chart.timeScale().options() as any).barSpacing || 6;
     const plotW = el.clientWidth - chart.priceScale('right').width();
-    const fut = Math.max(FUTURE_BARS, Math.ceil((flowWidth(plotW) + 110) / spacing));
+    const fut = Math.max(FUTURE_BARS, Math.ceil((flowWidth(plotW) + 40) / spacing));
     chart.timeScale().setVisibleLogicalRange({ from: nb - 150, to: nb + fut });
     userMoved = false;
   }
@@ -291,51 +291,6 @@
       parts.push(g ? `big trades: buy $${usd(g.buy).slice(2)} · sell $${usd(g.sell).slice(2)}` : 'no big trades');
       pill(c, 10, 64, parts.join('   ·   '), 'rgba(152,163,192,.9)', 'left', 'rgba(10,13,24,.92)');
     }
-    // direction arrow: fixed length from the live price so it reads the same on every timeframe; its angle
-    // shows the strength (flat grey = neutral, ~25-35 degrees = slight lean, up to 60 degrees = strong lean)
-    const fd = fc[$fh];
-    if (show.arrow && fd?.show && last && m.price != null) {
-      const x0 = chart.timeScale().timeToCoordinate(last.time as any);
-      const y0 = Y(m.price);
-      if (x0 != null && y0 != null && x0 < plotW - flowW - 40) {
-        const up = fd.p >= 0.5, k = Math.min(1, Math.abs(lean(fd.p))), conv = conviction(fd.p);
-        const deg = conv === 0 ? 0 : 18 + 42 * k;
-        const ang = (up ? -1 : 1) * deg * Math.PI / 180;
-        const L = Math.max(70, Math.min(140, plotW - flowW - 24 - x0));
-        const x1 = x0 + Math.cos(ang) * L, y1 = Math.min(plotH * PRICE_BOTTOM, Math.max(8, y0 + Math.sin(ang) * L));
-        const rgb = conv === 0 ? '152,163,192' : up ? '46,230,168' : '255,92,138';
-        const col = `rgb(${rgb})`, w = 3 + 3 * k;
-        const ux = (x1 - x0) / Math.hypot(x1 - x0, y1 - y0), uy = (y1 - y0) / Math.hypot(x1 - x0, y1 - y0);
-        const hl = 15 + 5 * k, hw = 8 + 3 * k;                     // head length / half-width
-        const bx = x1 - ux * hl, by = y1 - uy * hl;                // where the shaft meets the head
-        c.save();
-        c.lineCap = 'round';
-        c.strokeStyle = `rgba(${rgb},${0.08 + 0.07 * pulse})`; c.lineWidth = w + 10;          // soft halo
-        c.beginPath(); c.moveTo(x0, y0); c.lineTo(bx, by); c.stroke();
-        const g = c.createLinearGradient(x0, y0, bx, by);
-        g.addColorStop(0, `rgba(${rgb},.25)`); g.addColorStop(1, `rgba(${rgb},1)`);
-        c.strokeStyle = g; c.lineWidth = w; c.shadowColor = col; c.shadowBlur = 8 + 8 * k;
-        c.beginPath(); c.moveTo(x0, y0); c.lineTo(bx, by); c.stroke();
-        c.fillStyle = col; c.shadowBlur = 14;                      // head: clean triangle with a slight notch
-        c.beginPath(); c.moveTo(x1, y1);
-        c.lineTo(bx - uy * hw, by + ux * hw); c.lineTo(bx + ux * 3, by + uy * 3); c.lineTo(bx + uy * hw, by - ux * hw);
-        c.closePath(); c.fill(); c.shadowBlur = 0;
-        const f = (t / 1400) % 1;                                  // light pulse travelling along the shaft
-        c.fillStyle = `rgba(255,255,255,${0.75 * (1 - f)})`;
-        c.beginPath(); c.arc(x0 + (bx - x0) * f, y0 + (by - y0) * f, 2.2 + w / 3, 0, Math.PI * 2); c.fill();
-        c.fillStyle = col; c.beginPath(); c.arc(x0, y0, 4, 0, Math.PI * 2); c.fill();          // origin: live price
-        c.strokeStyle = 'rgba(10,13,24,.9)'; c.lineWidth = 1.5; c.stroke();
-        c.restore();
-        const endPx = m.price * Math.exp((up ? 1 : -1) * fd.band68);
-        const txt = `${conv === 0 ? '→' : up ? '↗' : '↘'} ${biasWord(fd.p)}  ${((up ? fd.p : 1 - fd.p) * 100).toFixed(1)}%  ·  ${$fh}  ·  68% range edge ${px(endPx, m.digits)}`;
-        c.font = '800 13px Inter, sans-serif';
-        const bw = c.measureText(txt).width + 26, bxx = (plotW - flowW) / 2 - bw / 2, byy = 10;
-        c.fillStyle = `rgba(${rgb},.14)`; c.strokeStyle = col; c.lineWidth = 1.5;
-        c.shadowColor = col; c.shadowBlur = 6 + 8 * pulse;
-        c.beginPath(); c.roundRect(bxx, byy, bw, 28, 9); c.fill(); c.stroke(); c.shadowBlur = 0;
-        c.fillStyle = col; c.textBaseline = 'middle'; c.fillText(txt, bxx + 13, byy + 14.5);
-      }
-    }
     c.restore();
     drawStrips();
   }
@@ -466,8 +421,11 @@
   });
   onDestroy(() => { alive = false; clearInterval(timer); clearInterval(widthTimer); cancelAnimationFrame(raf); chart?.remove(); chart2?.remove(); });
   $: if (chart && sym) { tf; load(); }
-  const toggles: [Exclude<keyof typeof show, 'compact'>, string][] = [['arrow', 'Direction line'], ['levels', 'Support / resistance'], ['zones', 'Volume by price'], ['book', 'Order-book walls'], ['trades', 'Big trades'], ['cone', 'Expected range']];
+  const toggles: [Exclude<keyof typeof show, 'compact' | 'arrow'>, string][] = [['levels', 'Support / resistance'], ['zones', 'Volume by price'], ['book', 'Order-book walls'], ['trades', 'Big trades'], ['cone', 'Expected range']];
   const f = (v: number) => `$${usd(v).slice(2)}`;
+  $: sel = fc[$fh];
+  $: dirKind = !sel?.show ? 'none' : conviction(sel.p) === 0 ? 'flat' : sel.p >= 0.5 ? 'up' : 'down';
+  $: dirWord = { none: 'NO EDGE', flat: 'NEUTRAL', up: 'UP', down: 'DOWN' }[dirKind];
 </script>
 <section class="fc panel">
   <header>
@@ -475,6 +433,10 @@
     <div class="nm"><div class="t">{m.name} <span>{m.sym} · USDⓈ-M perpetual futures</span></div>
       <div class="pr"><span class="num big"><Roll value={m.price} format={v => px(v, m.digits)} /></span>
         <span class="num chg" class:up={chg != null && chg >= 0} class:down={chg != null && chg < 0}>{pct(chg)} <em>24h</em></span></div></div>
+    <div class="dirb {dirKind}" title="Direction for the selected timeframe ({$fh}). NEUTRAL = within 2 points of 50%.">
+      <Arrow p={sel?.p ?? 0.5} show={!!sel?.show} size={34} />
+      <div><b>{dirWord}</b><span class="num">{sel?.show ? `${((sel.p >= 0.5 ? sel.p : 1 - sel.p) * 100).toFixed(1)}% · ${$fh}` : $fh}</span></div>
+    </div>
     <div class="hs">
       {#each Object.keys(HORIZON_MIN) as h}
         {@const x = fc[h]}
@@ -524,6 +486,12 @@
   .pr { display: flex; align-items: baseline; gap: 12px; }
   .big { font-size: 30px; font-weight: 700; letter-spacing: -1px; line-height: 1.1; }
   .chg { font-size: 13px; } .chg em { font-style: normal; font-size: 10px; color: var(--faint); font-family: var(--sans); }
+  .dirb { display: flex; align-items: center; gap: 10px; padding: 8px 14px 8px 10px; border-radius: 14px; border: 1.5px solid var(--line2); background: rgba(148,163,214,.06); transition: all .4s; }
+  .dirb b { display: block; font: 900 20px/1 var(--sans); letter-spacing: 2px; }
+  .dirb span { font-size: 12px; color: var(--muted); }
+  .dirb.up { border-color: rgba(var(--up-rgb), .7); background: rgba(var(--up-rgb), .12); } .dirb.up b { color: var(--up); }
+  .dirb.down { border-color: rgba(var(--down-rgb), .7); background: rgba(var(--down-rgb), .12); } .dirb.down b { color: var(--down); }
+  .dirb.flat b, .dirb.none b { color: var(--muted); }
   .hs { margin-left: auto; display: grid; grid-template-columns: repeat(6, minmax(92px, 1fr)); gap: 8px; flex: 1; max-width: 760px; }
   @media (max-width: 900px) { .hs { grid-template-columns: repeat(3, 1fr); min-width: 100%; } .big { font-size: 24px; } .hv { font-size: 14px; } }
   .hb { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding: 8px 11px; border-radius: 11px; background: rgba(148,163,214,.04); text-align: left; }
