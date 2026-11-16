@@ -47,6 +47,7 @@
 
   const FUTURE_BARS = 24;                 // empty space kept right of the live candle (room for the direction line)
   let loadedTf = 0, userMoved = false;
+  let alive = true;                        // false once this chart is closed (market switched): late replies are ignored
   function liveView() {
     const nb = candles.data().length;
     chart.timeScale().setVisibleLogicalRange({ from: nb - 150, to: nb + FUTURE_BARS });
@@ -64,6 +65,7 @@
   async function load() {
     if (loadedTf !== tf) {                  // first load or timeframe change: full history and the default view
       const d = await api<any>(`/api/candles?sym=${sym}&tf=${tf}&limit=500`);
+      if (!alive) return;
       const data = d.t.map((t: number, i: number) => ({ time: t, open: d.o[i], high: d.h[i], low: d.l[i], close: d.c[i] }));
       candles.setData(data);
       volAt.clear();
@@ -78,6 +80,7 @@
     }
     // refresh: only the newest bars, applied with update() so zoom and scroll stay where the user left them
     const d = await api<any>(`/api/candles?sym=${sym}&tf=${tf}&limit=3`);
+    if (!alive || loadedTf !== tf) return;
     for (let i = 0; i < d.t.length; i++) {
       if (last && d.t[i] < last.time) continue;
       const bar = { time: d.t[i], open: d.o[i], high: d.h[i], low: d.l[i], close: d.c[i] };
@@ -189,6 +192,7 @@
   }
 
   function draw(t: number) {
+    if (!alive) return;
     raf = requestAnimationFrame(draw);
     if (!chart || !cv || !m) return;
     const { c, W, H } = canvas(cv);
@@ -228,6 +232,15 @@
     }
     const near = (l: Lbl) => hoverY != null && Math.abs(hoverY - l.y0) < 10;
     const priceBottom = plotH * PRICE_BOTTOM + 10;
+    // levels above / below the visible chart: one small pill per side instead of a stack
+    for (const [side, test, y] of [['↑', (l: Lbl) => l.y0 < 0, 12], ['↓', (l: Lbl) => l.y0 > priceBottom, priceBottom]] as const) {
+      const off = labels.filter(test);
+      if (off.length > 1) {
+        const txt = `${side} ` + off.map(l => (l.short || l.text).split(' · ')[0] + (l.short?.match(/(\d+)% reach/) ? ` ${l.short.match(/(\d+)% reach/)![1]}%` : '')).join(' · ');
+        for (const l of off) labels.splice(labels.indexOf(l), 1);
+        labels.push({ y: side === '↑' ? -1 : priceBottom + 1, y0: side === '↑' ? -1 : priceBottom + 1, col: off[0].col, lane: 'l', text: txt.slice(2), short: txt.slice(2) });
+      }
+    }
     layout(labels, 22, 12, priceBottom);
     for (const l of labels) {
       const body = l.short && !near(l) ? l.short : l.text;
@@ -241,46 +254,49 @@
       parts.push(g ? `big trades: buy $${usd(g.buy).slice(2)} · sell $${usd(g.sell).slice(2)}` : 'no big trades');
       pill(c, 10, 64, parts.join('   ·   '), 'rgba(152,163,192,.9)', 'left', 'rgba(10,13,24,.92)');
     }
-    // direction line toward the side the forecast leans, ending at the 68% range edge for the horizon
+    // direction arrow: fixed length from the live price so it reads the same on every timeframe; its angle
+    // shows the strength (flat grey = neutral, ~25-35 degrees = slight lean, up to 60 degrees = strong lean)
     const fd = fc[$fh];
     if (show.arrow && fd?.show && last && m.price != null) {
       const x0 = chart.timeScale().timeToCoordinate(last.time as any);
-      const spacing = (chart.timeScale().options() as any).barSpacing || 6;
       const y0 = Y(m.price);
-      if (x0 != null && y0 != null) {
-        const up = fd.p >= 0.5, k = Math.min(1, Math.abs(lean(fd.p)));
-        const endPx = m.price * Math.exp((up ? 1 : -1) * fd.band68);
-        let x1 = x0 + (HORIZON_MIN[$fh] / tf) * spacing, y1 = Y(endPx) ?? (up ? 0 : plotH);
-        const maxX = plotW - 24;
-        if (x1 > maxX) { y1 = y0 + (y1 - y0) * ((maxX - x0) / (x1 - x0)); x1 = maxX; }
-        const col = probColor(fd.p), rgb = up ? '46,230,168' : '255,92,138';
-        const w = 4 + 5 * k;
-        const g = c.createLinearGradient(x0, y0, x1, y1);
-        g.addColorStop(0, `rgba(${rgb},.15)`); g.addColorStop(1, `rgba(${rgb},.95)`);
+      if (x0 != null && y0 != null && x0 < plotW - 40) {
+        const up = fd.p >= 0.5, k = Math.min(1, Math.abs(lean(fd.p))), conv = conviction(fd.p);
+        const deg = conv === 0 ? 0 : 18 + 42 * k;
+        const ang = (up ? -1 : 1) * deg * Math.PI / 180;
+        const L = Math.max(70, Math.min(140, plotW - 24 - x0));
+        const x1 = x0 + Math.cos(ang) * L, y1 = Math.min(plotH * PRICE_BOTTOM, Math.max(8, y0 + Math.sin(ang) * L));
+        const rgb = conv === 0 ? '152,163,192' : up ? '46,230,168' : '255,92,138';
+        const col = `rgb(${rgb})`, w = 3 + 3 * k;
+        const ux = (x1 - x0) / Math.hypot(x1 - x0, y1 - y0), uy = (y1 - y0) / Math.hypot(x1 - x0, y1 - y0);
+        const hl = 15 + 5 * k, hw = 8 + 3 * k;                     // head length / half-width
+        const bx = x1 - ux * hl, by = y1 - uy * hl;                // where the shaft meets the head
         c.save();
-        c.strokeStyle = `rgba(${rgb},${0.10 + 0.08 * pulse})`; c.lineWidth = w + 12; c.lineCap = 'round';
-        c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
-        c.shadowColor = col; c.shadowBlur = 10 + 14 * k * pulse;
-        c.strokeStyle = g; c.lineWidth = w;
-        c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
-        c.shadowBlur = 0;
-        c.strokeStyle = 'rgba(255,255,255,.55)'; c.lineWidth = 1.2; c.setLineDash([3, 9]); c.lineDashOffset = -(t / 40) % 12;
-        c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke(); c.setLineDash([]);
-        const ang = Math.atan2(y1 - y0, x1 - x0), hl = 16 + 8 * k;
-        c.fillStyle = col; c.shadowColor = col; c.shadowBlur = 16;
-        c.beginPath(); c.moveTo(x1 + Math.cos(ang) * hl * 0.4, y1 + Math.sin(ang) * hl * 0.4);
-        c.lineTo(x1 - Math.cos(ang - 0.5) * hl, y1 - Math.sin(ang - 0.5) * hl);
-        c.lineTo(x1 - Math.cos(ang + 0.5) * hl, y1 - Math.sin(ang + 0.5) * hl); c.closePath(); c.fill();
-        c.shadowBlur = 0;
-        c.fillStyle = col; c.beginPath(); c.arc(x0, y0, 4.5, 0, Math.PI * 2); c.fill();
+        c.lineCap = 'round';
+        c.strokeStyle = `rgba(${rgb},${0.08 + 0.07 * pulse})`; c.lineWidth = w + 10;          // soft halo
+        c.beginPath(); c.moveTo(x0, y0); c.lineTo(bx, by); c.stroke();
+        const g = c.createLinearGradient(x0, y0, bx, by);
+        g.addColorStop(0, `rgba(${rgb},.25)`); g.addColorStop(1, `rgba(${rgb},1)`);
+        c.strokeStyle = g; c.lineWidth = w; c.shadowColor = col; c.shadowBlur = 8 + 8 * k;
+        c.beginPath(); c.moveTo(x0, y0); c.lineTo(bx, by); c.stroke();
+        c.fillStyle = col; c.shadowBlur = 14;                      // head: clean triangle with a slight notch
+        c.beginPath(); c.moveTo(x1, y1);
+        c.lineTo(bx - uy * hw, by + ux * hw); c.lineTo(bx + ux * 3, by + uy * 3); c.lineTo(bx + uy * hw, by - ux * hw);
+        c.closePath(); c.fill(); c.shadowBlur = 0;
+        const f = (t / 1400) % 1;                                  // light pulse travelling along the shaft
+        c.fillStyle = `rgba(255,255,255,${0.75 * (1 - f)})`;
+        c.beginPath(); c.arc(x0 + (bx - x0) * f, y0 + (by - y0) * f, 2.2 + w / 3, 0, Math.PI * 2); c.fill();
+        c.fillStyle = col; c.beginPath(); c.arc(x0, y0, 4, 0, Math.PI * 2); c.fill();          // origin: live price
+        c.strokeStyle = 'rgba(10,13,24,.9)'; c.lineWidth = 1.5; c.stroke();
         c.restore();
-        const txt = `${conviction(fd.p) === 0 ? '→' : up ? '↗' : '↘'} ${biasWord(fd.p)}  ${((up ? fd.p : 1 - fd.p) * 100).toFixed(1)}%  ·  ${$fh}  ·  68% edge ${px(endPx, m.digits)}`;
+        const endPx = m.price * Math.exp((up ? 1 : -1) * fd.band68);
+        const txt = `${conv === 0 ? '→' : up ? '↗' : '↘'} ${biasWord(fd.p)}  ${((up ? fd.p : 1 - fd.p) * 100).toFixed(1)}%  ·  ${$fh}  ·  68% range edge ${px(endPx, m.digits)}`;
         c.font = '800 13px Inter, sans-serif';
-        const bw = c.measureText(txt).width + 26, bx = plotW / 2 - bw / 2, by = 10;
-        c.fillStyle = `rgba(${rgb},.16)`; c.strokeStyle = col; c.lineWidth = 1.5;
-        c.shadowColor = col; c.shadowBlur = 8 + 10 * pulse;
-        c.beginPath(); c.roundRect(bx, by, bw, 28, 9); c.fill(); c.stroke(); c.shadowBlur = 0;
-        c.fillStyle = col; c.textBaseline = 'middle'; c.fillText(txt, bx + 13, by + 14.5);
+        const bw = c.measureText(txt).width + 26, bxx = plotW / 2 - bw / 2, byy = 10;
+        c.fillStyle = `rgba(${rgb},.14)`; c.strokeStyle = col; c.lineWidth = 1.5;
+        c.shadowColor = col; c.shadowBlur = 6 + 8 * pulse;
+        c.beginPath(); c.roundRect(bxx, byy, bw, 28, 9); c.fill(); c.stroke(); c.shadowBlur = 0;
+        c.fillStyle = col; c.textBaseline = 'middle'; c.fillText(txt, bxx + 13, byy + 14.5);
       }
     }
     c.restore();
@@ -370,7 +386,7 @@
     chart.timeScale().subscribeVisibleLogicalRangeChange(r => { userMoved = !!r && r.to < candles.data().length - 1; });
     raf = requestAnimationFrame(draw);
   });
-  onDestroy(() => { clearInterval(timer); cancelAnimationFrame(raf); chart?.remove(); });
+  onDestroy(() => { alive = false; clearInterval(timer); cancelAnimationFrame(raf); chart?.remove(); });
   $: if (chart && sym) { tf; load(); }
   const toggles: [Exclude<keyof typeof show, 'compact'>, string][] = [['arrow', 'Direction line'], ['levels', 'Support / resistance'], ['zones', 'Volume by price'], ['book', 'Order-book walls'], ['trades', 'Big trades'], ['cone', 'Expected range']];
   const f = (v: number) => `$${usd(v).slice(2)}`;
