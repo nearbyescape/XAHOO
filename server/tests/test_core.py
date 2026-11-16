@@ -154,3 +154,24 @@ def test_levels_sides_and_reach():
     table = json.loads((MODELS / "levels.json").read_text())["reach"]["coin"]
     ps = [reach_prob(table, "1h", "up", k) for k in (0.2, 0.5, 1.0, 2.0, 3.0)]
     assert ps == sorted(ps, reverse=True) and 0 < ps[-1] < ps[0] <= 1
+
+
+def test_gap_fill_adds_missing_bars_in_order():
+    import asyncio
+    from xahoo import app as appmod
+    from xahoo.engine import Engine
+    from xahoo.model import Models
+    from xahoo.store import Store
+    eng = Engine(Models(MODELS), Store(Path(tempfile.mkdtemp()) / "t.db"))
+    idx = pd.date_range("2026-10-01", periods=4000, freq="1min", tz="UTC")
+    full = pd.DataFrame({c: 1.0 for c in binance.BAR_COLS}, index=idx)
+    mk = eng.m["BTCUSDT"]
+    mk.bars = full.drop(full.index[[3990, 3991, 3995]]).iloc[:-1]       # holes, and the last bar not yet in
+
+    class FakeRest:
+        async def klines(self, sym, minutes):
+            return full.iloc[-minutes:]                                 # the last row counts as still forming
+    n = asyncio.run(appmod.gap_fill(eng, FakeRest(), "BTCUSDT"))
+    assert n == 3
+    assert mk.bars.index.is_monotonic_increasing and not mk.bars.index.has_duplicates
+    assert len(mk.bars) == 3999 and mk.bars.index[-1] == idx[-2]

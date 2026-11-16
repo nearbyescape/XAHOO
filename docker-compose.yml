@@ -1,0 +1,18 @@
+# Run after building the image:  docker compose up -d --no-build
+services:
+  xahoo:
+    image: xahoo:latest
+    container_name: xahoo
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8010:8010"      # nginx on the host terminates HTTPS and proxies here
+    volumes:
+      - xahoo-data:/data           # scoreboard database
+    cpus: 1.0
+    mem_limit: 1g
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+volumes:
+  xahoo-data:

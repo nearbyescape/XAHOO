@@ -102,7 +102,39 @@ async def live_feed(engine: Engine) -> None:
     engine.status["feed"] = "live"
     asyncio.create_task(binance.stream(SYMS, engine.on_event))
     asyncio.create_task(_metrics_loop(engine, rest))
+    asyncio.create_task(_gap_loop(engine, rest))
     await _minute_loop(engine)
+
+
+async def gap_fill(engine: Engine, rest: binance.Rest, sym: str) -> int:
+    """Add closed bars the stream missed (start-up, reconnects); redo the full backfill if history is short."""
+    mk = engine.m[sym]
+    short = len(mk.bars) < 3000
+    bars = await rest.klines(sym, 10_580 if short else 90)
+    if not len(bars):
+        return 0
+    bars = bars.iloc[:-1]                                        # the last row is still forming
+    new = bars.loc[bars.index.difference(mk.bars.index)]
+    if len(new):
+        mk.bars = pd.concat([mk.bars, new]).sort_index().iloc[-(10_600):]
+        engine.closed[sym] = max(engine.closed.get(sym, 0), int(mk.bars.index[-1].timestamp()))
+        if short:
+            mk.metrics = await rest.metrics(sym)
+            mk.funding = await rest.funding(sym)
+    return len(new)
+
+
+async def _gap_loop(engine: Engine, rest: binance.Rest) -> None:
+    await asyncio.sleep(10)                                      # let the stream connect first
+    while True:
+        for sym in SYMS:
+            try:
+                n = await gap_fill(engine, rest, sym)
+                if n:
+                    log.info("gap fill %s: %d bars", sym, n)
+            except Exception as e:  # noqa: BLE001
+                log.warning("gap fill %s: %s", sym, type(e).__name__)
+        await asyncio.sleep(180)
 
 
 async def _minute_loop(engine: Engine) -> None:
