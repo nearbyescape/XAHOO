@@ -22,18 +22,44 @@
   $: chg = m?.price != null && m?.dayAgo ? (m.price / m.dayAgo - 1) * 100 : null;
   const css = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
+  const FUTURE_BARS = 24;                 // empty space kept right of the live candle
+  let loadedTf = 0, userMoved = false, ours = false, nBars = 0;
+  const dcol = (v: number) => (v >= 0 ? 'rgba(46,230,168,.55)' : 'rgba(255,92,138,.55)');
+  function liveView() {
+    ours = true;
+    // leave enough empty space right of the live candle for the volume strip and its labels
+    const spacing = (chart.timeScale().options() as any).barSpacing || 6;
+    const plotW = el.clientWidth - chart.priceScale('right').width();
+    const fut = Math.max(FUTURE_BARS, Math.ceil((Math.min(170, plotW * 0.16) + 75) / spacing));
+    chart.timeScale().setVisibleLogicalRange({ from: nBars - 150, to: nBars + fut });
+    userMoved = false;
+    setTimeout(() => (ours = false), 50);
+  }
   async function load() {
-    const d = await api<any>(`/api/candles?sym=${sym}&tf=${tf}&limit=500`);
-    const data = d.t.map((t: number, i: number) => ({ time: t, open: d.o[i], high: d.h[i], low: d.l[i], close: d.c[i] }));
-    candles.setData(data);
-    delta.setData(d.t.map((t: number, i: number) => {
+    if (loadedTf !== tf) {                  // first load or timeframe change: full history and the default view
+      const d = await api<any>(`/api/candles?sym=${sym}&tf=${tf}&limit=500`);
+      const data = d.t.map((t: number, i: number) => ({ time: t, open: d.o[i], high: d.h[i], low: d.l[i], close: d.c[i] }));
+      candles.setData(data);
+      delta.setData(d.t.map((t: number, i: number) => ({ time: t, value: 2 * d.tb[i] - d.v[i], color: dcol(2 * d.tb[i] - d.v[i]) })));
+      last = data.length ? { ...data[data.length - 1] } : null;
+      nBars = data.length;
+      candles.applyOptions({ priceFormat: { type: 'price', precision: m.digits, minMove: 1 / 10 ** m.digits } });
+      loadedTf = tf;
+      drawCone(); keepLevels(); liveView();
+      return;
+    }
+    // refresh: only the newest bars, applied with update() so zoom and scroll stay where the user left them
+    const d = await api<any>(`/api/candles?sym=${sym}&tf=${tf}&limit=3`);
+    for (let i = 0; i < d.t.length; i++) {
+      if (last && d.t[i] < last.time) continue;
+      const bar = { time: d.t[i], open: d.o[i], high: d.h[i], low: d.l[i], close: d.c[i] };
+      if (!last || bar.time > last.time) nBars += 1;
+      candles.update({ ...bar, time: bar.time as any });
       const v = 2 * d.tb[i] - d.v[i];
-      return { time: t, value: v, color: v >= 0 ? 'rgba(46,230,168,.55)' : 'rgba(255,92,138,.55)' };
-    }));
-    last = data.length ? { ...data[data.length - 1] } : null;
-    candles.applyOptions({ priceFormat: { type: 'price', precision: m.digits, minMove: 1 / 10 ** m.digits } });
+      delta.update({ time: d.t[i] as any, value: v, color: dcol(v) });
+      last = { ...bar };
+    }
     drawCone(); keepLevels();
-    chart.timeScale().setVisibleLogicalRange({ from: data.length - 160, to: data.length + coneBars() + 6 });
   }
   const coneHs = () => (tf === 1 ? ['1m', '5m', '15m', '1h'] : tf === 5 ? ['5m', '15m', '1h', '4h'] : tf === 15 ? ['15m', '1h', '4h'] : ['1h', '4h', '1d']);
   const coneBars = () => HORIZON_MIN[coneHs()[coneHs().length - 1]] / tf;
@@ -78,7 +104,7 @@
     // bucket by the SERVER clock (the viewer's clock may be off, and replay runs on a simulated clock)
     const bucket = Math.floor($serverTime / (tf * 60)) * tf * 60;
     if (bucket - last.time > tf * 60 * 2 || bucket < last.time) { /* out of step: the next reload fixes it */ }
-    else if (bucket > last.time) last = { time: bucket, open: last.close, high: Math.max(last.close, m.price), low: Math.min(last.close, m.price), close: m.price };
+    else if (bucket > last.time) { nBars += 1; last = { time: bucket, open: last.close, high: Math.max(last.close, m.price), low: Math.min(last.close, m.price), close: m.price }; }
     else { last.high = Math.max(last.high, m.price); last.low = Math.min(last.low, m.price); last.close = m.price; }
     candles.update({ ...last, time: last.time as any });
   }
@@ -182,10 +208,10 @@
     for (let i = labels.length - 1; i >= 0; i--) if (labels[i].lane === 'r' && (labels[i].y0 < 0 || labels[i].y0 > plotH)) labels.splice(i, 1);
     layout(labels, 22, 12, plotH - 12);
     for (const l of labels) {
-      const x = l.lane === 'l' ? 10 : plotW - profW - 8;
+      const x = l.lane === 'l' ? 10 : plotW - 6;           // right-lane labels sit over the volume strip, clear of the candles
       if (Math.abs(l.y - l.y0) > 2) {
         c.strokeStyle = l.col; c.globalAlpha = 0.6; c.lineWidth = 1;
-        c.beginPath(); c.moveTo(l.lane === 'l' ? x + 4 : x - 4, l.y); c.lineTo(l.lane === 'l' ? x - 2 : x + 6, l.y0); c.stroke(); c.globalAlpha = 1;
+        c.beginPath(); c.moveTo(x - (l.lane === 'l' ? -4 : 4), l.y); c.lineTo(x - (l.lane === 'l' ? 2 : 2), l.y0); c.stroke(); c.globalAlpha = 1;
       }
       const txt = l.y0 < 0 ? `↑ ${l.text}` : l.y0 > plotH ? `↓ ${l.text}` : l.text;      // level is off the visible chart
       pill(c, x, l.y, txt, l.col, l.lane === 'l' ? 'left' : 'right');
@@ -234,21 +260,33 @@
         c.fillStyle = col; c.textBaseline = 'middle'; c.fillText(txt, bx + 13, by + 14.5);
       }
     }
-    // big trades
+    // big trades: grouped per candle and side so bursts don't pile up; size = total, "×n" = number of trades
     if (show.trades && m.big?.length) {
       const thr = $bigUsd[sym] || 1e5, nowMs = now() * 1000;
+      const groups = new Map<string, { t: number; side: string; usd: number; pv: number; n: number; newest: number }>();
       for (const b of m.big) {
-        const bucket = Math.floor(b.ts / 1000 / (tf * 60)) * tf * 60;
-        const x = chart.timeScale().timeToCoordinate(bucket as any), y = Y(b.price);
-        if (x == null || y == null) continue;
-        const r = 4 + 5 * Math.sqrt(b.usd / thr);
-        const col = b.side === 'buy' ? '46,230,168' : '255,92,138';
-        const age = (nowMs - b.ts) / 1000;
-        c.fillStyle = `rgba(${col},.35)`; c.strokeStyle = `rgba(${col},.95)`; c.lineWidth = 1.2;
+        const t = Math.floor(b.ts / 1000 / (tf * 60)) * tf * 60, key = `${t}${b.side}`;
+        const g = groups.get(key) || { t, side: b.side, usd: 0, pv: 0, n: 0, newest: 0 };
+        g.usd += b.usd; g.pv += b.usd * b.price; g.n += 1; g.newest = Math.max(g.newest, b.ts);
+        groups.set(key, g);
+      }
+      const spacing = (chart.timeScale().options() as any).barSpacing || 6;
+      for (const g of groups.values()) {
+        const xc = chart.timeScale().timeToCoordinate(g.t as any), y = Y(g.pv / g.usd);
+        if (xc == null || y == null) continue;
+        const r = Math.min(13, 3.5 + 3.5 * Math.sqrt(g.usd / thr));
+        const x = xc + (g.side === 'buy' ? -1 : 1) * Math.min(r * 0.7, spacing);     // buys a little left, sells right
+        const col = g.side === 'buy' ? '46,230,168' : '255,92,138';
+        c.fillStyle = `rgba(${col},.28)`; c.strokeStyle = `rgba(${col},.95)`; c.lineWidth = 1.2;
         c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); c.stroke();
-        if (age < 4) {                       // ripple on arrival
-          const k = age / 4;
-          c.strokeStyle = `rgba(${col},${1 - k})`; c.beginPath(); c.arc(x, y, r + 22 * k, 0, Math.PI * 2); c.stroke();
+        if (g.n > 1) {
+          c.font = '700 9px Inter, sans-serif'; c.fillStyle = `rgb(${col})`; c.textBaseline = 'middle';
+          c.fillText(`×${g.n}`, x + r + 3, y);
+        }
+        const age = (nowMs - g.newest) / 1000;
+        if (age < 3) {                       // ripple when a trade arrives
+          const k = age / 3;
+          c.strokeStyle = `rgba(${col},${1 - k})`; c.beginPath(); c.arc(x, y, r + 16 * k, 0, Math.PI * 2); c.stroke();
         }
       }
     }
@@ -271,7 +309,9 @@
     const mk = (color: string, style: LineStyle, w: 1 | 2) => chart.addLineSeries({ color, lineStyle: style, lineWidth: w, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, autoscaleInfoProvider: () => null });
     cone = [mk('rgba(139,124,255,.5)', LineStyle.Dotted, 1), mk('rgba(167,156,255,.95)', LineStyle.Dashed, 2), mk('rgba(167,156,255,.95)', LineStyle.Dashed, 2), mk('rgba(139,124,255,.5)', LineStyle.Dotted, 1)];
     load();
-    timer = setInterval(load, 60000);
+    timer = setInterval(load, 20000);
+    // the user zoomed or scrolled: stop forcing the default view and offer a way back
+    chart.timeScale().subscribeVisibleLogicalRangeChange(r => { userMoved = !!r && r.to < nBars - 1; });   // live candle off-screen
     raf = requestAnimationFrame(draw);
   });
   onDestroy(() => { clearInterval(timer); cancelAnimationFrame(raf); chart?.remove(); });
@@ -299,6 +339,7 @@
   <div class="bar">
     <span class="seg">{#each [[1, '1m'], [5, '5m'], [15, '15m'], [60, '1h']] as [v, l]}<button class:on={tf === v} on:click={() => (tf = +v)}>{l}</button>{/each}</span>
     <span class="tg">{#each toggles as [k, l]}<button class="chipb" class:act={show[k]} on:click={() => (show[k] = !show[k])}><i class="sw {k}"></i>{l}</button>{/each}</span>
+    {#if userMoved}<button class="live" on:click={liveView} title="Return to the live edge">⟲ Back to live</button>{/if}
     {#if m.book?.sim}<span class="simtag" title="Replay mode: the archive has no order book or single trades, so these are simulated">SIMULATED BOOK &amp; TRADES</span>{/if}
   </div>
   <div class="chart" bind:this={el}><canvas bind:this={cv}></canvas></div>
@@ -332,6 +373,8 @@
   .sw.book { background: var(--up); box-shadow: 0 0 6px var(--up); } .sw.trades { border-radius: 50%; background: var(--down); } .sw.cone { background: #a79cff; }
   .sw.arrow { width: 14px; height: 0; border-radius: 0; border-top: 3px solid var(--up); position: relative; }
   .sw.arrow::after { content: ""; position: absolute; right: -3px; top: -6px; border-left: 6px solid var(--up); border-top: 4.5px solid transparent; border-bottom: 4.5px solid transparent; }
+  .live { margin-left: auto; border-radius: 99px; color: var(--text); border-color: var(--accent); background: rgba(139,124,255,.15); font-weight: 600; animation: pop .3s ease-out; }
+  @keyframes pop { from { transform: scale(.85); opacity: 0; } to { transform: none; opacity: 1; } }
   .simtag { margin-left: auto; font: 700 9.5px var(--sans); letter-spacing: 1.2px; color: var(--res); border: 1px dashed var(--res); padding: 2px 8px; border-radius: 6px; }
   .chart { position: relative; flex: 1; min-height: 360px; margin: 0 8px 0 12px; }
   canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; }
