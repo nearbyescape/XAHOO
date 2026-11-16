@@ -35,7 +35,7 @@
     for (const [v, col, tag] of [[R, css('--res'), 'R'], [S, css('--sup'), 'S']] as [number | undefined, string, string][]) {
       if (!v || v > hi || v < lo) continue;
       const y = Math.round(Y(v)) + 0.5;
-      c.strokeStyle = col; c.globalAlpha = 0.75; c.setLineDash([3, 3]); c.lineWidth = 1;
+      c.strokeStyle = col; c.globalAlpha = 0.9; c.lineWidth = 1.5;
       c.beginPath(); c.moveTo(0, y); c.lineTo(W - 22, y); c.stroke();
       c.setLineDash([]); c.globalAlpha = 1;
       c.fillStyle = col; c.font = '600 9px Inter, sans-serif'; c.textBaseline = 'middle';

@@ -1,7 +1,7 @@
 <script lang="ts">
   import Arrow from './Arrow.svelte';
   import { onMount, onDestroy } from 'svelte';
-  import { createChart, type IChartApi, type ISeriesApi, LineStyle } from 'lightweight-charts';
+  import { createChart, type IChartApi, type ISeriesApi, type IPriceLine, LineStyle } from 'lightweight-charts';
   import { api, markets, fh, bigUsd, now, serverTime } from '../lib/store';
   import type { Market, Level } from '../lib/types';
   import { px, pct, probColor, lean, HORIZON_MIN, BADGE, usd } from '../lib/format';
@@ -10,6 +10,7 @@
   let wrap: HTMLElement, el: HTMLDivElement, cv: HTMLCanvasElement;
   let chart: IChartApi, candles: ISeriesApi<'Candlestick'>, delta: ISeriesApi<'Histogram'>, scaleS: ISeriesApi<'Line'>;
   let cone: ISeriesApi<'Line'>[] = [];
+  let plines: IPriceLine[] = [];
   let tf = 1;
   let show = { levels: true, zones: true, book: true, trades: true, cone: true };
   let last: { time: number; open: number; high: number; low: number; close: number } | null = null;
@@ -55,12 +56,24 @@
       cone[i].setData(pts);
     }
   }
+  // support / resistance as solid price lines with an R1 / S1 tag on the price axis; thicker = more confluence
+  function levelLines() {
+    if (!candles) return;
+    plines.forEach(l => candles.removePriceLine(l));
+    plines = [];
+    if (!show.levels || !lv) return;
+    const add = (x: Level, col: string, tag: string) => plines.push(candles.createPriceLine({
+      price: x.price, color: col, lineWidth: (x.strength >= 3 ? 3 : x.strength === 2 ? 2 : 1) as 1 | 2 | 3,
+      lineStyle: LineStyle.Solid, axisLabelVisible: true, title: tag, lineVisible: true }));
+    (lv.resistance || []).forEach((x, i) => add(x, css('--res'), `R${i + 1}`));
+    (lv.support || []).forEach((x, i) => add(x, css('--sup'), `S${i + 1}`));
+  }
   function keepLevels() {     // keep R1/S1 inside the price scale
     const keep = [lv?.resistance?.[0], lv?.support?.[0]].filter(Boolean) as Level[];
     if (last && scaleS) scaleS.setData(show.levels ? keep.map((x, i) => ({ time: (last!.time - (keep.length - 1 - i) * tf * 60) as any, value: x.price })) : []);
   }
-  $: if (chart && m?.forecast) { drawCone(); keepLevels(); }
-  $: if (chart) { show; drawCone(); keepLevels(); }
+  $: if (chart && m?.forecast) { drawCone(); keepLevels(); levelLines(); }
+  $: if (chart) { show; drawCone(); keepLevels(); levelLines(); }
   $: if (candles && last && m?.price != null) {
     // bucket by the SERVER clock (the viewer's clock may be off, and replay runs on a simulated clock)
     const bucket = Math.floor($serverTime / (tf * 60)) * tf * 60;
@@ -134,17 +147,14 @@
         ...(lv.resistance || []).map((x, i) => [x, RES, `R${i + 1}`] as [Level, string, string]),
         ...(lv.support || []).map((x, i) => [x, SUP, `S${i + 1}`] as [Level, string, string])];
       for (const [x, col, tag] of all) {
-        const y = Y(x.price), ya = Y(x.price * (1 + tol / 2)), yb = Y(x.price * (1 - tol / 2));
-        if (y == null || ya == null || yb == null) continue;
-        const near = m.price != null && Math.abs(Math.log(m.price / x.price)) < tol;
-        const a = near ? 0.10 + 0.12 * pulse : 0.07 + 0.03 * x.strength;
-        c.fillStyle = col.startsWith('#') ? col + Math.round(a * 255).toString(16).padStart(2, '0') : col;
-        const yq = (ya + yb) / 2, hh = Math.max(3, (yb - ya) / 2);
-        c.fillRect(0, yq - hh / 2, plotW, hh);
-        c.strokeStyle = col; c.globalAlpha = 0.85; c.lineWidth = x.strength >= 3 ? 1.6 : 1;
-        c.setLineDash(x.strength >= 2 ? [6, 4] : [2, 4]);
-        c.beginPath(); c.moveTo(0, Math.round(y) + 0.5); c.lineTo(plotW, Math.round(y) + 0.5); c.stroke();
-        c.setLineDash([]); c.globalAlpha = 1;
+        const y = Y(x.price);
+        if (y == null) continue;
+        // the line itself is a chart price line; here only a glow when price is close to the level
+        if (m.price != null && Math.abs(Math.log(m.price / x.price)) < tol) {
+          c.strokeStyle = col; c.globalAlpha = 0.25 + 0.45 * pulse; c.lineWidth = 7; c.shadowColor = col; c.shadowBlur = 14;
+          c.beginPath(); c.moveTo(0, y); c.lineTo(plotW, y); c.stroke();
+          c.shadowBlur = 0; c.globalAlpha = 1;
+        }
         const r = x.reach?.[$fh] ?? x.reach?.['1h'];
         labels.push({ y, y0: y, col, lane: 'l', text: `${tag}  ${px(x.price, m.digits)}  ${'●'.repeat(x.strength)}${'○'.repeat(3 - x.strength)}  ${r != null ? `reach ${$fh in (x.reach || {}) ? $fh : '1h'} ${Math.round(r * 100)}%` : ''}` });
       }
@@ -222,7 +232,7 @@
   });
   onDestroy(() => { clearInterval(timer); cancelAnimationFrame(raf); chart?.remove(); });
   $: if (chart && sym) { tf; load(); }
-  const toggles: [keyof typeof show, string][] = [['levels', 'Support / resistance'], ['zones', 'Buyer / seller zones'], ['book', 'Order-book walls'], ['trades', 'Big trades'], ['cone', 'Expected range']];
+  const toggles: [keyof typeof show, string][] = [['levels', 'Support / resistance lines'], ['zones', 'Buyer / seller zones'], ['book', 'Order-book walls'], ['trades', 'Big trades'], ['cone', 'Expected range']];
 </script>
 <section class="fc panel" bind:this={wrap}>
   <header>
@@ -273,7 +283,7 @@
   .chipb { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; font-size: 11px; border-radius: 99px; opacity: .55; }
   .chipb.act { opacity: 1; color: var(--text); }
   .sw { width: 10px; height: 10px; border-radius: 3px; }
-  .sw.levels { background: linear-gradient(135deg, var(--res) 50%, var(--sup) 50%); } .sw.zones { background: linear-gradient(135deg, var(--up) 50%, var(--down) 50%); }
+  .sw.levels { height: 0; border-radius: 0; border-top: 3px solid var(--res); box-shadow: 0 5px 0 -1px var(--sup); } .sw.zones { background: linear-gradient(135deg, var(--up) 50%, var(--down) 50%); }
   .sw.book { background: var(--up); box-shadow: 0 0 6px var(--up); } .sw.trades { border-radius: 50%; background: var(--down); } .sw.cone { background: #a79cff; }
   .simtag { margin-left: auto; font: 700 9.5px var(--sans); letter-spacing: 1.2px; color: var(--res); border: 1px dashed var(--res); padding: 2px 8px; border-radius: 6px; }
   .chart { position: relative; flex: 1; min-height: 360px; margin: 0 8px 0 12px; }

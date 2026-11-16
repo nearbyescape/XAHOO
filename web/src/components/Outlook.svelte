@@ -1,7 +1,6 @@
 <script lang="ts">
   import Arrow from './Arrow.svelte';
-  import { flip } from 'svelte/animate';
-  import { fly } from 'svelte/transition';
+  import { fly, fade } from 'svelte/transition';
   import { markets, fh, skill, levelsInfo, bigUsd, now } from '../lib/store';
   import type { Market, Level } from '../lib/types';
   import { px, pct, usd, probColor, ago } from '../lib/format';
@@ -55,7 +54,7 @@
     {#if f?.show && reasons.length}
       <div class="rs">
         {#each reasons as r (r.t)}
-          <div class="r" animate:flip={{ duration: 400 }} in:fly={{ x: 12, duration: 300 }}>
+          <div class="r" in:fade={{ duration: 350 }}>
             <span class="ic" class:up={r.push > 0} class:down={r.push < 0}>{r.push > 0 ? '↑' : '↓'}</span>
             <span class="tx">{r.t}</span>
             <span class="wb"><i class:up={r.push > 0} class:down={r.push < 0} style="width:{(Math.abs(r.w) / maxW) * 100}%"></i></span>
