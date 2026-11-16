@@ -1,9 +1,10 @@
 <script lang="ts">
   import Arrow from './Arrow.svelte';
+  import CoinLogo from './CoinLogo.svelte';
   // Every market at a glance: probability per horizon, position between support and resistance,
   // order-book tilt and big-trade flow. Click a row to focus it.
   import { markets, order, horizons, focus } from '../lib/store';
-  import { probColor, probBg, BADGE } from '../lib/format';
+  import { probColor, probBg } from '../lib/format';
   const pos = (m: any) => {
     const R = m.forecast?.levels?.resistance?.[0]?.price, S = m.forecast?.levels?.support?.[0]?.price;
     if (!R || !S || !m.price) return null;
@@ -15,10 +16,10 @@
   <div class="tbl">
     <div class="hd"><span>Market</span>{#each $horizons as h}<span class="c">{h}</span>{/each}<span class="c">S ⟷ R</span><span class="c">Book</span><span class="c">Big trades 15m</span></div>
     {#each $order as sym (sym)}
-      {@const m = $markets[sym]}{@const bd = BADGE[sym] || ['#8b7cff', '#38c6f4']}{@const ps = pos(m)}
+      {@const m = $markets[sym]}{@const ps = pos(m)}
       {@const bi = m.book?.['imb_0.25']}{@const tot = (m.big15?.[0] || 0) + (m.big15?.[1] || 0)}
       <button class="row" class:on={$focus === sym} on:click={() => focus.set(sym)}>
-        <span class="mk"><i style="background:linear-gradient(135deg, {bd[0]}, {bd[1]})"></i>{m.short}</span>
+        <span class="mk"><CoinLogo {sym} short={m.short} size={20} glow={false} />{m.short}</span>
         {#each $horizons as h}
           {@const f = m.forecast?.h?.[h]}
           {#key m.changed[h]}
@@ -44,7 +45,6 @@
   .row:hover { background: rgba(148,163,214,.05); }
   .row.on { background: rgba(139,124,255,.13); box-shadow: inset 0 0 0 1px rgba(139,124,255,.4); }
   .mk { display: flex; align-items: center; gap: 6px; font: 700 11.5px var(--sans); color: var(--text); text-align: left; }
-  .mk i { width: 8px; height: 8px; border-radius: 3px; }
   .cell { height: 19px; border-radius: 5px; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 4px; transition: background .8s ease, color .6s; }
   .cell.off { color: var(--faint); background: repeating-linear-gradient(135deg, rgba(148,163,214,.05) 0 3px, transparent 3px 6px); }
   .cell.fl { animation: fl 1.4s ease-out; }

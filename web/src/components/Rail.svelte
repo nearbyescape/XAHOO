@@ -1,8 +1,9 @@
 <script lang="ts">
   import Arrow from './Arrow.svelte';
+  import CoinLogo from './CoinLogo.svelte';
   // Left market list: price, 24h change and the 15m–4h lean; the focused market is highlighted.
   import { markets, order, focus, cycle } from '../lib/store';
-  import { px, pct, probColor, lean, BADGE, conviction } from '../lib/format';
+  import { px, pct, probColor, lean, conviction } from '../lib/format';
   import Roll from './Roll.svelte';
   export let cycleLeft = 0;              // 0..1 progress of the auto-cycle timer
   const blend = (f: Record<string, any>) => {
@@ -13,10 +14,10 @@
 <nav class="rail panel">
   <div class="ph">Markets <span class="r">bias 15m–4h</span></div>
   {#each $order as sym (sym)}
-    {@const m = $markets[sym]}{@const b = blend(m.forecast?.h || {})}{@const bd = BADGE[sym] || ['#8b7cff', '#38c6f4']}
+    {@const m = $markets[sym]}{@const b = blend(m.forecast?.h || {})}
     {@const chg = m.price != null && m.dayAgo ? (m.price / m.dayAgo - 1) * 100 : null}
     <button class="it" class:on={$focus === sym} on:click={() => focus.set(sym)} style="--c:{b != null ? probColor(b) : 'var(--faint)'}">
-      <span class="badge" class:long={m.short.length > 3} style="background:linear-gradient(135deg, {bd[0]}, {bd[1]})">{m.short}</span>
+      <span class="badge"><CoinLogo {sym} short={m.short} size={34} glow={$focus === sym} /></span>
       <span class="id"><b>{m.short}</b><em>{m.name}</em></span>
       <span class="px"><span class="num p"><Roll value={m.price} format={v => px(v, m.digits)} /></span>
         <span class="num ch" class:up={chg != null && chg >= 0} class:down={chg != null && chg < 0}>{pct(chg)}</span></span>
@@ -36,9 +37,7 @@
     text-align: left; border: 0; border-radius: 0; border-top: 1px solid var(--line); padding: 9px 14px; background: transparent; flex: 1; min-height: 62px; }
   .it:hover { background: rgba(148,163,214,.05); }
   .it.on { background: linear-gradient(90deg, rgba(139,124,255,.16), rgba(139,124,255,.02)); box-shadow: inset 3px 0 var(--accent); }
-  .badge { grid-row: 1 / 3; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font: 800 10.5px var(--sans); color: #0b0e1a;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.35); }
-  .badge.long { font-size: 8.5px; }
+  .badge { grid-row: 1 / 3; display: grid; place-items: center; }
   .id { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
   .id b { font: 700 14px var(--sans); color: var(--text); } .id em { font-style: normal; font-size: 11px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .px { grid-row: 1; grid-column: 3; text-align: right; display: flex; gap: 8px; align-items: baseline; }

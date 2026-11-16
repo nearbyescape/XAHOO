@@ -7,11 +7,13 @@
   import Arrow from './Arrow.svelte';
   import { onMount, onDestroy } from 'svelte';
   import { tweened } from 'svelte/motion';
-  import { cubicOut } from 'svelte/easing';
+  import { fly, scale } from 'svelte/transition';
+  import CoinLogo from './CoinLogo.svelte';
+  import { cubicOut, backOut } from 'svelte/easing';
   import { createChart, type IChartApi, type ISeriesApi, type IPriceLine, LineStyle } from 'lightweight-charts';
   import { api, markets, fh, bigUsd, serverTime } from '../lib/store';
   import type { Market, Level } from '../lib/types';
-  import { px, pct, probColor, lean, HORIZON_MIN, BADGE, usd, biasWord, biasShort, conviction } from '../lib/format';
+  import { px, pct, probColor, lean, HORIZON_MIN, usd, biasWord, biasShort, conviction } from '../lib/format';
   import Roll from './Roll.svelte';
   import { safe, report } from '../lib/report';
   export let sym: string;
@@ -33,7 +35,6 @@
   $: m = $markets[sym] as Market;
   $: fc = m?.forecast?.h || {};
   $: lv = m?.forecast?.levels;
-  $: badge = BADGE[sym] || ['#8b7cff', '#38c6f4'];
   $: chg = m?.price != null && m?.dayAgo ? (m.price / m.dayAgo - 1) * 100 : null;
   const css = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   // vertical layout of the chart pane (fractions of its height)
@@ -429,13 +430,18 @@
 </script>
 <section class="fc panel">
   <header>
-    <span class="badge" class:long={m.short.length > 3} style="background:linear-gradient(135deg, {badge[0]}, {badge[1]})">{m.short}</span>
+    {#key sym}<span class="lg" in:scale={{ duration: 420, start: 0.6, easing: backOut }}><CoinLogo {sym} short={m.short} size={46} /></span>{/key}
     <div class="nm"><div class="t">{m.name} <span>{m.sym} · USDⓈ-M perpetual futures</span></div>
       <div class="pr"><span class="num big"><Roll value={m.price} format={v => px(v, m.digits)} /></span>
         <span class="num chg" class:up={chg != null && chg >= 0} class:down={chg != null && chg < 0}>{pct(chg)} <em>24h</em></span></div></div>
     <div class="dirb {dirKind}" title="Direction for the selected timeframe ({$fh}). NEUTRAL = within 2 points of 50%.">
       <Arrow p={sel?.p ?? 0.5} show={!!sel?.show} size={34} />
-      <div><b>{dirWord}</b><span class="num">{sel?.show ? `${((sel.p >= 0.5 ? sel.p : 1 - sel.p) * 100).toFixed(1)}% · ${$fh}` : $fh}</span></div>
+      {#key dirKind + $fh}
+        <div class="dw" in:fly={{ y: dirKind === 'down' ? -10 : 10, duration: 380, easing: cubicOut }}>
+          <b>{dirWord}</b><span class="num">{sel?.show ? `${((sel.p >= 0.5 ? sel.p : 1 - sel.p) * 100).toFixed(1)}% · ${$fh}` : $fh}</span>
+        </div>
+        <i class="flash"></i>
+      {/key}
     </div>
     <div class="hs">
       {#each Object.keys(HORIZON_MIN) as h}
@@ -479,26 +485,33 @@
 </section>
 <style>
   .fc { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-  header { display: flex; align-items: center; gap: 16px; padding: 14px 18px 10px; flex-wrap: wrap; }
-  .badge { width: 46px; height: 46px; border-radius: 13px; display: grid; place-items: center; font: 800 13px var(--sans); color: #0b0e1a; box-shadow: 0 6px 20px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.35); }
-  .badge.long { font-size: 11px; }
+  header { display: flex; align-items: center; gap: 14px; padding: 14px 18px 10px; flex-wrap: wrap; }
+  .nm { min-width: 0; flex: 0 1 auto; }
+  .lg { display: inline-flex; flex: none; }
+  .hv:has(> :global(.off)) { font-size: 12px; font-weight: 600; }
   .t { font: 700 16px var(--sans); } .t span { font-weight: 500; font-size: 11.5px; color: var(--faint); margin-left: 6px; }
   .pr { display: flex; align-items: baseline; gap: 12px; }
   .big { font-size: 30px; font-weight: 700; letter-spacing: -1px; line-height: 1.1; }
   .chg { font-size: 13px; } .chg em { font-style: normal; font-size: 10px; color: var(--faint); font-family: var(--sans); }
-  .dirb { display: flex; align-items: center; gap: 10px; padding: 8px 14px 8px 10px; border-radius: 14px; border: 1.5px solid var(--line2); background: rgba(148,163,214,.06); transition: all .4s; }
+  .dirb { position: relative; display: flex; align-items: center; gap: 10px; padding: 8px 14px 8px 10px; border-radius: 14px; border: 1.5px solid var(--line2); background: rgba(148,163,214,.06); transition: all .4s; overflow: hidden; }
+  .dw { min-width: 96px; }
+  .flash { position: absolute; inset: -2px; border-radius: 14px; pointer-events: none; animation: dflash 1s ease-out forwards; }
+  .dirb.up .flash { box-shadow: inset 0 0 0 2px var(--up), inset 0 0 24px rgba(var(--up-rgb), .45); }
+  .dirb.down .flash { box-shadow: inset 0 0 0 2px var(--down), inset 0 0 24px rgba(var(--down-rgb), .45); }
+  .dirb.flat .flash, .dirb.none .flash { box-shadow: inset 0 0 0 2px rgba(148,163,214,.5); }
+  @keyframes dflash { from { opacity: 1; } to { opacity: 0; } }
   .dirb b { display: block; font: 900 20px/1 var(--sans); letter-spacing: 2px; }
   .dirb span { font-size: 12px; color: var(--muted); }
   .dirb.up { border-color: rgba(var(--up-rgb), .7); background: rgba(var(--up-rgb), .12); } .dirb.up b { color: var(--up); }
   .dirb.down { border-color: rgba(var(--down-rgb), .7); background: rgba(var(--down-rgb), .12); } .dirb.down b { color: var(--down); }
   .dirb.flat b, .dirb.none b { color: var(--muted); }
-  .hs { margin-left: auto; display: grid; grid-template-columns: repeat(6, minmax(92px, 1fr)); gap: 8px; flex: 1; max-width: 760px; }
+  .hs { margin-left: auto; display: grid; grid-template-columns: repeat(6, minmax(74px, 1fr)); gap: 6px; flex: 1 1 480px; min-width: 0; max-width: 760px; }
   @media (max-width: 900px) { .hs { grid-template-columns: repeat(3, 1fr); min-width: 100%; } .big { font-size: 24px; } .hv { font-size: 14px; } }
-  .hb { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding: 8px 11px; border-radius: 11px; background: rgba(148,163,214,.04); text-align: left; }
+  .hb { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding: 8px 9px; min-width: 0; border-radius: 11px; background: rgba(148,163,214,.04); text-align: left; }
   .hb.on { background: rgba(139,124,255,.14); border-color: var(--accent); box-shadow: 0 0 0 1px rgba(139,124,255,.3), 0 8px 24px rgba(139,124,255,.15); }
-  .hh { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; width: 100%; }
-  .ls { font: 800 9px var(--sans); letter-spacing: 1px; color: var(--down); } .ls.long { color: var(--up); } .ls.slight { opacity: .6; } .ls.neutral { color: var(--faint); }
-  .hv { display: inline-flex; align-items: center; gap: 7px; font-size: 17px; font-weight: 700; color: var(--c, var(--faint)); transition: color .6s; }
+  .hh { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; gap: 4px; width: 100%; }
+  .ls { font: 800 8.5px var(--sans); letter-spacing: .6px; color: var(--down); } .ls.long { color: var(--up); } .ls.slight { opacity: .6; } .ls.neutral { color: var(--faint); }
+  .hv { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-size: clamp(13px, 0.9vw, 17px); font-weight: 700; color: var(--c, var(--faint)); transition: color .6s; }
   .hb.off .hv { font: 500 12px var(--sans); }
   .hbar { position: relative; width: 100%; height: 4px; border-radius: 2px; background: rgba(148,163,214,.1); }
   .hbar i { position: absolute; top: 0; bottom: 0; left: var(--l, 50%); width: var(--w, 0); background: var(--c); border-radius: 2px; transition: all .7s ease; box-shadow: 0 0 8px var(--c); }

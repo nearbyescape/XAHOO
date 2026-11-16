@@ -1,7 +1,8 @@
 <script lang="ts">
   import Arrow from './Arrow.svelte';
+  import CoinLogo from './CoinLogo.svelte';
   import type { Market } from '../lib/types';
-  import { px, pct, probColor, lean, BADGE, conviction } from '../lib/format';
+  import { px, pct, probColor, lean, conviction } from '../lib/format';
   import { focus, view } from '../lib/store';
   import Roll from './Roll.svelte';
   import Gauge from './Gauge.svelte';
@@ -26,14 +27,13 @@
   $: glow = hasSlow ? Math.min(1, Math.abs(tilt)) : 0;
   $: liqFlash = m.liqPulse && performance.now() - m.liqPulse < 1500;
   $: stale = m.age != null && m.age > 20;
-  $: badge = BADGE[m.sym] || ['#8b7cff', '#38c6f4'];
 </script>
 <div class="card panel" class:sel={$focus === m.sym} class:liq={liqFlash} class:stale
   style="--glow:{probColor(slow, 0.5 * glow)}; --edge:{probColor(slow, 0.25 + 0.5 * glow)}"
   role="button" tabindex="0" on:click={() => { focus.set(m.sym); view.set('focus'); }} on:keydown={e => { if (e.key === 'Enter') { focus.set(m.sym); view.set('focus'); } }}>
   <i class="edge"></i>
   <header>
-    <span class="badge" class:long={m.short.length > 3} style="background:linear-gradient(135deg, {badge[0]}, {badge[1]})">{m.short}</span>
+    <CoinLogo sym={m.sym} short={m.short} size={34} />
     <div class="id">
       <div class="sym">{m.short}<span class="pair">/USDT</span>{#if m.kind === 'metal'}<span class="chip metal">metal · new</span>{/if}</div>
       <div class="name">{m.name}</div>
@@ -80,9 +80,6 @@
   @keyframes liq { 0% { box-shadow: 0 0 0 1px var(--res), 0 0 40px rgba(255,181,71,.35); } 100% { box-shadow: 0 0 0 0 transparent; } }
   .edge { position: absolute; left: 0; right: 0; top: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--edge), transparent); opacity: .9; }
   header { display: flex; align-items: center; gap: 10px; padding: 13px 14px 6px; }
-  .badge { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; font: 800 11px var(--sans); color: #0b0e1a; letter-spacing: .2px; flex: none;
-    box-shadow: 0 4px 14px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.35); }
-  .badge.long { font-size: 9px; }
   .id { min-width: 0; flex: 1; overflow: hidden; }
   .sym { font: 700 15px var(--sans); letter-spacing: .3px; display: flex; align-items: center; gap: 6px; }
   .pair { font-weight: 500; font-size: 11px; color: var(--faint); margin-left: -4px; }

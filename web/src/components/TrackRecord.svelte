@@ -4,7 +4,8 @@
   import { fly } from 'svelte/transition';
   import { api, resolved, horizons, markets, skill } from '../lib/store';
   import type { ScoreH } from '../lib/types';
-  import { ago, BADGE } from '../lib/format';
+  import { ago } from '../lib/format';
+  import CoinLogo from './CoinLogo.svelte';
   import { now } from '../lib/store';
   let sb: Record<string, ScoreH> = {};
   let timer: ReturnType<typeof setInterval>;
@@ -60,10 +61,10 @@
     <div class="ph">Resolved <span class="r">newest first</span></div>
     <div class="feed">
       {#each $resolved.slice(0, 30) as r (r.sym + r.h + r.due)}
-        {@const ok = (r.p > 0.5) === (r.outcome === 1)}{@const bd = BADGE[r.sym] || ['#8b7cff', '#38c6f4']}
+        {@const ok = (r.p > 0.5) === (r.outcome === 1)}
         <div class="res" class:ok animate:flip={{ duration: 300 }} in:fly={{ x: 16, duration: 350 }}>
           <span class="mk">{ok ? '✓' : '✗'}</span>
-          <span class="s"><i style="background:{bd[0]}"></i>{$markets[r.sym]?.short || r.sym}</span><span class="hz num">{r.h}</span>
+          <span class="s"><CoinLogo sym={r.sym} short={$markets[r.sym]?.short || ''} size={16} glow={false} />{$markets[r.sym]?.short || r.sym}</span><span class="hz num">{r.h}</span>
           <span class="num p">{r.p >= 0.5 ? '▲' : '▼'} {((r.p >= 0.5 ? r.p : 1 - r.p) * 100).toFixed(0)}%</span>
           <span class="num" class:up={r.ret > 0} class:down={r.ret < 0}>{(r.ret >= 0 ? '+' : '−') + Math.abs(r.ret * 100).toFixed(3)}%</span>
           <span class="num t">{ago(Math.max(0, now() - r.due))}</span>
@@ -105,7 +106,6 @@
   .res:nth-child(odd) { background: rgba(148,163,214,.03); }
   .res .mk { font-weight: 800; color: var(--down); } .res.ok .mk { color: var(--up); }
   .res .s { display: flex; align-items: center; gap: 5px; font-weight: 600; font-size: 11px; }
-  .res .s i { width: 6px; height: 6px; border-radius: 2px; }
   .res .hz { color: var(--muted); font-size: 10.5px; font-weight: 500; }
   .res .p { color: var(--muted); } .res .t { text-align: right; color: var(--faint); font-size: 10px; }
   @media (max-width: 1200px) { .tr { grid-template-columns: 1fr; } .col { border-left: 0; border-top: 1px solid var(--line); } .col:first-child { border-top: 0; } }
