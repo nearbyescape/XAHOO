@@ -1,0 +1,130 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+@font-face { font-family: "Inter"; font-weight: 100 900; src: url("Inter-latin.woff2") format("woff2"); }
+@font-face { font-family: "JB"; font-weight: 100 800; src: url("JetBrainsMono-latin.woff2") format("woff2"); }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; }
+.art { position: relative; overflow: hidden; background:
+  radial-gradient(60% 70% at 18% 12%, rgba(139,124,255,.30), transparent 70%),
+  radial-gradient(55% 60% at 88% 92%, rgba(46,230,168,.20), transparent 70%),
+  radial-gradient(70% 70% at 50% 50%, #0d1324 0%, #070a13 75%); }
+.grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(148,163,214,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,214,.07) 1px, transparent 1px); }
+#profile { width: 800px; height: 800px; }
+#profile .grid { background-size: 50px 50px; -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 30%, transparent 72%); }
+svg.emblem { overflow: visible; }
+#profile svg.emblem { position: absolute; left: 70px; top: 70px; width: 660px; height: 660px; }
+#banner { width: 1200px; height: 480px; }
+#banner .grid { background-size: 40px 40px; -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 45%, #000 100%); }
+#banner svg.chart { position: absolute; inset: 0; }
+#banner svg.emblem { position: absolute; left: 70px; top: 128px; width: 224px; height: 224px; }
+.word { position: absolute; left: 318px; top: 150px; }
+.word h1 { font: 900 84px/0.92 Inter, sans-serif; letter-spacing: 3px; color: #eef1f8; }
+.word h1 span { background: linear-gradient(100deg, #2ee6a8 0%, #38c6f4 50%, #8b7cff 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.word .tag { margin-top: 18px; font: 600 17px JB, monospace; letter-spacing: 3.5px; color: #98a3c0; }
+.word .tag b { color: #2ee6a8; font-weight: 700; }
+.word .tag i { font-style: normal; color: #4a5470; margin: 0 10px; }
+.live { position: absolute; right: 52px; top: 40px; display: flex; align-items: center; gap: 10px; font: 700 15px Inter, sans-serif; letter-spacing: 3px; color: #e8ecf6;
+  padding: 9px 16px; border-radius: 99px; border: 1px solid rgba(46,230,168,.45); background: rgba(46,230,168,.08); }
+.live i { width: 10px; height: 10px; border-radius: 50%; background: #2ee6a8; box-shadow: 0 0 12px #2ee6a8; }
+.motto { position: absolute; left: 82px; bottom: 34px; font: 500 15px Inter, sans-serif; letter-spacing: 1px; color: #5d6888; }
+</style>
+</head>
+<body>
+<!-- emblem: an "M" drawn as a rising trend line ending in an arrowhead, inside a gauge ring (the machine) -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <linearGradient id="trend" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#8b7cff"/><stop offset=".55" stop-color="#38c6f4"/><stop offset="1" stop-color="#2ee6a8"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8b7cff"/><stop offset="1" stop-color="#2ee6a8"/>
+    </linearGradient>
+    <radialGradient id="disk" cx=".5" cy=".42" r=".6">
+      <stop offset="0" stop-color="#18203a"/><stop offset="1" stop-color="#0a0e1b"/>
+    </radialGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="5"/></filter>
+    <filter id="softglow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="10"/></filter>
+    <symbol id="mark" viewBox="0 0 200 200" style="overflow:visible">
+      <circle cx="100" cy="100" r="96" fill="url(#ring)" opacity=".16" filter="url(#softglow)"/>
+      <circle cx="100" cy="100" r="88" fill="url(#disk)" stroke="url(#ring)" stroke-width="3"/>
+      <g id="ticks"></g>
+      <circle cx="100" cy="100" r="70" fill="none" stroke="rgba(148,163,214,.12)" stroke-width="1"/>
+      <!-- the trend "M" -->
+      <polyline points="50,140 73,80 100,116 140,58" fill="none" stroke="url(#trend)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)" opacity=".85"/>
+      <polyline points="50,140 73,80 100,116 140,58" fill="none" stroke="url(#trend)" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+      <polygon points="156,36 152,74 120,52" fill="#2ee6a8" filter="url(#glow)" opacity=".9"/>
+      <polygon points="156,36 152,74 120,52" fill="#2ee6a8" stroke="#2ee6a8" stroke-width="3" stroke-linejoin="round"/>
+      <circle cx="50" cy="140" r="8" fill="#8b7cff"/>
+      <circle cx="50" cy="140" r="3.5" fill="#0a0e1b"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div id="profile" class="art">
+  <div class="grid"></div>
+  <svg class="emblem" viewBox="0 0 200 200"><use href="#mark"/></svg>
+</div>
+
+<div id="banner" class="art">
+  <div class="grid"></div>
+  <svg class="chart" viewBox="0 0 1200 480" id="chart"></svg>
+  <svg class="emblem" viewBox="0 0 200 200"><use href="#mark"/></svg>
+  <div class="word">
+    <h1>TREND<br><span>MACHINE</span></h1>
+    <div class="tag"><b>LIVE</b> FUTURES<i>/</i>PROBABILITIES<i>/</i>ORDER FLOW</div>
+  </div>
+  <div class="live"><i></i>LIVE ON TWITCH</div>
+  <div class="motto">Data over hype · Education, not financial advice</div>
+</div>
+
+<script>
+// gauge ticks around the emblem ring
+const ticks = document.getElementById('ticks');
+for (let i = 0; i < 60; i++) {
+  const a = (i / 60) * Math.PI * 2, major = i % 5 === 0;
+  const r1 = 80, r2 = major ? 73 : 76.5;
+  const l = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  l.setAttribute('x1', 100 + r1 * Math.sin(a)); l.setAttribute('y1', 100 - r1 * Math.cos(a));
+  l.setAttribute('x2', 100 + r2 * Math.sin(a)); l.setAttribute('y2', 100 - r2 * Math.cos(a));
+  l.setAttribute('stroke', major ? 'rgba(232,236,246,.55)' : 'rgba(148,163,214,.28)');
+  l.setAttribute('stroke-width', major ? 2 : 1.2); l.setAttribute('stroke-linecap', 'round');
+  ticks.appendChild(l);
+}
+// banner chart: a rising candle series on the right, with a glowing trend line and arrow
+const svg = document.getElementById('chart'), NS = 'http://www.w3.org/2000/svg';
+let seed = 7; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+const N = 40, x0 = 770, x1 = 1150, w = (x1 - x0) / N;
+let p = 430; const bars = [];
+for (let i = 0; i < N; i++) {
+  const drift = -4.6, o = p, c = o + drift + (rnd() - 0.5) * 22;
+  const h = Math.min(o, c) - rnd() * 10, l = Math.max(o, c) + rnd() * 10;
+  bars.push({ x: x0 + i * w + w / 2, o, c, h, l }); p = c;
+}
+const fade = i => 0.15 + 0.85 * (i / N);
+bars.forEach((b, i) => {
+  const up = b.c < b.o, col = up ? '#2ee6a8' : '#ff5c8a';
+  const wick = document.createElementNS(NS, 'line');
+  Object.entries({ x1: b.x, x2: b.x, y1: b.h, y2: b.l, stroke: col, 'stroke-width': 1.4, opacity: fade(i) * 0.8 }).forEach(([k, v]) => wick.setAttribute(k, v));
+  const body = document.createElementNS(NS, 'rect');
+  Object.entries({ x: b.x - w * 0.32, y: Math.min(b.o, b.c), width: w * 0.64, height: Math.max(2, Math.abs(b.o - b.c)), rx: 1.5, fill: col, opacity: fade(i) * 0.85 }).forEach(([k, v]) => body.setAttribute(k, v));
+  svg.appendChild(wick); svg.appendChild(body);
+});
+// trend line through the closes (smoothed), ending in an arrow
+const pts = bars.map((b, i) => [b.x, bars.slice(Math.max(0, i - 4), i + 1).reduce((a, x) => a + x.c, 0) / Math.min(i + 1, 5) + 26]);
+const d = pts.map((q, i) => (i ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' ');
+svg.insertAdjacentHTML('beforeend', `
+  <defs><linearGradient id="tl" x1="0" x2="1"><stop offset="0" stop-color="#8b7cff" stop-opacity="0"/><stop offset=".35" stop-color="#8b7cff"/><stop offset=".75" stop-color="#38c6f4"/><stop offset="1" stop-color="#2ee6a8"/></linearGradient>
+  <filter id="g2" x="-10%" y="-50%" width="120%" height="200%"><feGaussianBlur stdDeviation="6"/></filter></defs>
+  <path d="${d}" fill="none" stroke="url(#tl)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" filter="url(#g2)" opacity=".8"/>
+  <path d="${d}" fill="none" stroke="url(#tl)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>`);
+const [ax, ay] = pts[pts.length - 1], [bx, by] = pts[pts.length - 4];
+const ang = Math.atan2(ay - by, ax - bx), L = 24;
+const tip = [ax + Math.cos(ang) * 14, ay + Math.sin(ang) * 14];
+const p1 = [tip[0] - Math.cos(ang - 0.5) * L, tip[1] - Math.sin(ang - 0.5) * L], p2 = [tip[0] - Math.cos(ang + 0.5) * L, tip[1] - Math.sin(ang + 0.5) * L];
+svg.insertAdjacentHTML('beforeend', `<polygon points="${tip} ${p1} ${p2}" fill="#2ee6a8" filter="url(#g2)"/><polygon points="${tip} ${p1} ${p2}" fill="#2ee6a8"/>`);
+</script>
+</body>
+</html>
