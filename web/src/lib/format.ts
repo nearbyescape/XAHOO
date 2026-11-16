@@ -26,6 +26,8 @@ export function probBg(p: number, max = 0.2): string {
   const d = lean(p), t = d >= 0 ? UP : DOWN;
   return `rgba(${t[0]}, ${t[1]}, ${t[2]}, ${(0.015 + max * Math.abs(d)).toFixed(3)})`;
 }
+/** Futures wording: probability of a higher close -> LONG / SHORT. */
+export const side = (p: number) => (p >= 0.5 ? 'LONG' : 'SHORT');
 export const probText = (p: number, d = 0) => `${p >= 0.5 ? '▲' : '▼'} ${((p >= 0.5 ? p : 1 - p) * 100).toFixed(d)}%`;
 export function clock(ts: number, tz = 'UTC'): string {
   return new Date(ts * 1000).toLocaleTimeString('en-GB', { timeZone: tz, hour12: false });

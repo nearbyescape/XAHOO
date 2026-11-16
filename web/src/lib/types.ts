@@ -29,6 +29,7 @@ export interface Market extends Meta {
   funding: number | null; oiChg1h: number | null; lsRatio: number | null; liqs: Liq[]; age: number | null;
   changed: Record<string, number>;       // horizon -> time of the last notable probability change (for the flash)
   liqPulse: number;
+  nextFunding: number | null;
   big: Big[]; big15: [number, number]; book: Book | null; bigPulse: number;
 }
 export interface Resolved { sym: string; h: string; p: number; outcome: number; ret: number; due: number; }

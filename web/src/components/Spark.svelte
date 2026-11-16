@@ -5,10 +5,11 @@
   export let data: number[] = [];
   export let price: number | null = null;
   export let levels: Levels | undefined;
+  export let p: number | null = null;          // 15m–4h blend: draws a direction arrow at the live price
   let canvas: HTMLCanvasElement;
   let dot = { x: 0, y: 0, show: false, up: true };
   const css = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-  $: draw(data, price, levels);
+  $: draw(data, price, levels, p);
   function draw(..._: unknown[]) {
     if (!canvas) return;
     const dpr = devicePixelRatio || 1;
@@ -52,6 +53,18 @@
     pts.forEach((v, i) => (i ? c.lineTo(X(i), Y(v)) : c.moveTo(X(i), Y(v))));
     c.strokeStyle = `rgba(${rgb}, .95)`; c.lineWidth = 1.5; c.lineJoin = 'round'; c.stroke();
     dot = { x: X(pts.length - 1), y: Y(pts[pts.length - 1]), show: true, up };
+    if (p != null && Math.abs(p - 0.5) >= 0.005) {
+      const k = Math.min(1, Math.abs(p - 0.5) / 0.07), dir = p >= 0.5 ? -1 : 1;
+      const x0 = dot.x, y0 = dot.y, ang = dir * (0.35 + 0.8 * k), len = 22;
+      const x1 = Math.min(W - 4, x0 + Math.cos(ang) * len), y1 = Math.max(4, Math.min(H - 4, y0 + Math.sin(ang) * len));
+      const ac = p >= 0.5 ? css('--up') : css('--down');
+      c.strokeStyle = ac; c.fillStyle = ac; c.lineWidth = 2 + k; c.lineCap = 'round';
+      c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+      const a2 = Math.atan2(y1 - y0, x1 - x0);
+      c.beginPath(); c.moveTo(x1 + Math.cos(a2) * 3, y1 + Math.sin(a2) * 3);
+      c.lineTo(x1 - Math.cos(a2 - 0.55) * 8, y1 - Math.sin(a2 - 0.55) * 8); c.lineTo(x1 - Math.cos(a2 + 0.55) * 8, y1 - Math.sin(a2 + 0.55) * 8);
+      c.closePath(); c.fill();
+    }
   }
   onMount(() => { draw(); const ro = new ResizeObserver(() => draw()); ro.observe(canvas); return () => ro.disconnect(); });
 </script>

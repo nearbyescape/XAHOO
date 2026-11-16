@@ -1,7 +1,7 @@
 <script lang="ts">
   import Arrow from './Arrow.svelte';
   import { fly, fade } from 'svelte/transition';
-  import { markets, fh, skill, levelsInfo, bigUsd, now } from '../lib/store';
+  import { markets, fh, skill, levelsInfo, bigUsd, now, serverTime } from '../lib/store';
   import type { Market, Level } from '../lib/types';
   import { px, pct, usd, probColor, ago } from '../lib/format';
   import Gauge from './Gauge.svelte';
@@ -20,6 +20,7 @@
   const dist = (p: number) => (m?.price ? (p / m.price - 1) * 100 : 0);
   const reach = (x: Level, h: string) => (x.reach?.[h] != null ? `${Math.round(x.reach[h] * 100)}%` : '—');
   $: rh = ['15m', '1h', '4h', '1d'].includes($fh) ? $fh : '1h';
+  const fmtLeft = (s: number) => (s <= 0 ? 'now' : s < 3600 ? `${Math.floor(s / 60)}m` : `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`);
   const pctOf = (a: number, b: number) => (a + b > 0 ? a / (a + b) : 0.5);
 </script>
 <aside class="ol panel">
@@ -29,7 +30,8 @@
     <div class="hl">
       {#if f?.show}
         <div class="pbig num" style="color:{probColor(f.p)}"><Arrow p={f.p} size={40} />{((f.p >= 0.5 ? f.p : 1 - f.p) * 100).toFixed(1)}%</div>
-        <div class="sub">chance {m.short} is <b style="color:{probColor(f.p)}">{f.p >= 0.5 ? 'higher' : 'lower'}</b> in {$fh}</div>
+        <div class="bias" style="--c:{probColor(f.p)}">{f.p >= 0.5 ? 'LONG' : 'SHORT'} BIAS · {$fh}</div>
+        <div class="sub">{((f.p >= 0.5 ? f.p : 1 - f.p) * 100).toFixed(1)}% chance the {m.short} perpetual closes <b style="color:{probColor(f.p)}">{f.p >= 0.5 ? 'higher' : 'lower'}</b> in {$fh}</div>
         {#if sk?.accuracy != null}
           <div class="acc" title="Measured in walk-forward tests 2024–2026 on data the model never saw">
             Tested: right <b>{(sk.accuracy * 100).toFixed(1)}%</b> overall{#if sk.conf55_hit} · <b>{(sk.conf55_hit * 100).toFixed(1)}%</b> when ≥55%{/if}{#if f.tier === 1} · weak skill{/if}
@@ -44,7 +46,7 @@
     <div class="blk rng">
       <div><span class="lab">68% range</span><b class="num">{px(f.lo68, m.digits)} – {px(f.hi68, m.digits)}</b></div>
       <div><span class="lab">95% range</span><b class="num">{px(f.lo95, m.digits)} – {px(f.hi95, m.digits)}</b></div>
-      <div><span class="lab">Typical move</span><b class="num">±{(f.move_bp / 100).toFixed(2)}%{#if !f.tradable}<em> below costs</em>{/if}</b></div>
+      <div><span class="lab" title="Futures taker fee both ways is about 0.10%">Typical move</span><b class="num">±{(f.move_bp / 100).toFixed(2)}%{#if !f.tradable}<em> below fees</em>{/if}</b></div>
     </div>
   {/if}
 
@@ -132,7 +134,7 @@
   <div class="blk kv">
     <span>Open interest, 1h</span><b class="num" class:up={(m.oiChg1h ?? 0) > 0} class:down={(m.oiChg1h ?? 0) < 0}>{pct(m.oiChg1h != null ? m.oiChg1h * 100 : null)}</b>
     <span>Long / short accounts</span><b class="num">{m.lsRatio != null ? m.lsRatio.toFixed(2) : '—'}</b>
-    <span>Funding rate</span><b class="num" class:up={(m.funding ?? 0) > 0} class:down={(m.funding ?? 0) < 0}>{m.funding != null ? (m.funding * 100).toFixed(4) + '%' : '—'}</b>
+    <span>Funding rate{#if m.nextFunding} · next in {fmtLeft(m.nextFunding / 1000 - $serverTime)}{/if}</span><b class="num" class:up={(m.funding ?? 0) > 0} class:down={(m.funding ?? 0) < 0}>{m.funding != null ? (m.funding * 100).toFixed(4) + '%' : '—'}</b>
     <span>Taker flow, 60 s</span><b class="num" class:up={m.b60 > m.s60} class:down={m.b60 < m.s60}>{usd(m.b60 - m.s60)}</b>
   </div>
 </aside>
@@ -142,6 +144,8 @@
   .head { display: flex; align-items: center; gap: 14px; }
   .pbig { display: flex; align-items: center; gap: 10px; font-size: 34px; font-weight: 800; letter-spacing: -1px; line-height: 1.05; transition: color .6s; }
   .sub { color: var(--muted); font-size: 12.5px; }
+  .bias { display: inline-block; margin: 4px 0 3px; padding: 2px 9px; border-radius: 6px; font: 800 11px var(--sans); letter-spacing: 1.5px;
+    color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); }
   .acc { margin-top: 6px; font-size: 11px; color: var(--faint); } .acc b { color: var(--text); font-weight: 600; }
   .rng { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding-top: 10px; padding-bottom: 12px; }
   .rng div { display: flex; flex-direction: column; } .rng b { font-size: 12px; font-weight: 600; } .rng em { font-style: normal; color: var(--faint); font-size: 10px; margin-left: 4px; }

@@ -15,7 +15,7 @@
 <header>
   <div class="brand">
     <span class="mark"><svg viewBox="0 0 24 24"><path d="M4 18 L10 11 L14 14 L20 6" /><circle cx="20" cy="6" r="2" /></svg></span>
-    <div><div class="logo">XAHOO</div><div class="sub">Direction probability terminal</div></div>
+    <div><div class="logo">XAHOO</div><div class="sub">Futures direction terminal · Binance USDⓈ-M perpetuals</div></div>
   </div>
   <div class="tilt" title="1-hour probability for each coin; the average is the market tilt">
     <div class="label">Market tilt · 1h</div>

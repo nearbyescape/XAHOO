@@ -69,7 +69,8 @@ def bar_events(sym: str, ts: pd.Timestamp, row, mark: float, parts: int = 4):
         yield {"type": "bar", "sym": sym, "t": t, "open": o, "high": hi if i < len(path) else h, "low": lo if i < len(path) else l,
                "close": px, "volume": v * frac, "count": n * frac, "taker_buy_volume": tb * frac, "closed": i == len(path),
                "ts": t + int(60000 * frac) - 1}
-    yield {"type": "mark", "sym": sym, "mark": mark if mark == mark else c, "funding": float("nan"), "ts": t + 59999}
+    yield {"type": "mark", "sym": sym, "mark": mark if mark == mark else c, "funding": float("nan"), "ts": t + 59999,
+           "next_funding": (t // 28_800_000 + 1) * 28_800_000}          # funding settles every 8 hours
 
 
 async def run(engine: Engine, clock: SimClock, start: pd.Timestamp, minutes: int, speed: float = 60.0,

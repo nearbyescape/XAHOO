@@ -67,7 +67,7 @@
       {/each}
     </section>
     <div class="legend">
-      <span><b class="up">▲ 56%</b> chance the Binance mark price is higher at the end of the window</span>
+      <span><b class="up">LONG 56%</b> = 56% chance the perpetual's mark price closes higher at the end of the window (<b class="down">SHORT</b> = lower)</span>
       <span><b>±</b> typical move (68% range)</span>
       <span><b class="res">R</b> / <b class="sup">S</b> nearest resistance / support · reach = measured chance price trades there</span>
       <span class="faint">Probabilities are measured frequencies from 2024–26 tests (model {$model.version}), not advice.</span>

@@ -52,6 +52,7 @@ function onMessage(msg: any) {
           forecast: s.forecast && s.forecast.h ? s.forecast : null, ribbon: s.ribbon || [], spark: s.spark || [],
           b5: 0, s5: 0, b60: 0, s60: 0, funding: s.funding ?? null, oiChg1h: s.oi_chg_1h ?? null, lsRatio: s.ls_ratio ?? null,
           liqs: s.liqs || [], age: null, changed: {}, liqPulse: 0,
+          nextFunding: null,
           big: s.big || [], big15: s.big15 || [0, 0], book: s.book && s.book.mid ? s.book : null, bigPulse: 0,
         };
       }
@@ -76,6 +77,7 @@ function onMessage(msg: any) {
           m.b5 = t.b5; m.s5 = t.s5; m.b60 = t.b60; m.s60 = t.s60; m.age = t.age;
           if (t.funding != null) m.funding = t.funding;
           if (t.big15) m.big15 = t.big15;
+          if (t.next_funding) m.nextFunding = t.next_funding;
         }
         return ms;
       });

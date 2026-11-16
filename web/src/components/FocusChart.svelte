@@ -12,7 +12,7 @@
   let cone: ISeriesApi<'Line'>[] = [];
   let plines: IPriceLine[] = [];
   let tf = 1;
-  let show = { levels: true, zones: true, book: true, trades: true, cone: true };
+  let show = { arrow: true, levels: true, zones: true, book: true, trades: true, cone: true };
   let last: { time: number; open: number; high: number; low: number; close: number } | null = null;
   let timer: ReturnType<typeof setInterval>, raf = 0;
   $: m = $markets[sym] as Market;
@@ -190,6 +190,50 @@
       const txt = l.y0 < 0 ? `↑ ${l.text}` : l.y0 > plotH ? `↓ ${l.text}` : l.text;      // level is off the visible chart
       pill(c, x, l.y, txt, l.col, l.lane === 'l' ? 'left' : 'right');
     }
+    // direction line: from the live price toward the side the forecast leans, ending at the edge of the
+    // 68% range on that side at the end of the selected horizon. Thicker / brighter = stronger lean.
+    const fd = fc[$fh];
+    if (show.arrow && fd?.show && last && m.price != null) {
+      const x0 = chart.timeScale().timeToCoordinate(last.time as any);
+      const spacing = (chart.timeScale().options() as any).barSpacing || 6;
+      const y0 = Y(m.price);
+      if (x0 != null && y0 != null) {
+        const up = fd.p >= 0.5, k = Math.min(1, Math.abs(lean(fd.p)));
+        const endPx = m.price * Math.exp((up ? 1 : -1) * fd.band68);
+        let x1 = x0 + (HORIZON_MIN[$fh] / tf) * spacing, y1 = Y(endPx) ?? (up ? 0 : plotH);
+        const maxX = plotW - profW - 24;
+        if (x1 > maxX) { y1 = y0 + (y1 - y0) * ((maxX - x0) / (x1 - x0)); x1 = maxX; }   // keep the head on screen
+        const col = probColor(fd.p), rgb = up ? '46,230,168' : '255,92,138';
+        const w = 4 + 5 * k;
+        const g = c.createLinearGradient(x0, y0, x1, y1);
+        g.addColorStop(0, `rgba(${rgb},.15)`); g.addColorStop(1, `rgba(${rgb},.95)`);
+        c.save();
+        c.strokeStyle = `rgba(${rgb},${0.10 + 0.08 * pulse})`; c.lineWidth = w + 12; c.lineCap = 'round';      // soft halo
+        c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+        c.shadowColor = col; c.shadowBlur = 10 + 14 * k * pulse;
+        c.strokeStyle = g; c.lineWidth = w; c.lineCap = 'round';
+        c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+        c.shadowBlur = 0;
+        c.strokeStyle = 'rgba(255,255,255,.55)'; c.lineWidth = 1.2; c.setLineDash([3, 9]); c.lineDashOffset = -(t / 40) % 12;   // flowing dashes
+        c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke(); c.setLineDash([]);
+        const ang = Math.atan2(y1 - y0, x1 - x0), hl = 16 + 8 * k;
+        c.fillStyle = col; c.shadowColor = col; c.shadowBlur = 16;
+        c.beginPath(); c.moveTo(x1 + Math.cos(ang) * hl * 0.4, y1 + Math.sin(ang) * hl * 0.4);
+        c.lineTo(x1 - Math.cos(ang - 0.5) * hl, y1 - Math.sin(ang - 0.5) * hl);
+        c.lineTo(x1 - Math.cos(ang + 0.5) * hl, y1 - Math.sin(ang + 0.5) * hl); c.closePath(); c.fill();
+        c.shadowBlur = 0;
+        c.fillStyle = col; c.beginPath(); c.arc(x0, y0, 4.5, 0, Math.PI * 2); c.fill();
+        c.restore();
+        // badge at the top of the chart: never collides with the level / wall labels
+        const txt = `${up ? '↗ LONG' : '↘ SHORT'}  ${((up ? fd.p : 1 - fd.p) * 100).toFixed(1)}%  ·  ${$fh}  ·  68% edge ${px(endPx, m.digits)}`;
+        c.font = '800 13px Inter, sans-serif';
+        const bw = c.measureText(txt).width + 26, bx = (plotW - profW) / 2 - bw / 2, by = 10;
+        c.fillStyle = `rgba(${rgb},.16)`; c.strokeStyle = col; c.lineWidth = 1.5;
+        c.shadowColor = col; c.shadowBlur = 8 + 10 * pulse;
+        c.beginPath(); c.roundRect(bx, by, bw, 28, 9); c.fill(); c.stroke(); c.shadowBlur = 0;
+        c.fillStyle = col; c.textBaseline = 'middle'; c.fillText(txt, bx + 13, by + 14.5);
+      }
+    }
     // big trades
     if (show.trades && m.big?.length) {
       const thr = $bigUsd[sym] || 1e5, nowMs = now() * 1000;
@@ -232,12 +276,12 @@
   });
   onDestroy(() => { clearInterval(timer); cancelAnimationFrame(raf); chart?.remove(); });
   $: if (chart && sym) { tf; load(); }
-  const toggles: [keyof typeof show, string][] = [['levels', 'Support / resistance lines'], ['zones', 'Buyer / seller zones'], ['book', 'Order-book walls'], ['trades', 'Big trades'], ['cone', 'Expected range']];
+  const toggles: [keyof typeof show, string][] = [['arrow', 'Direction line'], ['levels', 'Support / resistance lines'], ['zones', 'Buyer / seller zones'], ['book', 'Order-book walls'], ['trades', 'Big trades'], ['cone', 'Expected range']];
 </script>
 <section class="fc panel" bind:this={wrap}>
   <header>
     <span class="badge" class:long={m.short.length > 3} style="background:linear-gradient(135deg, {badge[0]}, {badge[1]})">{m.short}</span>
-    <div class="nm"><div class="t">{m.name} <span>{m.sym} · Binance perpetual</span></div>
+    <div class="nm"><div class="t">{m.name} <span>{m.sym} · USDⓈ-M perpetual futures</span></div>
       <div class="pr"><span class="num big"><Roll value={m.price} format={v => px(v, m.digits)} /></span>
         <span class="num chg" class:up={chg != null && chg >= 0} class:down={chg != null && chg < 0}>{pct(chg)} <em>24h</em></span></div></div>
     <div class="hs">
@@ -245,7 +289,7 @@
         {@const x = fc[h]}
         <button class="hb" class:on={$fh === h} class:off={!x?.show} on:click={() => fh.set(h)}
           style={x?.show ? `--c:${probColor(x.p)}; --w:${Math.abs(lean(x.p)) * 50}%; --l:${x.p >= 0.5 ? '50%' : `calc(50% - ${Math.abs(lean(x.p)) * 50}%)`}` : ''}>
-          <span class="hh num">{h}</span>
+          <span class="hh num">{h}{#if x?.show}<b class="ls" class:long={x.p >= 0.5}>{x.p >= 0.5 ? 'LONG' : 'SHORT'}</b>{/if}</span>
           <span class="hv num"><Arrow p={x?.p ?? 0.5} show={!!x?.show} size={22} />{x?.show ? `${((x.p >= 0.5 ? x.p : 1 - x.p) * 100).toFixed(1)}%` : 'no edge'}</span>
           <span class="hbar"><i></i></span>
         </button>
@@ -273,7 +317,8 @@
   @media (max-width: 900px) { .hs { grid-template-columns: repeat(3, 1fr); min-width: 100%; } .big { font-size: 24px; } .hv { font-size: 14px; } }
   .hb { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding: 8px 11px; border-radius: 11px; background: rgba(148,163,214,.04); text-align: left; }
   .hb.on { background: rgba(139,124,255,.14); border-color: var(--accent); box-shadow: 0 0 0 1px rgba(139,124,255,.3), 0 8px 24px rgba(139,124,255,.15); }
-  .hh { font-size: 11px; color: var(--muted); } .hv { display: inline-flex; align-items: center; gap: 7px; font-size: 17px; font-weight: 700; color: var(--c, var(--faint)); transition: color .6s; }
+  .hh { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; width: 100%; }
+  .ls { font: 800 9px var(--sans); letter-spacing: 1px; color: var(--down); } .ls.long { color: var(--up); } .hv { display: inline-flex; align-items: center; gap: 7px; font-size: 17px; font-weight: 700; color: var(--c, var(--faint)); transition: color .6s; }
   .hb.off .hv { font: 500 12px var(--sans); }
   .hbar { position: relative; width: 100%; height: 4px; border-radius: 2px; background: rgba(148,163,214,.1); }
   .hbar i { position: absolute; top: 0; bottom: 0; left: var(--l, 50%); width: var(--w, 0); background: var(--c); border-radius: 2px; transition: all .7s ease; box-shadow: 0 0 8px var(--c); }
@@ -285,6 +330,8 @@
   .sw { width: 10px; height: 10px; border-radius: 3px; }
   .sw.levels { height: 0; border-radius: 0; border-top: 3px solid var(--res); box-shadow: 0 5px 0 -1px var(--sup); } .sw.zones { background: linear-gradient(135deg, var(--up) 50%, var(--down) 50%); }
   .sw.book { background: var(--up); box-shadow: 0 0 6px var(--up); } .sw.trades { border-radius: 50%; background: var(--down); } .sw.cone { background: #a79cff; }
+  .sw.arrow { width: 14px; height: 0; border-radius: 0; border-top: 3px solid var(--up); position: relative; }
+  .sw.arrow::after { content: ""; position: absolute; right: -3px; top: -6px; border-left: 6px solid var(--up); border-top: 4.5px solid transparent; border-bottom: 4.5px solid transparent; }
   .simtag { margin-left: auto; font: 700 9.5px var(--sans); letter-spacing: 1.2px; color: var(--res); border: 1px dashed var(--res); padding: 2px 8px; border-radius: 6px; }
   .chart { position: relative; flex: 1; min-height: 360px; margin: 0 8px 0 12px; }
   canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; }

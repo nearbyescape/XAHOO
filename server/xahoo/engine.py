@@ -38,6 +38,7 @@ class Market:
         self.cur: dict | None = None            # forming bar
         self.mark = math.nan
         self.funding_now = math.nan
+        self.next_funding = 0
         self.metrics = pd.DataFrame()
         self.funding = pd.DataFrame()
         self.flow = deque(maxlen=120)           # (second, buy_usd, sell_usd)
@@ -101,6 +102,7 @@ class Engine:
         elif t == "mark":
             mk.mark = ev["mark"]
             mk.funding_now = ev.get("funding", math.nan)
+            mk.next_funding = int(ev.get("next_funding") or 0)
         elif t == "trade":
             if ev["usd"] >= BIG_TRADE_USD.get(mk.sym, 1e9):
                 b = {"ts": ev["ts"], "side": ev["side"], "usd": round(ev["usd"]), "price": ev["price"]}
@@ -296,7 +298,7 @@ class Engine:
             b5, s5 = mk.flow_sum(now_s, 5)
             b60, s60 = mk.flow_sum(now_s, 60)
             out[sym] = {"price": mk.price, "mark": mk.mark, "b5": b5, "s5": s5, "b60": b60, "s60": s60, "big15": self.big15(mk, now_s),
-                        "funding": mk.funding_now, "age": round(self.clock() - mk.last_event, 2) if mk.last_event else None}
+                        "funding": mk.funding_now, "next_funding": mk.next_funding or None, "age": round(self.clock() - mk.last_event, 2) if mk.last_event else None}
         return {"type": "tick", "ts": self.clock(), "m": out}
 
     def snapshot(self) -> dict:

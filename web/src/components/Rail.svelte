@@ -11,7 +11,7 @@
   };
 </script>
 <nav class="rail panel">
-  <div class="ph">Markets <span class="r">lean 15m–4h</span></div>
+  <div class="ph">Markets <span class="r">bias 15m–4h</span></div>
   {#each $order as sym (sym)}
     {@const m = $markets[sym]}{@const b = blend(m.forecast?.h || {})}{@const bd = BADGE[sym] || ['#8b7cff', '#38c6f4']}
     {@const chg = m.price != null && m.dayAgo ? (m.price / m.dayAgo - 1) * 100 : null}
@@ -22,7 +22,7 @@
         <span class="num ch" class:up={chg != null && chg >= 0} class:down={chg != null && chg < 0}>{pct(chg)}</span></span>
       <span class="ln">
         {#if b != null}
-          <span class="arr num"><Arrow p={b} size={17} /> {((b >= 0.5 ? b : 1 - b) * 100).toFixed(1)}</span>
+          <span class="arr num"><Arrow p={b} size={17} /> <i class="ls">{b >= 0.5 ? 'L' : 'S'}</i>{((b >= 0.5 ? b : 1 - b) * 100).toFixed(1)}</span>
           <span class="bar"><i style="width:{Math.abs(lean(b)) * 50}%; {b >= 0.5 ? 'left:50%' : 'right:50%'}"></i></span>
         {:else}<span class="ne">no edge</span>{/if}
       </span>
@@ -44,6 +44,7 @@
   .px { grid-row: 1; grid-column: 3; text-align: right; display: flex; gap: 8px; align-items: baseline; }
   .p { font-size: 13.5px; color: var(--text); font-weight: 600; } .ch { font-size: 10.5px; color: var(--muted); }
   .ln { grid-column: 2 / 4; display: grid; grid-template-columns: 68px 1fr; gap: 8px; align-items: center; }
+  .ls { font: 800 9.5px var(--sans); font-style: normal; letter-spacing: .5px; }
   .arr { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: var(--c); transition: color .6s; }
   .bar { position: relative; height: 5px; border-radius: 3px; background: rgba(148,163,214,.09); }
   .bar::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--line3); }

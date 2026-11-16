@@ -22,7 +22,7 @@
   $: fast = blend(['1m', '5m'], fc);
   $: hasFast = !!(fc['1m']?.show || fc['5m']?.show);
   $: tilt = lean(slow);
-  $: label = !hasSlow ? 'No tested edge' : Math.abs(slow - 0.5) < 0.008 ? 'Balanced' : slow > 0.5 ? 'Leans up' : 'Leans down';
+  $: label = !hasSlow ? 'No tested edge' : Math.abs(slow - 0.5) < 0.008 ? 'Neutral' : slow > 0.5 ? 'Long bias' : 'Short bias';
   $: glow = hasSlow ? Math.min(1, Math.abs(tilt)) : 0;
   $: liqFlash = m.liqPulse && performance.now() - m.liqPulse < 1500;
   $: stale = m.age != null && m.age > 20;
@@ -51,7 +51,7 @@
         <span class="bl">{label}</span>
       </div>
     </div>
-    <div class="chart"><Spark data={m.spark} price={m.price} levels={m.forecast?.levels} /></div>
+    <div class="chart"><Spark data={m.spark} price={m.price} levels={m.forecast?.levels} p={hasSlow ? slow : null} /></div>
   </div>
   <div class="ladder">
     {#each hs as h (h)}
