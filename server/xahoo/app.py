@@ -33,8 +33,8 @@ log = logging.getLogger("xahoo")
 COOKIE = "xahoo_session"
 SESSIONS = Sessions(SECRET, PASSWORD)
 LIMITER = LoginLimiter()
-PUBLIC = {"/login", "/api/login", "/api/login/info", "/robots.txt", "/favicon.ico", "/manifest.webmanifest"}
-PUBLIC_PREFIX = ("/assets/", "/icons/", "/fonts/")
+PUBLIC = {"/login", "/login.js", "/api/login", "/api/login/info", "/robots.txt", "/manifest.webmanifest"}
+PUBLIC_PREFIX = ("/icons/", "/fonts/")          # the app bundle itself (/assets) needs the login
 
 
 class Hub:
@@ -192,7 +192,10 @@ async def privacy_and_auth(request: Request, call_next):
             else RedirectResponse("/login", status_code=303)
     else:
         resp = await call_next(request)
+    host = request.headers.get("host", "")
     for k, v in PRIVACY_HEADERS.items():
+        if k == "Content-Security-Policy" and host:      # allow the app's own WebSocket explicitly
+            v = v.replace("connect-src 'self'", f"connect-src 'self' wss://{host} ws://{host}")
         resp.headers[k] = v
     if p.startswith("/api/") or p in ("/", "/login", "/index.html"):
         resp.headers["Cache-Control"] = "no-store"

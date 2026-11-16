@@ -188,7 +188,7 @@ class Engine:
                              "move_bp": round(b68 * 1e4, 1), "tradable": bool(b68 * 1e4 > ROUND_TRIP_FEE_BP),
                              "layers": {k: round(v, 3) for k, v in d["layers"].items()},
                              "show": bool(skill.get("show", False)) and d["has_dir"], "tier": int(skill.get("tier", 0))}
-                    if minute_idx % STORE_EVERY[h] == 0:
+                    if fc[h]["show"] and minute_idx % STORE_EVERY[h] == 0:      # only shown forecasts are scored
                         to_store.append((now, now + n * 60, sym, h, d["p"], ref, d["u68"], s_h, self.models.version))
                 mk.forecast = {"ts": now, "ref": ref, "h": fc}
                 mk.ribbon.append((now, {h: v["p"] for h, v in fc.items()}))

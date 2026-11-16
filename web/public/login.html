@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#05070a">
+<title>XAHOO</title>
+<link rel="icon" href="/icons/favicon-32.png">
+<style>
+@font-face { font-family: "JetBrains Mono"; font-weight: 100 800; font-display: swap; src: url("/fonts/JetBrainsMono-latin.woff2") format("woff2"); }
+html, body { margin: 0; height: 100%; background: #05070a; color: #c9d3df; font: 13px/1.5 "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace; }
+body { display: grid; place-items: center; background: radial-gradient(900px 500px at 50% 35%, #0e1520 0%, #05070a 70%); }
+form { width: min(330px, 88vw); padding: 28px; background: #0a0e14; border: 1px solid #1b2431; display: flex; flex-direction: column; gap: 14px; }
+.logo { color: #f5a524; font-weight: 700; letter-spacing: 6px; font-size: 24px; }
+.sub { color: #5f6b7c; font-size: 10px; letter-spacing: 3px; margin-top: -10px; }
+label { display: flex; flex-direction: column; gap: 5px; color: #5f6b7c; font-size: 11px; letter-spacing: 1px; }
+input { background: #0f141c; border: 1px solid #263041; color: inherit; font: inherit; font-size: 15px; padding: 9px 10px; outline: none; }
+input:focus { border-color: #f5a524; }
+button { background: #f5a524; color: #05070a; border: 0; padding: 10px; font: inherit; font-weight: 700; letter-spacing: 3px; cursor: pointer; }
+.err { color: #ff5b6e; min-height: 18px; font-size: 11px; }
+[hidden] { display: none; }
+</style>
+</head>
+<body>
+<form id="lf" autocomplete="on">
+  <div class="logo">XAHOO</div>
+  <div class="sub">PROBABILITY TERMINAL</div>
+  <label>PASSWORD <input id="pw" type="password" autocomplete="current-password" required autofocus></label>
+  <label id="codewrap" hidden>2-STEP CODE <input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7"></label>
+  <button type="submit">ENTER</button>
+  <div id="err" class="err" role="alert"></div>
+</form>
+<script src="/login.js"></script>
+</body>
+</html>

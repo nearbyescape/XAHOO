@@ -1,0 +1,20 @@
+@font-face { font-family: "JetBrains Mono"; font-weight: 100 800; font-display: swap; src: url("/fonts/JetBrainsMono-latin.woff2") format("woff2"); }
+:root {
+  --bg: #05070a; --panel: #0a0e14; --panel2: #0e131b; --line: #151c27; --line2: #232d3d;
+  --text: #c9d3df; --dim: #5f6b7c; --dimmer: #3a4452; --amber: #f5a524; --up: #2bd17e; --down: #ff5b6e; --cyan: #4cc9f0;
+  --font: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 12px/1.4 var(--font); -webkit-font-smoothing: antialiased; }
+body { min-height: 100vh; background: radial-gradient(1200px 600px at 70% -10%, #0c1420 0%, var(--bg) 60%); }
+button { font: inherit; color: inherit; background: none; border: 1px solid var(--line2); cursor: pointer; padding: 3px 9px; }
+button:hover { border-color: var(--dim); }
+button.on { background: var(--amber); color: var(--bg); border-color: var(--amber); font-weight: 700; }
+.dim { color: var(--dim); } .up { color: var(--up); } .down { color: var(--down); } .amber { color: var(--amber); }
+.num { font-variant-numeric: tabular-nums; }
+.panel { background: color-mix(in srgb, var(--panel) 92%, transparent); border: 1px solid var(--line); }
+.ph { display: flex; align-items: center; gap: 10px; padding: 7px 12px; border-bottom: 1px solid var(--line); font-size: 10px; letter-spacing: 1.6px; color: var(--amber); font-weight: 600; text-transform: uppercase; }
+.ph .r { margin-left: auto; color: var(--dim); letter-spacing: .5px; font-weight: 400; text-transform: none; }
+::-webkit-scrollbar { width: 8px; height: 8px; } ::-webkit-scrollbar-thumb { background: var(--line2); } ::-webkit-scrollbar-track { background: transparent; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
