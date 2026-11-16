@@ -4,7 +4,12 @@ export interface Fc {
   p: number; band68: number; band95: number; lo68: number; hi68: number; lo95: number; hi95: number;
   move_bp: number; tradable: boolean; layers: Record<string, number>; show: boolean; tier: number;
 }
-export interface Forecast { ts: number; ref: number; h: Record<string, Fc>; }
+export interface Level {
+  price: number; dist: number; dist_sig: number; score: number; strength: number; reactions: number;
+  sources: string[]; reach: Record<string, number>;
+}
+export interface Levels { tol?: number; resistance: Level[]; support: Level[]; }
+export interface Forecast { ts: number; ref: number; h: Record<string, Fc>; levels?: Levels; }
 export interface Meta { sym: string; name: string; short: string; kind: 'coin' | 'metal'; digits: number; }
 export interface Liq { ts: number; side: 'long' | 'short'; usd: number; price: number; }
 export interface Market extends Meta {

@@ -1,55 +1,66 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { connect, checkAuth, markets, order, horizons, selected, conn, model } from './lib/store';
+  import { flip } from 'svelte/animate';
+  import { connect, checkAuth, markets, order, horizons, selected, conn, model, sortMode } from './lib/store';
   import TopBar from './components/TopBar.svelte';
-  import Row from './components/Row.svelte';
+  import Card from './components/Card.svelte';
   import Detail from './components/Detail.svelte';
-  import Scoreboard from './components/Scoreboard.svelte';
+  import TrackRecord from './components/TrackRecord.svelte';
   onMount(() => { checkAuth(); connect(); });
-  $: cols = `150px 128px 176px 112px repeat(${$horizons.length || 6}, minmax(92px, 1fr))`;
+  // "strongest first": by how far the shown 15m–4h probabilities lean from 50%, re-sorted once a minute
+  let sorted: string[] = [];
+  let lastSort = 0;
+  $: {
+    const t = $markets[$order[0]]?.forecast?.ts || 0;
+    if ($sortMode === 'fixed') sorted = $order;
+    else if (t !== lastSort || sorted.length !== $order.length || sorted === $order) {
+      lastSort = t;
+      const strength = (s: string) => {
+        const f = $markets[s]?.forecast?.h || {};
+        const v = ['15m', '1h', '4h'].map(h => f[h]).filter(x => x && x.show).map(x => Math.abs(x.p - 0.5));
+        return v.length ? v.reduce((a, b) => a + b, 0) / v.length : -1;
+      };
+      sorted = [...$order].sort((a, b) => strength(b) - strength(a));
+    }
+  }
   function key(e: KeyboardEvent) {
     if (e.key === 'Escape') selected.set(null);
-    const i = $order.indexOf($selected || '');
-    if (e.key === 'ArrowDown' && $order.length) { e.preventDefault(); selected.set($order[Math.min($order.length - 1, i + 1)]); }
-    if (e.key === 'ArrowUp' && i > 0) { e.preventDefault(); selected.set($order[i - 1]); }
+    if (!$selected) return;
+    const i = sorted.indexOf($selected);
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); selected.set(sorted[Math.min(sorted.length - 1, i + 1)]); }
+    if ((e.key === 'ArrowUp' || e.key === 'ArrowLeft') && i > 0) { e.preventDefault(); selected.set(sorted[i - 1]); }
   }
 </script>
 <svelte:window on:keydown={key} />
 <TopBar />
 <main>
-  <div class="left">
-    <section class="panel board" style="--cols:{cols}">
-      <div class="head">
-        <span>MARKET</span><span class="r">PRICE · 24H</span><span>FLOW · 60 S</span><span class="c">DIRECTION</span>
-        {#each $horizons as h}<span class="c hz">{h}</span>{/each}
-      </div>
-      {#each $order as sym (sym)}
-        <Row m={$markets[sym]} hs={$horizons} />
-      {:else}
-        <div class="wait">{$conn === 'down' ? 'Connection lost — reconnecting…' : 'Connecting to the live feed…'}</div>
-      {/each}
-      <div class="foot dim">
-        <span><b class="up">▲ 56%</b> = 56% chance the Binance mark price is higher at the end of the window · <b>±</b> = expected move (68% band) · bar under a cell = confidence · thin needle = 1–5 minute push, thick needle = 15 m–4 h</span>
-        <span>Probabilities are measured frequencies from history (model {$model.version}), not advice.</span>
-      </div>
-    </section>
-    {#if $selected && $markets[$selected]}
-      {#key $selected}<Detail sym={$selected} />{/key}
-    {/if}
+  <section class="grid">
+    {#each sorted as sym (sym)}
+      <div class="slot" animate:flip={{ duration: 600 }}><Card m={$markets[sym]} hs={$horizons} /></div>
+    {:else}
+      <div class="wait panel"><span class="spin"></span>{$conn === 'down' ? 'Connection lost — reconnecting…' : 'Connecting to the live feed…'}</div>
+    {/each}
+  </section>
+  <div class="legend">
+    <span><b class="up">▲ 56%</b> chance the Binance mark price is higher at the end of the window</span>
+    <span><b>±</b> expected move (68% range)</span>
+    <span><b class="res">R</b> / <b class="sup">S</b> nearest resistance / support · reach = measured chance price trades there</span>
+    <span>Dial: thick needle 15m–4h, dashed needle 1–5 min</span>
+    <span class="faint">Probabilities are measured frequencies from 2024–26 tests (model {$model.version}), not advice.</span>
   </div>
-  <aside><Scoreboard /></aside>
+  <TrackRecord />
 </main>
+{#if $selected && $markets[$selected]}
+  {#key $selected}<Detail sym={$selected} />{/key}
+{/if}
 <style>
-  main { display: grid; grid-template-columns: minmax(0, 1fr) 372px; gap: 10px; padding: 10px; align-items: start; }
-  .left { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-  aside { position: sticky; top: 56px; height: calc(100vh - 66px); min-height: 400px; }
-  .board { overflow-x: auto; }
-  .head { display: grid; grid-template-columns: var(--cols); padding: 7px 0; border-bottom: 1px solid var(--line2); font-size: 9.5px; letter-spacing: 1.6px; color: var(--dim); min-width: max-content; }
-  .head span { padding: 0 12px; } .head .r { text-align: right; } .head .c { text-align: center; }
-  .head .hz { color: var(--amber); text-align: left; padding-left: 11px; font-weight: 600; font-size: 11px; }
-  .board :global(.row) { min-width: max-content; }
-  .wait { padding: 60px; text-align: center; color: var(--dim); }
-  .foot { display: flex; justify-content: space-between; gap: 20px; padding: 8px 12px; font-size: 10px; line-height: 1.5; flex-wrap: wrap; }
-  .foot b { font-weight: 600; }
-  @media (max-width: 1280px) { main { grid-template-columns: 1fr; } aside { position: static; height: 560px; } }
+  main { display: flex; flex-direction: column; gap: 14px; padding: 16px 20px 28px; max-width: 2400px; margin: 0 auto; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); gap: 14px; }
+  .slot { min-width: 0; }
+  .wait { grid-column: 1 / -1; padding: 80px; text-align: center; color: var(--muted); display: flex; gap: 12px; justify-content: center; align-items: center; }
+  .spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line2); border-top-color: var(--accent); animation: spin 0.9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 11px; color: var(--muted); padding: 0 4px; }
+  .legend b { font-weight: 700; font-family: var(--mono); }
+  @media (max-width: 720px) { main { padding: 12px; } .grid { grid-template-columns: 1fr; } }
 </style>

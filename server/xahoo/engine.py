@@ -14,7 +14,10 @@ from collections import deque
 import numpy as np
 import pandas as pd
 
+import json
+
 from . import features
+from .levels import find_levels, reach_prob
 from .binance import BAR_COLS
 from .config import KEEP_BARS, KIND, MARKETS, ROUND_TRIP_FEE_BP, STORE_EVERY
 from .features import HORIZONS, leader_of
@@ -64,6 +67,8 @@ class Market:
 class Engine:
     def __init__(self, models: Models, store: Store, clock=time.time):
         self.models, self.store, self.clock = models, store, clock
+        lp = models.path / "levels.json"
+        self.levels_info = json.loads(lp.read_text()) if lp.exists() else {}
         self.m = {meta["sym"]: Market(meta) for meta in MARKETS}
         self.last_minute: int | None = None      # open time (s) of the last bar that was forecast
         self.closed: dict[str, int] = {}         # sym -> open time (s) of its newest closed bar
@@ -190,7 +195,7 @@ class Engine:
                              "show": bool(skill.get("show", False)) and d["has_dir"], "tier": int(skill.get("tier", 0))}
                     if fc[h]["show"] and minute_idx % STORE_EVERY[h] == 0:      # only shown forecasts are scored
                         to_store.append((now, now + n * 60, sym, h, d["p"], ref, d["u68"], s_h, self.models.version))
-                mk.forecast = {"ts": now, "ref": ref, "h": fc}
+                mk.forecast = {"ts": now, "ref": ref, "h": fc, "levels": self.levels(sym, ref, fc)}
                 mk.ribbon.append((now, {h: v["p"] for h, v in fc.items()}))
                 out[sym] = mk.forecast
             if to_store:
@@ -201,6 +206,28 @@ class Engine:
         self.status.update(last_forecast=now, compute_ms=round((time.perf_counter() - t0) * 1000))
         self.emit({"type": "forecast", "ts": now, "markets": out})
         return out
+
+    def levels(self, sym: str, ref: float, fc: dict) -> dict:
+        """Support / resistance from the last 7 days, with the measured chance of price reaching each level."""
+        mk = self.m[sym]
+        b = mk.bars.iloc[-10080:]
+        if len(b) < 1500:
+            return {"resistance": [], "support": []}
+        ts = np.asarray((b.index - pd.Timestamp(0, tz="UTC")) // pd.Timedelta(seconds=1), dtype=np.int64)
+        lv = find_levels(ts, b["high"].to_numpy(), b["low"].to_numpy(), b["close"].to_numpy(), b["volume"].to_numpy(), ref)
+        table = (self.levels_info.get("reach") or {}).get(KIND[sym])
+        for side, key in (("up", "resistance"), ("down", "support")):
+            for x in lv[key]:
+                x["reach"] = {}
+                for h in ("15m", "1h", "4h", "1d"):
+                    if h in fc and fc[h]["band68"] > 0:
+                        p = reach_prob(table, h, side, abs(x["dist"]) / fc[h]["band68"])
+                        if p is not None:
+                            x["reach"][h] = round(p, 3)
+                x["price"] = round(x["price"], 8)
+                x["dist"] = round(x["dist"], 6)
+                x["dist_sig"] = round(x["dist_sig"], 3)
+        return {"tol": lv["tol"], "resistance": lv["resistance"], "support": lv["support"]}
 
     def resolve(self, now: int) -> None:
         due = self.store.due(now)
@@ -245,7 +272,7 @@ class Engine:
             mk_out[sym] = {
                 "price": mk.price, "mark": mk.mark, "day_ago": day_ago, "forecast": mk.forecast,
                 "ribbon": [[t, p] for t, p in mk.ribbon],
-                "spark": [float(x) for x in c.iloc[-240::4]] if len(c) else [],
+                "spark": [float(x) for x in c.iloc[-180:]] if len(c) else [],
                 "oi_chg_1h": float(oi.iloc[-1] / oi.iloc[-13] - 1) if len(oi) > 13 else None,
                 "ls_ratio": float(ls.iloc[-1]) if len(ls) else None,
                 "funding": mk.funding_now if mk.funding_now == mk.funding_now else (float(mk.funding["funding"].iloc[-1]) if len(mk.funding) else None),
@@ -253,7 +280,8 @@ class Engine:
             }
         return {"type": "snapshot", "ts": self.clock(), "markets": MARKETS, "horizons": list(HORIZONS),
                 "m": mk_out, "model": {"version": self.models.version, "trained_through": self.models.manifest.get("trained_through"),
-                                       "skill": self.models.manifest["skill"]},
+                                       "skill": self.models.manifest["skill"],
+                                       "levels": {"hold": self.levels_info.get("hold"), "period": self.levels_info.get("period")}},
                 "status": self.status, "resolved": list(self.resolved_recent)[-40:]}
 
     def candles(self, sym: str, tf_min: int = 1, limit: int = 500) -> dict:

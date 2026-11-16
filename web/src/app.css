@@ -1,20 +1,55 @@
+@font-face { font-family: "Inter"; font-weight: 100 900; font-display: swap; src: url("/fonts/Inter-latin.woff2") format("woff2"); }
 @font-face { font-family: "JetBrains Mono"; font-weight: 100 800; font-display: swap; src: url("/fonts/JetBrainsMono-latin.woff2") format("woff2"); }
 :root {
-  --bg: #05070a; --panel: #0a0e14; --panel2: #0e131b; --line: #151c27; --line2: #232d3d;
-  --text: #c9d3df; --dim: #5f6b7c; --dimmer: #3a4452; --amber: #f5a524; --up: #2bd17e; --down: #ff5b6e; --cyan: #4cc9f0;
-  --font: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* Midnight ink base, glass panels, mint / rose for direction, amber / azure for resistance / support,
+     violet → sky for the brand. */
+  --bg: #070a13;
+  --panel: rgba(18, 23, 40, .74); --panel-solid: #111627; --panel2: #171d33; --panel3: #1e2541;
+  --line: rgba(148, 163, 214, .085); --line2: rgba(148, 163, 214, .17); --line3: rgba(148, 163, 214, .28);
+  --text: #e8ecf6; --muted: #98a3c0; --faint: #5d6888;
+  --up: #2ee6a8; --up-rgb: 46, 230, 168;
+  --down: #ff5c8a; --down-rgb: 255, 92, 138;
+  --neutral-rgb: 139, 149, 178;
+  --res: #ffb547; --sup: #56b6ff;
+  --accent: #8b7cff; --accent2: #38c6f4;
+  --brand: linear-gradient(120deg, #8b7cff 0%, #38c6f4 100%);
+  --gold: #f6c453;
+  --radius: 14px;
+  --sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font: var(--mono);
+  /* legacy names used by a few components */
+  --dim: var(--muted); --dimmer: var(--faint); --amber: var(--res); --cyan: var(--accent2);
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; background: var(--bg); color: var(--text); font: 12px/1.4 var(--font); -webkit-font-smoothing: antialiased; }
-body { min-height: 100vh; background: radial-gradient(1200px 600px at 70% -10%, #0c1420 0%, var(--bg) 60%); }
-button { font: inherit; color: inherit; background: none; border: 1px solid var(--line2); cursor: pointer; padding: 3px 9px; }
-button:hover { border-color: var(--dim); }
-button.on { background: var(--amber); color: var(--bg); border-color: var(--amber); font-weight: 700; }
-.dim { color: var(--dim); } .up { color: var(--up); } .down { color: var(--down); } .amber { color: var(--amber); }
-.num { font-variant-numeric: tabular-nums; }
-.panel { background: color-mix(in srgb, var(--panel) 92%, transparent); border: 1px solid var(--line); }
-.ph { display: flex; align-items: center; gap: 10px; padding: 7px 12px; border-bottom: 1px solid var(--line); font-size: 10px; letter-spacing: 1.6px; color: var(--amber); font-weight: 600; text-transform: uppercase; }
-.ph .r { margin-left: auto; color: var(--dim); letter-spacing: .5px; font-weight: 400; text-transform: none; }
-::-webkit-scrollbar { width: 8px; height: 8px; } ::-webkit-scrollbar-thumb { background: var(--line2); } ::-webkit-scrollbar-track { background: transparent; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.45 var(--sans); -webkit-font-smoothing: antialiased; }
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(900px 520px at 8% -8%, rgba(139, 124, 255, .16), transparent 60%),
+    radial-gradient(800px 520px at 100% 0%, rgba(56, 198, 244, .10), transparent 55%),
+    radial-gradient(1000px 700px at 60% 120%, rgba(46, 230, 168, .06), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
+}
+body::before {   /* faint terminal grid */
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background-image: linear-gradient(rgba(148,163,214,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,214,.035) 1px, transparent 1px);
+  background-size: 32px 32px; mask-image: radial-gradient(ellipse at 50% 30%, #000 30%, transparent 80%);
+}
+#app { position: relative; z-index: 1; }
+button { font: 500 12px var(--sans); color: var(--muted); background: rgba(255,255,255,.03); border: 1px solid var(--line2); cursor: pointer; padding: 5px 11px; border-radius: 8px; transition: all .2s; }
+button:hover { color: var(--text); border-color: var(--line3); background: rgba(255,255,255,.06); }
+button.on { background: var(--brand); color: #0a0d18; border-color: transparent; font-weight: 700; }
+.dim { color: var(--muted); } .faint { color: var(--faint); } .up { color: var(--up); } .down { color: var(--down); }
+.amber { color: var(--res); } .res { color: var(--res); } .sup { color: var(--sup); }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -.2px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 1px 0 rgba(255,255,255,.04) inset, 0 12px 32px rgba(0,0,0,.28); }
+.label { font: 600 10px var(--sans); letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint); }
+.ph { display: flex; align-items: center; gap: 10px; padding: 12px 16px 10px; font: 600 11px var(--sans); letter-spacing: 1.4px; text-transform: uppercase; color: var(--muted); }
+.ph .r { margin-left: auto; color: var(--faint); letter-spacing: .3px; font-weight: 500; text-transform: none; }
+.chip { display: inline-flex; align-items: center; gap: 5px; font: 600 9.5px var(--sans); letter-spacing: .8px; text-transform: uppercase; padding: 2px 7px; border-radius: 99px; border: 1px solid var(--line2); color: var(--muted); white-space: nowrap; }
+::-webkit-scrollbar { width: 8px; height: 8px; } ::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 8px; } ::-webkit-scrollbar-track { background: transparent; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }

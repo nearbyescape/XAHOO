@@ -128,3 +128,29 @@ def test_manifest_skill_table():
         for h, s in hz.items():
             assert s["show"] == (s["tier"] > 0)
     assert all(math.isfinite(v) for v in man["families"]["coin"]["1m"]["calibration"]["y"])
+
+
+def test_levels_sides_and_reach():
+    """Resistance above price, support below, nearest first; a planted double top is found; reach is monotone."""
+    import json
+    from xahoo.levels import find_levels, reach_prob
+    rng = np.random.default_rng(3)
+    n = 10080
+    ts = 1_700_000_000 + 60 * np.arange(n)
+    ts -= ts % 86400 - 0                          # any start is fine; keep integer seconds
+    c = 100 * np.exp(np.cumsum(rng.normal(0, 0.0008, n)))
+    c = c / c[-1] * 100.0                         # end at exactly 100
+    h, l = c * 1.0004, c * 0.9996
+    # plant a ceiling at 101.5 touched twice, a few days ago
+    for k in (6000, 7500):
+        h[k:k + 30] = np.maximum(h[k:k + 30], np.linspace(100.8, 101.5, 30))
+    v = np.full(n, 10.0)
+    out = find_levels(ts, h, l, c, v)
+    assert out["resistance"] and out["support"]
+    assert all(x["price"] > 100 for x in out["resistance"]) and all(x["price"] < 100 for x in out["support"])
+    assert [x["dist"] for x in out["resistance"]] == sorted(x["dist"] for x in out["resistance"])
+    assert [x["dist"] for x in out["support"]] == sorted((x["dist"] for x in out["support"]), reverse=True)
+    assert all(1 <= x["strength"] <= 3 for x in out["resistance"] + out["support"])
+    table = json.loads((MODELS / "levels.json").read_text())["reach"]["coin"]
+    ps = [reach_prob(table, "1h", "up", k) for k in (0.2, 0.5, 1.0, 2.0, 3.0)]
+    assert ps == sorted(ps, reverse=True) and 0 < ps[-1] < ps[0] <= 1

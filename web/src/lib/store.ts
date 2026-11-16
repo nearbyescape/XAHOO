@@ -11,6 +11,8 @@ export const status = writable<Record<string, any>>({});
 export const conn = writable<'connecting' | 'live' | 'down'>('connecting');
 export const serverTime = writable<number>(Date.now() / 1000);
 export const selected = writable<string | null>(null);
+export const levelsInfo = writable<any>(null);
+export const sortMode = writable<'fixed' | 'strongest'>('fixed');
 export const tally = writable<{ hit: number; n: number }>({ hit: 0, n: 0 });   // forecasts resolved since this page opened
 
 let offset = 0;            // server clock − local clock (replay mode runs on a simulated clock)
@@ -27,6 +29,7 @@ function applyForecast(m: Market, f: Forecast | null) {
     if (before != null && f.h[h].show && Math.abs(f.h[h].p - before) >= big) m.changed[h] = t;
   }
   m.forecast = f;
+  if (f.ref) { m.spark.push(f.ref); if (m.spark.length > 180) m.spark.shift(); }
   m.ribbon.push([f.ts, Object.fromEntries(Object.entries(f.h).map(([h, v]) => [h, v.p]))]);
   if (m.ribbon.length > 240) m.ribbon.shift();
 }
@@ -50,6 +53,7 @@ function onMessage(msg: any) {
       order.set((msg.markets as Meta[]).map(m => m.sym));
       horizons.set(msg.horizons);
       skill.set(msg.model.skill || {});
+      levelsInfo.set(msg.model.levels || null);
       model.set({ version: msg.model.version, trained_through: msg.model.trained_through });
       status.set(msg.status || {});
       resolved.set((msg.resolved || []).slice().reverse());
