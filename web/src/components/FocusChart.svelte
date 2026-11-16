@@ -15,7 +15,7 @@
   import Roll from './Roll.svelte';
   import { safe, report } from '../lib/report';
   export let sym: string;
-  let el: HTMLDivElement, cv: HTMLCanvasElement, fcv: HTMLCanvasElement, el2: HTMLDivElement, cv2: HTMLCanvasElement;
+  let el: HTMLDivElement, cv: HTMLCanvasElement, el2: HTMLDivElement, cv2: HTMLCanvasElement;
   let chart2: IChartApi;                   // lower panel: big trades and volume, kept in step with the price chart
   let chart: IChartApi, candles: ISeriesApi<'Candlestick'>, buyV: ISeriesApi<'Histogram'>, sellV: ISeriesApi<'Histogram'>,
     bigS: ISeriesApi<'Histogram'>, scaleS: ISeriesApi<'Line'>;
@@ -48,13 +48,19 @@
   $: share15.set(m && m.big15 && m.big15[0] + m.big15[1] > 0 ? m.big15[0] / (m.big15[0] + m.big15[1]) : 0.5);
   $: shareBook.set(m?.book?.['imb_0.25'] ?? 0.5);
 
-  const FUTURE_BARS = 24;                 // empty space kept right of the live candle (room for the direction line)
+  const FUTURE_BARS = 24;                 // minimum empty space right of the live candle (room for the direction line)
+  const flowWidth = (plotW: number) => (show.zones || show.book ? Math.min(190, plotW * 0.17) : 0);
+  let scaleW = 78;                         // price-axis width, used to place the live totals box
   let loadedTf = 0, userMoved = false;
   let alive = true;
   let widthTimer: ReturnType<typeof setInterval>, lastW = 0;                        // false once this chart is closed (market switched): late replies are ignored
   function liveView() {
     const nb = candles.data().length;
-    chart.timeScale().setVisibleLogicalRange({ from: nb - 150, to: nb + FUTURE_BARS });
+    // keep the buyers / sellers area clear of candles: leave that much empty space after the live candle
+    const spacing = (chart.timeScale().options() as any).barSpacing || 6;
+    const plotW = el.clientWidth - chart.priceScale('right').width();
+    const fut = Math.max(FUTURE_BARS, Math.ceil((flowWidth(plotW) + 110) / spacing));
+    chart.timeScale().setVisibleLogicalRange({ from: nb - 150, to: nb + fut });
     userMoved = false;
   }
   const volAt = new Map<number, { b: number; s: number }>();          // candle time -> taker buy / sell volume
@@ -203,11 +209,14 @@
   function layout(ls: Lbl[], gap: number, top: number, bottom: number) {
     for (const lane of ['l', 'r'] as const) {
       const xs = ls.filter(l => l.lane === lane).sort((a, b) => a.y - b.y);
-      // push apart downwards, keep the lowest inside the area, push apart upwards, keep the highest inside
+      // clamp into the area first (edge pills start at the edge), then push apart downwards, keep the lowest
+      // inside, push apart upwards, and finally push down again from the top so nothing overlaps at either edge
+      xs.forEach(l => (l.y = Math.min(bottom, Math.max(top, l.y))));
       for (let i = 1; i < xs.length; i++) if (xs[i].y - xs[i - 1].y < gap) xs[i].y = xs[i - 1].y + gap;
       if (xs.length && xs[xs.length - 1].y > bottom) xs[xs.length - 1].y = bottom;
       for (let i = xs.length - 2; i >= 0; i--) if (xs[i].y > xs[i + 1].y - gap) xs[i].y = xs[i + 1].y - gap;
-      xs.forEach(l => (l.y = Math.max(top, l.y)));
+      if (xs.length && xs[0].y < top) xs[0].y = top;
+      for (let i = 1; i < xs.length; i++) if (xs[i].y - xs[i - 1].y < gap) xs[i].y = xs[i - 1].y + gap;
     }
   }
   function canvas(cvs: HTMLCanvasElement) {
@@ -234,6 +243,8 @@
 
     // ---- candle area
     c.save(); c.beginPath(); c.rect(0, 0, plotW, plotH); c.clip();
+    const flowW = flowWidth(plotW);
+    if (flowW) drawFlow(c, plotW, plotH, flowW, Y, pulse);
     const labels: Lbl[] = [];
     if (show.levels && lv) {
       const tol = lv.tol || 0.003;
@@ -284,11 +295,11 @@
     if (show.arrow && fd?.show && last && m.price != null) {
       const x0 = chart.timeScale().timeToCoordinate(last.time as any);
       const y0 = Y(m.price);
-      if (x0 != null && y0 != null && x0 < plotW - 40) {
+      if (x0 != null && y0 != null && x0 < plotW - flowW - 40) {
         const up = fd.p >= 0.5, k = Math.min(1, Math.abs(lean(fd.p))), conv = conviction(fd.p);
         const deg = conv === 0 ? 0 : 18 + 42 * k;
         const ang = (up ? -1 : 1) * deg * Math.PI / 180;
-        const L = Math.max(70, Math.min(140, plotW - 24 - x0));
+        const L = Math.max(70, Math.min(140, plotW - flowW - 24 - x0));
         const x1 = x0 + Math.cos(ang) * L, y1 = Math.min(plotH * PRICE_BOTTOM, Math.max(8, y0 + Math.sin(ang) * L));
         const rgb = conv === 0 ? '152,163,192' : up ? '46,230,168' : '255,92,138';
         const col = `rgb(${rgb})`, w = 3 + 3 * k;
@@ -316,7 +327,7 @@
         const endPx = m.price * Math.exp((up ? 1 : -1) * fd.band68);
         const txt = `${conv === 0 ? '→' : up ? '↗' : '↘'} ${biasWord(fd.p)}  ${((up ? fd.p : 1 - fd.p) * 100).toFixed(1)}%  ·  ${$fh}  ·  68% range edge ${px(endPx, m.digits)}`;
         c.font = '800 13px Inter, sans-serif';
-        const bw = c.measureText(txt).width + 26, bxx = plotW / 2 - bw / 2, byy = 10;
+        const bw = c.measureText(txt).width + 26, bxx = (plotW - flowW) / 2 - bw / 2, byy = 10;
         c.fillStyle = `rgba(${rgb},.14)`; c.strokeStyle = col; c.lineWidth = 1.5;
         c.shadowColor = col; c.shadowBlur = 6 + 8 * pulse;
         c.beginPath(); c.roundRect(bxx, byy, bw, 28, 9); c.fill(); c.stroke(); c.shadowBlur = 0;
@@ -325,7 +336,6 @@
     }
     c.restore();
     drawStrips();
-    drawFlow(t, plotH, Y, pulse);
   }
 
   function drawStrips() {
@@ -339,12 +349,14 @@
     c.beginPath(); c.moveTo(0, Math.round(ph * 0.5) + 0.5); c.lineTo(pw, Math.round(ph * 0.5) + 0.5); c.stroke();
   }
 
-  // ---- flow column: same vertical price scale as the chart
-  function drawFlow(t: number, plotH: number, Y: (p: number) => number | null, pulse: number) {
-    if (!fcv) return;
-    const { c, W } = canvas(fcv);
+  // ---- buyers / sellers area at the right edge of the price chart (24h volume by price, zones, book walls)
+  function drawFlow(c: CanvasRenderingContext2D, plotW: number, plotH: number, W: number, Y: (p: number) => number | null, pulse: number) {
     const bottom = plotH * PRICE_BOTTOM + 6, mid = W / 2, half = mid - 4;
-    c.save(); c.beginPath(); c.rect(0, 0, W, bottom); c.clip();
+    c.save(); c.translate(plotW - W, 0);
+    c.beginPath(); c.rect(0, 0, W, bottom); c.clip();
+    const bgr = c.createLinearGradient(0, 0, W, 0);
+    bgr.addColorStop(0, 'rgba(10,13,24,0)'); bgr.addColorStop(0.15, 'rgba(10,13,24,.45)'); bgr.addColorStop(1, 'rgba(10,13,24,.55)');
+    c.fillStyle = bgr; c.fillRect(0, 0, W, bottom);
     // centre line and price marker
     c.strokeStyle = 'rgba(148,163,214,.14)'; c.lineWidth = 1;
     c.beginPath(); c.moveTo(mid + 0.5, 0); c.lineTo(mid + 0.5, bottom); c.stroke();
@@ -391,7 +403,7 @@
     layout(labels, 19, 28, bottom - 10);
     for (const l of labels) pill(c, l.lane === 'l' ? 3 : W - 3, l.y, l.text, l.col, l.lane === 'l' ? 'left' : 'right', 'rgba(10,13,24,.88)', 9.5);
     // header
-    c.fillStyle = 'rgba(10,13,24,.85)'; c.fillRect(0, 0, W, 20);
+    c.fillStyle = 'rgba(10,13,24,.8)'; c.fillRect(0, 0, W, 20);
     c.font = '700 9px Inter, sans-serif'; c.textBaseline = 'middle';
     c.fillStyle = '#ff5c8a'; c.fillText('◂ SELLERS', 4, 10);
     c.fillStyle = '#2ee6a8'; const tw = c.measureText('BUYERS ▸').width; c.fillText('BUYERS ▸', W - tw - 4, 10);
@@ -434,7 +446,7 @@
     widthTimer = setInterval(() => {
       if (!alive) return;
       const w = Math.max(chart.priceScale('right').width(), chart2.priceScale('right').width());
-      if (w > 0 && w !== lastW) { lastW = w; chart.applyOptions({ rightPriceScale: { minimumWidth: w } }); chart2.applyOptions({ rightPriceScale: { minimumWidth: w } }); }
+      if (w > 0 && w !== lastW) { lastW = w; scaleW = w; chart.applyOptions({ rightPriceScale: { minimumWidth: w } }); chart2.applyOptions({ rightPriceScale: { minimumWidth: w } }); }
     }, 1000);
     scaleS = chart.addLineSeries({ lineVisible: false, pointMarkersVisible: false, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
     const mk = (color: string, style: LineStyle, w: 1 | 2) => chart.addLineSeries({ color, lineStyle: style, lineWidth: w, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, autoscaleInfoProvider: () => null });
@@ -482,11 +494,8 @@
   <div class="area">
     <div class="charts">
       <div class="chart" bind:this={el}><canvas bind:this={cv}></canvas></div>
-      <div class="strips" bind:this={el2} style="height:{STRIP_H}px"><canvas bind:this={cv2}></canvas></div>
-    </div>
-    <div class="flow">
-      <canvas bind:this={fcv}></canvas>
-      <div class="live" style="height:{STRIP_H}px">
+      <div class="strips" bind:this={el2} style="height:{STRIP_H}px"><canvas bind:this={cv2}></canvas>
+      <div class="totals" style="right:{scaleW}px">
         <div class="lt">Live · last 60 s</div>
         <div class="row"><b class="up num">{f(m.b60)}</b><b class="down num">{f(m.s60)}</b></div>
         <div class="split"><i style="width:{$share60 * 100}%"></i></div>
@@ -497,9 +506,10 @@
         <div class="row"><b class="up num">{m.book?.['imb_0.25'] != null ? `${Math.round(m.book['imb_0.25'] * 100)}% bids` : '—'}</b><b class="down num">{m.book?.['imb_0.25'] != null ? `${100 - Math.round(m.book['imb_0.25'] * 100)}% asks` : ''}</b></div>
         <div class="split"><i style="width:{$shareBook * 100}%"></i></div>
       </div>
+      </div>
     </div>
   </div>
-  <div class="foot"><span><i class="k z"></i>right column: 24h volume by price (sellers ◂ ▸ buyers), order-book walls, live buy / sell totals</span><span><i class="k d"></i>strips: big trades and volume per candle</span><span>hover the chart for details</span></div>
+  <div class="foot"><span><i class="k z"></i>chart right edge: 24h volume by price (sellers ◂ ▸ buyers), buyer / seller zones, order-book walls</span><span><i class="k d"></i>lower panel: big trades and volume per candle, live buy / sell totals</span><span>hover the chart for details</span></div>
 </section>
 <style>
   .fc { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
@@ -536,15 +546,16 @@
   .bar > .live { margin-left: auto; border-radius: 99px; color: var(--text); border-color: var(--accent); background: rgba(139,124,255,.15); font-weight: 600; animation: pop .3s ease-out; }
   @keyframes pop { from { transform: scale(.85); opacity: 0; } to { transform: none; opacity: 1; } }
   .simtag { margin-left: auto; font: 700 9.5px var(--sans); letter-spacing: 1.2px; color: var(--res); border: 1px dashed var(--res); padding: 2px 8px; border-radius: 6px; }
-  .area { flex: 1; min-height: 480px; display: grid; grid-template-columns: minmax(0, 1fr) 176px; gap: 0; margin: 0 10px 0 12px; }
+  .area { flex: 1; min-height: 480px; display: flex; margin: 0 10px 0 12px; }
+  .charts { flex: 1; }
   .charts { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   .charts .chart { flex: 1; min-height: 260px; }
   .strips { position: relative; flex: none; border-top: 1px solid rgba(148,163,214,.16); background: rgba(10,13,24,.25); }
   .strips canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; }
   .chart { position: relative; min-width: 0; }
-  .chart canvas, .flow canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; }
-  .flow { position: relative; border-left: 1px solid rgba(148,163,214,.12); background: rgba(10,13,24,.35); border-radius: 0 10px 10px 0; overflow: hidden; }
-  .flow .live { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 8px 6px; display: flex; flex-direction: column; gap: 3px; border-top: 1px solid rgba(148,163,214,.12); background: rgba(10,13,24,.6); z-index: 4; }
+  .chart canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; }
+  .totals { position: absolute; top: 0; bottom: 28px; width: 190px; padding: 8px 10px 4px; display: flex; flex-direction: column; gap: 2px;
+    background: linear-gradient(90deg, rgba(10,13,24,0), rgba(10,13,24,.75) 18%); z-index: 4; pointer-events: none; }
   .lt { font: 700 9px var(--sans); letter-spacing: 1.1px; text-transform: uppercase; color: var(--faint); margin-top: 3px; }
   .row { display: flex; justify-content: space-between; font-size: 11.5px; }
   .split { position: relative; height: 5px; border-radius: 3px; background: rgba(255,92,138,.75); overflow: hidden; }
@@ -553,5 +564,5 @@
   .foot { display: flex; gap: 20px; padding: 6px 18px 10px; font-size: 10.5px; color: var(--faint); flex-wrap: wrap; }
   .k { display: inline-block; width: 10px; height: 8px; margin-right: 6px; border-radius: 2px; vertical-align: 0; }
   .k.d { background: linear-gradient(90deg, var(--up) 50%, var(--down) 50%); } .k.z { background: linear-gradient(90deg, rgba(255,92,138,.6) 50%, rgba(46,230,168,.6) 50%); }
-  @media (max-width: 900px) { .area { grid-template-columns: minmax(0, 1fr) 120px; } }
+  @media (max-width: 900px) { .totals { display: none; } }
 </style>
