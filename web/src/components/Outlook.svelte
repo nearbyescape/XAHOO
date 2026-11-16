@@ -3,7 +3,7 @@
   import { fly, fade } from 'svelte/transition';
   import { markets, fh, skill, levelsInfo, bigUsd, now, serverTime } from '../lib/store';
   import type { Market, Level } from '../lib/types';
-  import { px, pct, usd, probColor, ago } from '../lib/format';
+  import { px, pct, usd, probColor, ago, biasWord, conviction } from '../lib/format';
   import Gauge from './Gauge.svelte';
   export let sym: string;
   $: m = $markets[sym] as Market;
@@ -30,7 +30,8 @@
     <div class="hl">
       {#if f?.show}
         <div class="pbig num" style="color:{probColor(f.p)}"><Arrow p={f.p} size={40} />{((f.p >= 0.5 ? f.p : 1 - f.p) * 100).toFixed(1)}%</div>
-        <div class="bias" style="--c:{probColor(f.p)}">{f.p >= 0.5 ? 'LONG' : 'SHORT'} BIAS · {$fh}</div>
+        <div class="bias" style="--c:{conviction(f.p) === 0 ? 'var(--muted)' : probColor(f.p)}">{biasWord(f.p)}{conviction(f.p) ? ' BIAS' : ''} · {$fh}</div>
+        {#if conviction(f.p) < 2}<div class="hint">{conviction(f.p) === 0 ? 'Close to a coin flip: no meaningful lean right now.' : 'A small lean: close to a coin flip.'}</div>{/if}
         <div class="sub">{((f.p >= 0.5 ? f.p : 1 - f.p) * 100).toFixed(1)}% chance the {m.short} perpetual closes <b style="color:{probColor(f.p)}">{f.p >= 0.5 ? 'higher' : 'lower'}</b> in {$fh}</div>
         {#if sk?.accuracy != null}
           <div class="acc" title="Measured in walk-forward tests 2024–2026 on data the model never saw">
@@ -144,6 +145,7 @@
   .head { display: flex; align-items: center; gap: 14px; }
   .pbig { display: flex; align-items: center; gap: 10px; font-size: 34px; font-weight: 800; letter-spacing: -1px; line-height: 1.05; transition: color .6s; }
   .sub { color: var(--muted); font-size: 12.5px; }
+  .hint { font-size: 11px; color: var(--faint); margin-bottom: 2px; }
   .bias { display: inline-block; margin: 4px 0 3px; padding: 2px 9px; border-radius: 6px; font: 800 11px var(--sans); letter-spacing: 1.5px;
     color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); }
   .acc { margin-top: 6px; font-size: 11px; color: var(--faint); } .acc b { color: var(--text); font-weight: 600; }

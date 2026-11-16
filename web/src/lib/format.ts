@@ -28,6 +28,10 @@ export function probBg(p: number, max = 0.2): string {
 }
 /** Futures wording: probability of a higher close -> LONG / SHORT. */
 export const side = (p: number) => (p >= 0.5 ? 'LONG' : 'SHORT');
+/** How strong the lean is, in words: within 2 points of 50% = NEUTRAL, 2-5 points = SLIGHT, 5+ points = full. */
+export const conviction = (p: number): 0 | 1 | 2 => { const d = Math.abs(p - 0.5); return d < 0.02 ? 0 : d < 0.05 ? 1 : 2; };
+export const biasWord = (p: number) => ['NEUTRAL', `SLIGHT ${side(p)}`, side(p)][conviction(p)];
+export const biasShort = (p: number) => ['NEUTRAL', side(p), side(p)][conviction(p)];
 export const probText = (p: number, d = 0) => `${p >= 0.5 ? '▲' : '▼'} ${((p >= 0.5 ? p : 1 - p) * 100).toFixed(d)}%`;
 export function clock(ts: number, tz = 'UTC'): string {
   return new Date(ts * 1000).toLocaleTimeString('en-GB', { timeZone: tz, hour12: false });

@@ -1,7 +1,7 @@
 <script lang="ts">
   import Arrow from './Arrow.svelte';
   import type { Market } from '../lib/types';
-  import { px, pct, probColor, lean, BADGE } from '../lib/format';
+  import { px, pct, probColor, lean, BADGE, conviction } from '../lib/format';
   import { focus, view } from '../lib/store';
   import Roll from './Roll.svelte';
   import Gauge from './Gauge.svelte';
@@ -22,7 +22,7 @@
   $: fast = blend(['1m', '5m'], fc);
   $: hasFast = !!(fc['1m']?.show || fc['5m']?.show);
   $: tilt = lean(slow);
-  $: label = !hasSlow ? 'No tested edge' : Math.abs(slow - 0.5) < 0.008 ? 'Neutral' : slow > 0.5 ? 'Long bias' : 'Short bias';
+  $: label = !hasSlow ? 'No tested edge' : conviction(slow) === 0 ? 'Neutral' : `${conviction(slow) === 1 ? 'Slight ' : ''}${slow > 0.5 ? 'long' : 'short'} bias`;
   $: glow = hasSlow ? Math.min(1, Math.abs(tilt)) : 0;
   $: liqFlash = m.liqPulse && performance.now() - m.liqPulse < 1500;
   $: stale = m.age != null && m.age > 20;

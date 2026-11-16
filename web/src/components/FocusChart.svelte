@@ -4,7 +4,7 @@
   import { createChart, type IChartApi, type ISeriesApi, type IPriceLine, LineStyle } from 'lightweight-charts';
   import { api, markets, fh, bigUsd, now, serverTime } from '../lib/store';
   import type { Market, Level } from '../lib/types';
-  import { px, pct, probColor, lean, HORIZON_MIN, BADGE, usd } from '../lib/format';
+  import { px, pct, probColor, lean, HORIZON_MIN, BADGE, usd, biasWord, biasShort, conviction } from '../lib/format';
   import Roll from './Roll.svelte';
   export let sym: string;
   let wrap: HTMLElement, el: HTMLDivElement, cv: HTMLCanvasElement;
@@ -251,7 +251,7 @@
         c.fillStyle = col; c.beginPath(); c.arc(x0, y0, 4.5, 0, Math.PI * 2); c.fill();
         c.restore();
         // badge at the top of the chart: never collides with the level / wall labels
-        const txt = `${up ? '↗ LONG' : '↘ SHORT'}  ${((up ? fd.p : 1 - fd.p) * 100).toFixed(1)}%  ·  ${$fh}  ·  68% edge ${px(endPx, m.digits)}`;
+        const txt = `${conviction(fd.p) === 0 ? '→' : up ? '↗' : '↘'} ${biasWord(fd.p)}  ${((up ? fd.p : 1 - fd.p) * 100).toFixed(1)}%  ·  ${$fh}  ·  68% edge ${px(endPx, m.digits)}`;
         c.font = '800 13px Inter, sans-serif';
         const bw = c.measureText(txt).width + 26, bx = (plotW - profW) / 2 - bw / 2, by = 10;
         c.fillStyle = `rgba(${rgb},.16)`; c.strokeStyle = col; c.lineWidth = 1.5;
@@ -329,7 +329,8 @@
         {@const x = fc[h]}
         <button class="hb" class:on={$fh === h} class:off={!x?.show} on:click={() => fh.set(h)}
           style={x?.show ? `--c:${probColor(x.p)}; --w:${Math.abs(lean(x.p)) * 50}%; --l:${x.p >= 0.5 ? '50%' : `calc(50% - ${Math.abs(lean(x.p)) * 50}%)`}` : ''}>
-          <span class="hh num">{h}{#if x?.show}<b class="ls" class:long={x.p >= 0.5}>{x.p >= 0.5 ? 'LONG' : 'SHORT'}</b>{/if}</span>
+          <span class="hh num">{h}{#if x?.show}<b class="ls" class:long={x.p >= 0.5} class:neutral={conviction(x.p) === 0} class:slight={conviction(x.p) === 1}
+            title={biasWord(x.p)}>{biasShort(x.p)}</b>{/if}</span>
           <span class="hv num"><Arrow p={x?.p ?? 0.5} show={!!x?.show} size={22} />{x?.show ? `${((x.p >= 0.5 ? x.p : 1 - x.p) * 100).toFixed(1)}%` : 'no edge'}</span>
           <span class="hbar"><i></i></span>
         </button>
@@ -359,7 +360,7 @@
   .hb { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding: 8px 11px; border-radius: 11px; background: rgba(148,163,214,.04); text-align: left; }
   .hb.on { background: rgba(139,124,255,.14); border-color: var(--accent); box-shadow: 0 0 0 1px rgba(139,124,255,.3), 0 8px 24px rgba(139,124,255,.15); }
   .hh { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; width: 100%; }
-  .ls { font: 800 9px var(--sans); letter-spacing: 1px; color: var(--down); } .ls.long { color: var(--up); } .hv { display: inline-flex; align-items: center; gap: 7px; font-size: 17px; font-weight: 700; color: var(--c, var(--faint)); transition: color .6s; }
+  .ls { font: 800 9px var(--sans); letter-spacing: 1px; color: var(--down); } .ls.long { color: var(--up); } .ls.slight { opacity: .6; } .ls.neutral { color: var(--faint); } .hv { display: inline-flex; align-items: center; gap: 7px; font-size: 17px; font-weight: 700; color: var(--c, var(--faint)); transition: color .6s; }
   .hb.off .hv { font: 500 12px var(--sans); }
   .hbar { position: relative; width: 100%; height: 4px; border-radius: 2px; background: rgba(148,163,214,.1); }
   .hbar i { position: absolute; top: 0; bottom: 0; left: var(--l, 50%); width: var(--w, 0); background: var(--c); border-radius: 2px; transition: all .7s ease; box-shadow: 0 0 8px var(--c); }

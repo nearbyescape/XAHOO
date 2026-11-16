@@ -2,7 +2,7 @@
   import Arrow from './Arrow.svelte';
   // Left market list: price, 24h change and the 15m–4h lean; the focused market is highlighted.
   import { markets, order, focus, cycle } from '../lib/store';
-  import { px, pct, probColor, lean, BADGE } from '../lib/format';
+  import { px, pct, probColor, lean, BADGE, conviction } from '../lib/format';
   import Roll from './Roll.svelte';
   export let cycleLeft = 0;              // 0..1 progress of the auto-cycle timer
   const blend = (f: Record<string, any>) => {
@@ -22,7 +22,7 @@
         <span class="num ch" class:up={chg != null && chg >= 0} class:down={chg != null && chg < 0}>{pct(chg)}</span></span>
       <span class="ln">
         {#if b != null}
-          <span class="arr num"><Arrow p={b} size={17} /> <i class="ls">{b >= 0.5 ? 'L' : 'S'}</i>{((b >= 0.5 ? b : 1 - b) * 100).toFixed(1)}</span>
+          <span class="arr num"><Arrow p={b} size={17} /> <i class="ls">{conviction(b) === 0 ? '–' : b >= 0.5 ? 'L' : 'S'}</i>{((b >= 0.5 ? b : 1 - b) * 100).toFixed(1)}</span>
           <span class="bar"><i style="width:{Math.abs(lean(b)) * 50}%; {b >= 0.5 ? 'left:50%' : 'right:50%'}"></i></span>
         {:else}<span class="ne">no edge</span>{/if}
       </span>

@@ -183,3 +183,9 @@ halves and the calibrated forecast beats a coin flip.
 
 Gold's later months look better than its early months, which is what a real but still-forming pattern and
 plain luck both look like with this little history. The check should be repeated as Binance gold history grows.
+
+**Gold momentum (research/metals_momentum.py).** In Jan–May 2026 gold continued short moves (after a 15-minute
+fall the next minute was up only 41.6% of the time), but in Jun–Oct that faded to 48–49.5%. Adding momentum to
+the gold calibration lowered the Jun–Oct AUC at 1m from 0.543 to 0.522, so it was not adopted. The screen now
+labels the strength of a lean: NEUTRAL within 2 points of 50%, SLIGHT LONG/SHORT for 2–5 points, LONG/SHORT
+from 55%.
