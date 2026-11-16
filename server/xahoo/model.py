@@ -78,7 +78,7 @@ class Models:
     def skill(self, sym: str, h: str) -> dict:
         return self.manifest["skill"].get(sym, {}).get(h, {})
 
-    def predict(self, feats: pd.DataFrame, families: list[str]) -> list[dict]:
+    def predict(self, feats: pd.DataFrame, families: list[str], syms: list[str] | None = None) -> list[dict]:
         """feats: one row per market (columns include self.features). families: 'coin' or 'metal' per row.
         Returns, per row, {horizon: {p, u68, u95, layers, has_dir}}. Without a direction model p is 0.5."""
         out = [dict() for _ in range(len(feats))]
@@ -100,6 +100,13 @@ class Models:
                     bs = b if isinstance(b, list) else [b]
                     raw = np.mean([x.predict(Xd) for x in bs], axis=0)
                     p = apply_cal(spec["calibration"], raw)
+                    mc = spec.get("market_cal")
+                    if mc and syms is not None:                     # per-market correction: sigmoid(a + b * logit(p))
+                        for j, i in enumerate(rows):
+                            if syms[i] in mc:
+                                a, bb = mc[syms[i]]
+                                q = min(max(p[j], 1e-4), 1 - 1e-4)
+                                p[j] = 1 / (1 + np.exp(-(a + bb * np.log(q / (1 - q)))))
                     # per-feature log-odds contributions (+ bias), averaged over the models
                     contrib = np.mean([x.predict(Xd, pred_contrib=True) for x in bs], axis=0)
                     lidx = {g: [i for i, c in enumerate(fcols) if c.startswith(g + "_")] for g in LAYERS}

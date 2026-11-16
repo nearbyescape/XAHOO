@@ -1,5 +1,5 @@
 {
- "version": "2026.11.16",
+ "version": "2026.11.17",
  "trained_through": "2026-10-31",
  "features": [
   "a_ret5",
@@ -138,7 +138,41 @@
      ]
     },
     "q68_scale": 1.061,
-    "q95_scale": 1.0737
+    "q95_scale": 1.0737,
+    "market_cal": {
+     "BTCUSDT": [
+      -0.00971,
+      0.91313
+     ],
+     "ETHUSDT": [
+      0.00086,
+      0.8606
+     ],
+     "SOLUSDT": [
+      -0.00166,
+      0.72889
+     ],
+     "XRPUSDT": [
+      -0.00678,
+      0.6974
+     ],
+     "BNBUSDT": [
+      0.01695,
+      0.92176
+     ],
+     "DOGEUSDT": [
+      -0.00725,
+      0.83607
+     ],
+     "ADAUSDT": [
+      -0.0063,
+      0.68594
+     ],
+     "LINKUSDT": [
+      -0.00658,
+      1.05084
+     ]
+    }
    },
    "5m": {
     "files": {
@@ -205,7 +239,41 @@
      ]
     },
     "q68_scale": 1.01,
-    "q95_scale": 1.0301
+    "q95_scale": 1.0301,
+    "market_cal": {
+     "BTCUSDT": [
+      -0.01549,
+      0.96746
+     ],
+     "ETHUSDT": [
+      -0.00989,
+      1.07622
+     ],
+     "SOLUSDT": [
+      -0.00398,
+      0.87249
+     ],
+     "XRPUSDT": [
+      -0.01668,
+      0.88318
+     ],
+     "BNBUSDT": [
+      0.00181,
+      0.86251
+     ],
+     "DOGEUSDT": [
+      -0.00988,
+      0.95055
+     ],
+     "ADAUSDT": [
+      -0.01699,
+      0.76069
+     ],
+     "LINKUSDT": [
+      -0.01867,
+      0.92502
+     ]
+    }
    },
    "15m": {
     "files": {
@@ -279,7 +347,41 @@
     },
     "q68_scale": 0.9695,
     "q95_scale": 1.024,
-    "bagged": 5
+    "bagged": 5,
+    "market_cal": {
+     "BTCUSDT": [
+      -0.02156,
+      0.93802
+     ],
+     "ETHUSDT": [
+      -0.01384,
+      1.04709
+     ],
+     "SOLUSDT": [
+      -0.01361,
+      0.82617
+     ],
+     "XRPUSDT": [
+      -0.02327,
+      0.9056
+     ],
+     "BNBUSDT": [
+      0.01802,
+      0.71671
+     ],
+     "DOGEUSDT": [
+      -0.01686,
+      0.91159
+     ],
+     "ADAUSDT": [
+      -0.0394,
+      0.76272
+     ],
+     "LINKUSDT": [
+      -0.03799,
+      0.71038
+     ]
+    }
    },
    "1h": {
     "files": {
@@ -337,7 +439,41 @@
     },
     "q68_scale": 0.9979,
     "q95_scale": 1.004,
-    "bagged": 5
+    "bagged": 5,
+    "market_cal": {
+     "BTCUSDT": [
+      -0.02343,
+      0.93565
+     ],
+     "ETHUSDT": [
+      -0.01126,
+      0.97721
+     ],
+     "SOLUSDT": [
+      -0.01411,
+      0.66374
+     ],
+     "XRPUSDT": [
+      -0.02747,
+      0.85191
+     ],
+     "BNBUSDT": [
+      0.03185,
+      0.67032
+     ],
+     "DOGEUSDT": [
+      -0.02125,
+      0.70658
+     ],
+     "ADAUSDT": [
+      -0.05616,
+      0.71738
+     ],
+     "LINKUSDT": [
+      -0.04553,
+      0.65219
+     ]
+    }
    },
    "4h": {
     "files": {
@@ -392,7 +528,41 @@
      ]
     },
     "q68_scale": 0.9912,
-    "q95_scale": 1.0438
+    "q95_scale": 1.0438,
+    "market_cal": {
+     "BTCUSDT": [
+      -0.00566,
+      0.69238
+     ],
+     "ETHUSDT": [
+      -0.00712,
+      0.65641
+     ],
+     "SOLUSDT": [
+      -0.02006,
+      0.51824
+     ],
+     "XRPUSDT": [
+      -0.05039,
+      0.56343
+     ],
+     "BNBUSDT": [
+      0.0395,
+      0.61406
+     ],
+     "DOGEUSDT": [
+      -0.03619,
+      0.49036
+     ],
+     "ADAUSDT": [
+      -0.08097,
+      0.54539
+     ],
+     "LINKUSDT": [
+      -0.02794,
+      0.49771
+     ]
+    }
    },
    "1d": {
     "files": {
@@ -575,54 +745,54 @@
  "skill": {
   "BTCUSDT": {
    "1m": {
-    "n": 246911,
-    "auc": 0.5504,
-    "accuracy": 0.5349,
-    "conf55_share": 0.2993,
-    "conf55_hit": 0.571,
+    "n": 203370,
+    "auc": 0.5498,
+    "accuracy": 0.5355,
+    "conf55_share": 0.2458,
+    "conf55_hit": 0.575,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10"
+    "basis": "walk-forward 2024-01 \u2192 2026-10; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "5m": {
-    "n": 148828,
-    "auc": 0.5359,
-    "accuracy": 0.5253,
-    "conf55_share": 0.1303,
-    "conf55_hit": 0.5602,
+    "n": 122630,
+    "auc": 0.5335,
+    "accuracy": 0.5222,
+    "conf55_share": 0.1298,
+    "conf55_hit": 0.561,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10"
+    "basis": "walk-forward 2024-01 \u2192 2026-10; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "15m": {
-    "n": 99250,
-    "auc": 0.5426,
-    "accuracy": 0.5294,
-    "conf55_share": 0.1771,
-    "conf55_hit": 0.5677,
+    "n": 81779,
+    "auc": 0.5398,
+    "accuracy": 0.5281,
+    "conf55_share": 0.1608,
+    "conf55_hit": 0.5635,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged"
+    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "1h": {
-    "n": 49625,
-    "auc": 0.5427,
-    "accuracy": 0.5306,
-    "conf55_share": 0.1942,
-    "conf55_hit": 0.5647,
+    "n": 40889,
+    "auc": 0.5384,
+    "accuracy": 0.5278,
+    "conf55_share": 0.1573,
+    "conf55_hit": 0.5622,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged"
+    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "4h": {
-    "n": 24807,
-    "auc": 0.541,
-    "accuracy": 0.5279,
-    "conf55_share": 0.2289,
-    "conf55_hit": 0.5722,
+    "n": 20440,
+    "auc": 0.5339,
+    "accuracy": 0.5243,
+    "conf55_share": 0.0737,
+    "conf55_hit": 0.5793,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10"
+    "basis": "walk-forward 2024-01 \u2192 2026-10; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "1d": {
     "n": 6192,
@@ -637,54 +807,54 @@
   },
   "ETHUSDT": {
    "1m": {
-    "n": 247588,
-    "auc": 0.5437,
-    "accuracy": 0.5312,
-    "conf55_share": 0.2453,
-    "conf55_hit": 0.5653,
+    "n": 203994,
+    "auc": 0.5427,
+    "accuracy": 0.5306,
+    "conf55_share": 0.1826,
+    "conf55_hit": 0.5718,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10"
+    "basis": "walk-forward 2024-01 \u2192 2026-10; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "5m": {
-    "n": 148838,
-    "auc": 0.538,
-    "accuracy": 0.5281,
-    "conf55_share": 0.1223,
-    "conf55_hit": 0.5651,
-    "tier": 2,
-    "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10"
-   },
-   "15m": {
-    "n": 99243,
-    "auc": 0.5471,
-    "accuracy": 0.5336,
-    "conf55_share": 0.1719,
-    "conf55_hit": 0.5705,
-    "tier": 2,
-    "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged"
-   },
-   "1h": {
-    "n": 49622,
-    "auc": 0.545,
-    "accuracy": 0.5341,
-    "conf55_share": 0.1916,
-    "conf55_hit": 0.566,
-    "tier": 2,
-    "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged"
-   },
-   "4h": {
-    "n": 24806,
+    "n": 122641,
     "auc": 0.5375,
     "accuracy": 0.5269,
-    "conf55_share": 0.2337,
-    "conf55_hit": 0.562,
+    "conf55_share": 0.1425,
+    "conf55_hit": 0.5642,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10"
+    "basis": "walk-forward 2024-01 \u2192 2026-10; per-market calibration (tested 2024-07 \u2192 2026-10)"
+   },
+   "15m": {
+    "n": 81773,
+    "auc": 0.5461,
+    "accuracy": 0.5334,
+    "conf55_share": 0.1605,
+    "conf55_hit": 0.5721,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged; per-market calibration (tested 2024-07 \u2192 2026-10)"
+   },
+   "1h": {
+    "n": 40887,
+    "auc": 0.5411,
+    "accuracy": 0.5317,
+    "conf55_share": 0.1766,
+    "conf55_hit": 0.5639,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged; per-market calibration (tested 2024-07 \u2192 2026-10)"
+   },
+   "4h": {
+    "n": 20438,
+    "auc": 0.5315,
+    "accuracy": 0.5226,
+    "conf55_share": 0.0377,
+    "conf55_hit": 0.5473,
+    "tier": 2,
+    "show": true,
+    "basis": "walk-forward 2024-01 \u2192 2026-10; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "1d": {
     "n": 6192,
@@ -699,54 +869,54 @@
   },
   "SOLUSDT": {
    "1m": {
-    "n": 245501,
-    "auc": 0.5343,
-    "accuracy": 0.5233,
-    "conf55_share": 0.2227,
-    "conf55_hit": 0.5561,
+    "n": 201867,
+    "auc": 0.5337,
+    "accuracy": 0.522,
+    "conf55_share": 0.1216,
+    "conf55_hit": 0.5642,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10"
+    "basis": "walk-forward 2024-01 \u2192 2026-10; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "5m": {
-    "n": 148252,
-    "auc": 0.5296,
-    "accuracy": 0.5215,
-    "conf55_share": 0.1065,
-    "conf55_hit": 0.5553,
+    "n": 122052,
+    "auc": 0.5284,
+    "accuracy": 0.5203,
+    "conf55_share": 0.0894,
+    "conf55_hit": 0.5571,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10"
+    "basis": "walk-forward 2024-01 \u2192 2026-10; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "15m": {
-    "n": 98981,
-    "auc": 0.5356,
-    "accuracy": 0.5253,
-    "conf55_share": 0.1656,
-    "conf55_hit": 0.5577,
+    "n": 81511,
+    "auc": 0.5349,
+    "accuracy": 0.5243,
+    "conf55_share": 0.0606,
+    "conf55_hit": 0.573,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged"
+    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "1h": {
-    "n": 49563,
-    "auc": 0.5307,
-    "accuracy": 0.5199,
-    "conf55_share": 0.1945,
-    "conf55_hit": 0.55,
+    "n": 40827,
+    "auc": 0.5268,
+    "accuracy": 0.5171,
+    "conf55_share": 0.0452,
+    "conf55_hit": 0.5417,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged"
+    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "4h": {
-    "n": 24792,
-    "auc": 0.5288,
-    "accuracy": 0.5202,
-    "conf55_share": 0.2348,
-    "conf55_hit": 0.5422,
+    "n": 20424,
+    "auc": 0.5224,
+    "accuracy": 0.5191,
+    "conf55_share": 0.0188,
+    "conf55_hit": 0.5234,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10"
+    "basis": "walk-forward 2024-01 \u2192 2026-10; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "1d": {
     "n": 6190,
@@ -761,54 +931,54 @@
   },
   "XRPUSDT": {
    "1m": {
-    "n": 243291,
-    "auc": 0.5341,
-    "accuracy": 0.523,
-    "conf55_share": 0.2313,
-    "conf55_hit": 0.5537,
+    "n": 201188,
+    "auc": 0.5319,
+    "accuracy": 0.5214,
+    "conf55_share": 0.1202,
+    "conf55_hit": 0.5634,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10"
+    "basis": "walk-forward 2024-01 \u2192 2026-10; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "5m": {
-    "n": 147773,
-    "auc": 0.5302,
-    "accuracy": 0.5224,
-    "conf55_share": 0.0979,
-    "conf55_hit": 0.5482,
+    "n": 121958,
+    "auc": 0.5306,
+    "accuracy": 0.5226,
+    "conf55_share": 0.0544,
+    "conf55_hit": 0.5515,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10"
+    "basis": "walk-forward 2024-01 \u2192 2026-10; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "15m": {
-    "n": 98886,
-    "auc": 0.5369,
-    "accuracy": 0.5273,
-    "conf55_share": 0.1412,
-    "conf55_hit": 0.5573,
+    "n": 81534,
+    "auc": 0.5352,
+    "accuracy": 0.5248,
+    "conf55_share": 0.1047,
+    "conf55_hit": 0.5555,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged"
+    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "1h": {
-    "n": 49524,
-    "auc": 0.5351,
-    "accuracy": 0.5237,
-    "conf55_share": 0.1795,
-    "conf55_hit": 0.5587,
+    "n": 40822,
+    "auc": 0.5292,
+    "accuracy": 0.5194,
+    "conf55_share": 0.1192,
+    "conf55_hit": 0.5529,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged"
+    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "4h": {
-    "n": 24780,
-    "auc": 0.5281,
-    "accuracy": 0.5154,
-    "conf55_share": 0.2234,
-    "conf55_hit": 0.5481,
+    "n": 20419,
+    "auc": 0.5158,
+    "accuracy": 0.509,
+    "conf55_share": 0.0746,
+    "conf55_hit": 0.5407,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10"
+    "basis": "walk-forward 2024-01 \u2192 2026-10; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "1d": {
     "n": 6190,
@@ -823,54 +993,54 @@
   },
   "BNBUSDT": {
    "1m": {
-    "n": 246687,
-    "auc": 0.5496,
+    "n": 203286,
+    "auc": 0.5484,
     "accuracy": 0.5336,
-    "conf55_share": 0.2832,
-    "conf55_hit": 0.5722,
+    "conf55_share": 0.275,
+    "conf55_hit": 0.5706,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10"
+    "basis": "walk-forward 2024-01 \u2192 2026-10; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "5m": {
-    "n": 148670,
-    "auc": 0.5304,
-    "accuracy": 0.5209,
-    "conf55_share": 0.1135,
-    "conf55_hit": 0.554,
+    "n": 122503,
+    "auc": 0.5289,
+    "accuracy": 0.5198,
+    "conf55_share": 0.1137,
+    "conf55_hit": 0.5514,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10"
+    "basis": "walk-forward 2024-01 \u2192 2026-10; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "15m": {
-    "n": 99181,
-    "auc": 0.5303,
-    "accuracy": 0.5226,
-    "conf55_share": 0.1535,
-    "conf55_hit": 0.5524,
+    "n": 81732,
+    "auc": 0.5291,
+    "accuracy": 0.5206,
+    "conf55_share": 0.036,
+    "conf55_hit": 0.5601,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged"
+    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "1h": {
-    "n": 49610,
-    "auc": 0.5311,
-    "accuracy": 0.5249,
-    "conf55_share": 0.193,
-    "conf55_hit": 0.5509,
+    "n": 40878,
+    "auc": 0.5281,
+    "accuracy": 0.5233,
+    "conf55_share": 0.0743,
+    "conf55_hit": 0.555,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged"
+    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "4h": {
-    "n": 24803,
-    "auc": 0.5338,
-    "accuracy": 0.5255,
-    "conf55_share": 0.2158,
-    "conf55_hit": 0.561,
+    "n": 20438,
+    "auc": 0.5271,
+    "accuracy": 0.5221,
+    "conf55_share": 0.1079,
+    "conf55_hit": 0.5646,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10"
+    "basis": "walk-forward 2024-01 \u2192 2026-10; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "1d": {
     "n": 6192,
@@ -885,54 +1055,54 @@
   },
   "DOGEUSDT": {
    "1m": {
-    "n": 245014,
-    "auc": 0.5399,
-    "accuracy": 0.527,
-    "conf55_share": 0.2238,
-    "conf55_hit": 0.566,
+    "n": 201779,
+    "auc": 0.538,
+    "accuracy": 0.5254,
+    "conf55_share": 0.1616,
+    "conf55_hit": 0.5675,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10"
+    "basis": "walk-forward 2024-01 \u2192 2026-10; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "5m": {
-    "n": 148158,
-    "auc": 0.5322,
-    "accuracy": 0.5227,
-    "conf55_share": 0.1017,
-    "conf55_hit": 0.5595,
+    "n": 122033,
+    "auc": 0.5312,
+    "accuracy": 0.5224,
+    "conf55_share": 0.0917,
+    "conf55_hit": 0.5575,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10"
+    "basis": "walk-forward 2024-01 \u2192 2026-10; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "15m": {
-    "n": 98979,
-    "auc": 0.5381,
-    "accuracy": 0.5272,
-    "conf55_share": 0.1542,
-    "conf55_hit": 0.5618,
+    "n": 81532,
+    "auc": 0.538,
+    "accuracy": 0.5276,
+    "conf55_share": 0.0836,
+    "conf55_hit": 0.5643,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged"
+    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "1h": {
-    "n": 49565,
-    "auc": 0.5326,
-    "accuracy": 0.522,
-    "conf55_share": 0.1907,
-    "conf55_hit": 0.5461,
+    "n": 40837,
+    "auc": 0.5294,
+    "accuracy": 0.521,
+    "conf55_share": 0.0401,
+    "conf55_hit": 0.5351,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged"
+    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "4h": {
-    "n": 24786,
-    "auc": 0.5289,
-    "accuracy": 0.517,
-    "conf55_share": 0.2426,
-    "conf55_hit": 0.5399,
+    "n": 20421,
+    "auc": 0.5201,
+    "accuracy": 0.5169,
+    "conf55_share": 0.0167,
+    "conf55_hit": 0.5585,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10"
+    "basis": "walk-forward 2024-01 \u2192 2026-10; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "1d": {
     "n": 6191,
@@ -947,54 +1117,54 @@
   },
   "ADAUSDT": {
    "1m": {
-    "n": 239501,
-    "auc": 0.5355,
-    "accuracy": 0.5255,
-    "conf55_share": 0.2542,
-    "conf55_hit": 0.5528,
+    "n": 196905,
+    "auc": 0.532,
+    "accuracy": 0.5223,
+    "conf55_share": 0.2079,
+    "conf55_hit": 0.5488,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10"
+    "basis": "walk-forward 2024-01 \u2192 2026-10; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "5m": {
-    "n": 146680,
-    "auc": 0.5266,
-    "accuracy": 0.5189,
-    "conf55_share": 0.1046,
-    "conf55_hit": 0.5481,
+    "n": 120735,
+    "auc": 0.5248,
+    "accuracy": 0.5188,
+    "conf55_share": 0.0736,
+    "conf55_hit": 0.5448,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10"
+    "basis": "walk-forward 2024-01 \u2192 2026-10; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "15m": {
-    "n": 98495,
-    "auc": 0.5314,
-    "accuracy": 0.5198,
-    "conf55_share": 0.1456,
-    "conf55_hit": 0.5514,
+    "n": 81090,
+    "auc": 0.531,
+    "accuracy": 0.5224,
+    "conf55_share": 0.0369,
+    "conf55_hit": 0.563,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged"
+    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "1h": {
-    "n": 49410,
-    "auc": 0.5307,
-    "accuracy": 0.5184,
-    "conf55_share": 0.1818,
-    "conf55_hit": 0.5465,
+    "n": 40702,
+    "auc": 0.5266,
+    "accuracy": 0.5214,
+    "conf55_share": 0.0684,
+    "conf55_hit": 0.5291,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged"
+    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "4h": {
-    "n": 24754,
-    "auc": 0.529,
-    "accuracy": 0.5189,
-    "conf55_share": 0.2258,
-    "conf55_hit": 0.5292,
+    "n": 20390,
+    "auc": 0.5175,
+    "accuracy": 0.5142,
+    "conf55_share": 0.0607,
+    "conf55_hit": 0.4907,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10"
+    "basis": "walk-forward 2024-01 \u2192 2026-10; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "1d": {
     "n": 6186,
@@ -1009,54 +1179,54 @@
   },
   "LINKUSDT": {
    "1m": {
-    "n": 245614,
-    "auc": 0.5525,
-    "accuracy": 0.5362,
-    "conf55_share": 0.2459,
-    "conf55_hit": 0.5816,
+    "n": 202255,
+    "auc": 0.5508,
+    "accuracy": 0.5349,
+    "conf55_share": 0.2912,
+    "conf55_hit": 0.5748,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10"
+    "basis": "walk-forward 2024-01 \u2192 2026-10; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "5m": {
-    "n": 148263,
-    "auc": 0.531,
-    "accuracy": 0.5215,
-    "conf55_share": 0.104,
-    "conf55_hit": 0.5502,
+    "n": 122123,
+    "auc": 0.5298,
+    "accuracy": 0.5216,
+    "conf55_share": 0.0988,
+    "conf55_hit": 0.5525,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10"
+    "basis": "walk-forward 2024-01 \u2192 2026-10; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "15m": {
-    "n": 99011,
-    "auc": 0.5298,
-    "accuracy": 0.5211,
-    "conf55_share": 0.1537,
-    "conf55_hit": 0.5433,
+    "n": 81568,
+    "auc": 0.5301,
+    "accuracy": 0.5228,
+    "conf55_share": 0.0389,
+    "conf55_hit": 0.5536,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged"
+    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "1h": {
-    "n": 49568,
-    "auc": 0.5295,
-    "accuracy": 0.5185,
-    "conf55_share": 0.1877,
-    "conf55_hit": 0.5406,
+    "n": 40842,
+    "auc": 0.5266,
+    "accuracy": 0.5214,
+    "conf55_share": 0.0434,
+    "conf55_hit": 0.537,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged"
+    "basis": "walk-forward 2024-01 \u2192 2026-10, 5 models averaged; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "4h": {
-    "n": 24785,
-    "auc": 0.5279,
-    "accuracy": 0.5214,
-    "conf55_share": 0.2404,
-    "conf55_hit": 0.546,
+    "n": 20420,
+    "auc": 0.52,
+    "accuracy": 0.5167,
+    "conf55_share": 0.0078,
+    "conf55_hit": 0.5563,
     "tier": 2,
     "show": true,
-    "basis": "walk-forward 2024-01 \u2192 2026-10"
+    "basis": "walk-forward 2024-01 \u2192 2026-10; per-market calibration (tested 2024-07 \u2192 2026-10)"
    },
    "1d": {
     "n": 6187,

@@ -131,3 +131,43 @@ def build(k: pd.DataFrame, metrics: pd.DataFrame | None = None, funding: pd.Data
 
 def feature_groups(cols) -> dict[str, list[str]]:
     return {g: [c for c in cols if c.startswith(g + "_")] for g in ("a", "b", "c", "d")}
+
+
+# -------------------------------------------------------------------- optional layers (research 2026-11-16)
+def extra(k: pd.DataFrame, spot: pd.DataFrame | None = None, prem: pd.DataFrame | None = None) -> pd.DataFrame:
+    """f_  spot market: Binance spot taker flow, spot share of volume, spot-futures basis, who moved first
+       g_  futures premium index (how far futures trade above / below the index)
+    k: futures 1m bars; spot: spot 1m bars (same columns); prem: premium index 1m klines (close)."""
+    idx = k.index
+    f = {}
+    lc = np.log(k["close"])
+    r1 = lc.diff()
+    sig1d = r1.rolling(1440, min_periods=360).std()
+    if spot is not None and len(spot):
+        S = spot.reindex(idx, method="ffill", limit=2)
+        sv = S["volume"].where(S["volume"] > 0, 0.0)
+        ssigned = 2 * S["taker_buy_volume"] - sv
+        for n in (1, 5, 15, 60):
+            f[f"f_imb{n}"] = _roll_sum(ssigned, n) / (_roll_sum(sv, n) + EPS)
+        perp_usd = k["volume"] * k["close"]
+        spot_usd = sv * S["close"]
+        share = _roll_sum(spot_usd, 60) / (_roll_sum(spot_usd, 60) + _roll_sum(perp_usd, 60) + EPS)
+        f["f_share60"] = share / (share.rolling(1440, min_periods=360).mean() + EPS)
+        basis = (lc - np.log(S["close"])) * 1e4
+        f["f_basis"] = basis
+        f["f_basis_z"] = _z(basis, 1440)
+        f["f_basis_ch5"] = basis - basis.shift(5)
+        f["f_basis_ch60"] = basis - basis.shift(60)
+        slc = np.log(S["close"])
+        for n in (1, 5):
+            f[f"f_lead{n}"] = ((slc - slc.shift(n)) - (lc - lc.shift(n))) / (sig1d * np.sqrt(n) + EPS)
+        pimb15 = _roll_sum(2 * k["taker_buy_volume"] - k["volume"], 15) / (_roll_sum(k["volume"], 15) + EPS)
+        f["f_imbdiff15"] = f["f_imb15"] - pimb15
+    if prem is not None and len(prem):
+        P = prem["close"].reindex(idx, method="ffill", limit=2) * 1e4
+        f["g_prem"] = P
+        f["g_prem_z"] = _z(P, 1440)
+        f["g_prem_ch15"] = P - P.shift(15)
+        f["g_prem_ch60"] = P - P.shift(60)
+    out = pd.DataFrame(f, index=idx).replace([np.inf, -np.inf], np.nan).astype("float32")
+    return out.clip(-50, 50) if len(out.columns) else out

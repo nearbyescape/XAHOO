@@ -123,3 +123,45 @@ that can be reproduced live.
 
 The archive has no order-book levels or single trades in a form that matches the live feed, so these are not
 back-tested and are labelled on screen as live context. In replay mode they are simulated and labelled so.
+
+## 9. Accuracy push before launch (2026-11-17)
+
+Every idea below was run through the same walk-forward test (train on the past only, score the 8 screen coins
+2024-01 → 2026-10) and adopted only if it helped consistently.
+
+**New information**
+
+| Idea | 5m | 15m | 1h | 4h | 1d | Verdict |
+|---|---|---|---|---|---|---|
+| Spot-market flow (spot taker buying/selling, spot share of volume, spot–futures basis, who moved first) | 0.5315 → 0.5321 (5/5 folds) | no change | +0.0003 | −0.0011 | +0.003 (3/5) | not adopted: the gain at 5m is 0.06 points and needs a second live feed |
+| Futures premium index | +0.0004 | +0.0001 | +0.0003 | −0.0006 | +0.002 | not adopted |
+| Training on 16 coins instead of 8 (LTC, BCH, AVAX, DOT, TRX, ATOM, ETC, NEAR added) | −0.0003 | −0.0011 | 0.0000 | −0.0005 | −0.0005 | not adopted |
+
+Spot and futures prices are tied together by arbitrage, so spot flow mostly repeats what futures flow already
+shows. More coins did not help either: the limit is how predictable the market is, not how much the model has
+seen.
+
+**Model settings** were chosen on the 2024 folds only (slower learning, smaller/bigger trees, fewer inputs per
+tree, extra-randomised trees, stronger regularisation) and then checked on 2025-07 and 2026: the 2024 winner
+did not hold up at 15m, 1h or 4h; at 5m it was better by 0.05 points, below the noise between random seeds.
+Settings unchanged.
+
+**Per-market calibration — adopted.** The single shared calibration leaves each coin with a small bias. A
+two-number correction per coin and horizon (fitted on earlier folds, tested on later ones) shrinks the average
+gap between the stated probability and what happened, and makes the strong calls more reliable:
+
+| Horizon | Calibration gap (points) | "≥55%" calls right | Share of forecasts ≥55% |
+|---|---|---|---|
+| 1m | 0.46 → 0.17 | 56.5% → 56.8% | 23% → 20% |
+| 5m | 0.39 → 0.22 | 55.3% → 55.6% | 12% → 10% |
+| 15m | 0.45 → 0.32 | 55.8% → 56.5% | 15% → 8.5% |
+| 1h | 0.82 → 0.26 | 54.9% → 55.3% | 16% → 9% |
+| 4h | 1.48 → 0.68 | 54.4% → 54.8% | 19% → 5% |
+| 1d | 1.56 → 1.07 | 55.5% → 53.4% | — (not adopted: worse) |
+
+Overall direction accuracy is unchanged (it is the same model); what improves is that the probabilities are
+honest per coin, so a strong reading on screen is rarer and more trustworthy. Models version 2026.11.17.
+
+**Where this leaves accuracy.** With everything Binance publishes that can also be read live, the forecasts are
+at about 52–53% overall and 55–57% on the strong calls, depending on horizon. The live scoreboard will show
+whether that holds after launch.

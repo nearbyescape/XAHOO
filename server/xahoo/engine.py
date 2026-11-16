@@ -204,7 +204,7 @@ class Engine:
         out = {}
         if rows:
             X = pd.DataFrame(rows).reindex(columns=self.models.features + ["sig1d"])
-            preds = self.models.predict(X, [KIND[s] for s in syms])
+            preds = self.models.predict(X, [KIND[s] for s in syms], syms)
             to_store = []
             minute_idx = now // 60
             for sym, r, pr in zip(syms, rows, preds):
