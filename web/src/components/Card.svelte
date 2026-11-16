@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Arrow from './Arrow.svelte';
   import type { Market } from '../lib/types';
   import { px, pct, probColor, lean, BADGE } from '../lib/format';
   import { focus, view } from '../lib/store';
@@ -46,7 +47,7 @@
     <div class="dial">
       <Gauge {slow} {fast} {hasFast} size={112} />
       <div class="bias" style="color:{hasSlow ? probColor(slow) : 'var(--faint)'}">
-        {#if hasSlow}<span class="num">{slow >= 0.5 ? '▲' : '▼'} {((slow >= 0.5 ? slow : 1 - slow) * 100).toFixed(1)}%</span>{/if}
+        {#if hasSlow}<span class="num ba"><Arrow p={slow} size={18} />{((slow >= 0.5 ? slow : 1 - slow) * 100).toFixed(1)}%</span>{/if}
         <span class="bl">{label}</span>
       </div>
     </div>
@@ -57,6 +58,14 @@
       <HRow {h} fc={fc[h]} trail={m.ribbon.slice(-90).map(r => r[1][h]).filter(v => v != null)} changedAt={m.changed[h] || 0} forecastTs={m.forecast?.ts || 0} />
     {/each}
   </div>
+  {#if fc['1h']?.show && fc['1h'].reasons?.length}
+    <div class="why">
+      <span class="wl">Why 1h</span>
+      {#each fc['1h'].reasons.slice(0, 2) as r (r.t)}
+        <span class="rz" class:up={r.push > 0} class:down={r.push < 0}>{r.push > 0 ? '↑' : '↓'} <em>{r.t}</em></span>
+      {/each}
+    </div>
+  {/if}
   <div class="sep"></div>
   <LevelBar levels={m.forecast?.levels} price={m.price} digits={m.digits} />
   <FlowMeter b60={m.b60} s60={m.s60} b5={m.b5} s5={m.s5} />
@@ -88,8 +97,13 @@
   .dial { display: flex; flex-direction: column; align-items: center; }
   .bias { display: flex; flex-direction: column; align-items: center; margin-top: 3px; line-height: 1.15; transition: color .6s; }
   .bias .num { font-size: 14px; font-weight: 700; }
+  .ba { display: inline-flex; align-items: center; gap: 5px; }
   .bl { font: 600 9px var(--sans); letter-spacing: 1.2px; text-transform: uppercase; opacity: .85; }
   .chart { height: 84px; min-width: 0; }
   .ladder { padding: 4px 0 2px; }
+  .why { display: flex; flex-direction: column; gap: 2px; padding: 4px 14px 2px; }
+  .wl { font: 600 9px var(--sans); letter-spacing: 1.1px; text-transform: uppercase; color: var(--faint); }
+  .rz { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rz em { font-style: normal; color: var(--text); }
   .sep { height: 1px; margin: 4px 14px 0; background: var(--line); }
 </style>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Arrow from './Arrow.svelte';
   import { onMount, onDestroy } from 'svelte';
   import { createChart, type IChartApi, type ISeriesApi, LineStyle } from 'lightweight-charts';
   import { api, markets, fh, bigUsd, now, serverTime } from '../lib/store';
@@ -167,6 +168,8 @@
       }
     }
     // labels, spread out so none overlap; a thin leader shows where a moved label belongs
+    // walls / zones off the visible chart are skipped; levels keep an ↑ / ↓ edge marker
+    for (let i = labels.length - 1; i >= 0; i--) if (labels[i].lane === 'r' && (labels[i].y0 < 0 || labels[i].y0 > plotH)) labels.splice(i, 1);
     layout(labels, 22, 12, plotH - 12);
     for (const l of labels) {
       const x = l.lane === 'l' ? 10 : plotW - profW - 8;
@@ -233,7 +236,7 @@
         <button class="hb" class:on={$fh === h} class:off={!x?.show} on:click={() => fh.set(h)}
           style={x?.show ? `--c:${probColor(x.p)}; --w:${Math.abs(lean(x.p)) * 50}%; --l:${x.p >= 0.5 ? '50%' : `calc(50% - ${Math.abs(lean(x.p)) * 50}%)`}` : ''}>
           <span class="hh num">{h}</span>
-          <span class="hv num">{x?.show ? `${x.p >= 0.5 ? '▲' : '▼'} ${((x.p >= 0.5 ? x.p : 1 - x.p) * 100).toFixed(1)}%` : 'no edge'}</span>
+          <span class="hv num"><Arrow p={x?.p ?? 0.5} show={!!x?.show} size={22} />{x?.show ? `${((x.p >= 0.5 ? x.p : 1 - x.p) * 100).toFixed(1)}%` : 'no edge'}</span>
           <span class="hbar"><i></i></span>
         </button>
       {/each}
@@ -260,7 +263,7 @@
   @media (max-width: 900px) { .hs { grid-template-columns: repeat(3, 1fr); min-width: 100%; } .big { font-size: 24px; } .hv { font-size: 14px; } }
   .hb { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding: 8px 11px; border-radius: 11px; background: rgba(148,163,214,.04); text-align: left; }
   .hb.on { background: rgba(139,124,255,.14); border-color: var(--accent); box-shadow: 0 0 0 1px rgba(139,124,255,.3), 0 8px 24px rgba(139,124,255,.15); }
-  .hh { font-size: 11px; color: var(--muted); } .hv { font-size: 17px; font-weight: 700; color: var(--c, var(--faint)); transition: color .6s; }
+  .hh { font-size: 11px; color: var(--muted); } .hv { display: inline-flex; align-items: center; gap: 7px; font-size: 17px; font-weight: 700; color: var(--c, var(--faint)); transition: color .6s; }
   .hb.off .hv { font: 500 12px var(--sans); }
   .hbar { position: relative; width: 100%; height: 4px; border-radius: 2px; background: rgba(148,163,214,.1); }
   .hbar i { position: absolute; top: 0; bottom: 0; left: var(--l, 50%); width: var(--w, 0); background: var(--c); border-radius: 2px; transition: all .7s ease; box-shadow: 0 0 8px var(--c); }

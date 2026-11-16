@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Arrow from './Arrow.svelte';
   import { flip } from 'svelte/animate';
   import { fly } from 'svelte/transition';
   import { markets, fh, skill, levelsInfo, bigUsd, now } from '../lib/store';
@@ -28,7 +29,7 @@
     <Gauge slow={f?.show ? f.p : 0.5} fast={f?.show ? f.p : 0.5} hasFast={false} size={132} />
     <div class="hl">
       {#if f?.show}
-        <div class="pbig num" style="color:{probColor(f.p)}">{f.p >= 0.5 ? '▲' : '▼'} {((f.p >= 0.5 ? f.p : 1 - f.p) * 100).toFixed(1)}%</div>
+        <div class="pbig num" style="color:{probColor(f.p)}"><Arrow p={f.p} size={40} />{((f.p >= 0.5 ? f.p : 1 - f.p) * 100).toFixed(1)}%</div>
         <div class="sub">chance {m.short} is <b style="color:{probColor(f.p)}">{f.p >= 0.5 ? 'higher' : 'lower'}</b> in {$fh}</div>
         {#if sk?.accuracy != null}
           <div class="acc" title="Measured in walk-forward tests 2024–2026 on data the model never saw">
@@ -55,7 +56,7 @@
       <div class="rs">
         {#each reasons as r (r.t)}
           <div class="r" animate:flip={{ duration: 400 }} in:fly={{ x: 12, duration: 300 }}>
-            <span class="ic" class:up={r.push > 0} class:down={r.push < 0}>{r.push > 0 ? '▲' : '▼'}</span>
+            <span class="ic" class:up={r.push > 0} class:down={r.push < 0}>{r.push > 0 ? '↑' : '↓'}</span>
             <span class="tx">{r.t}</span>
             <span class="wb"><i class:up={r.push > 0} class:down={r.push < 0} style="width:{(Math.abs(r.w) / maxW) * 100}%"></i></span>
             <span class="ly">{r.layer}</span>
@@ -140,7 +141,7 @@
   .ol { overflow-y: auto; min-height: 0; }
   .blk { padding: 14px 18px; border-bottom: 1px solid var(--line); }
   .head { display: flex; align-items: center; gap: 14px; }
-  .pbig { font-size: 34px; font-weight: 800; letter-spacing: -1px; line-height: 1.05; transition: color .6s; }
+  .pbig { display: flex; align-items: center; gap: 10px; font-size: 34px; font-weight: 800; letter-spacing: -1px; line-height: 1.05; transition: color .6s; }
   .sub { color: var(--muted); font-size: 12.5px; }
   .acc { margin-top: 6px; font-size: 11px; color: var(--faint); } .acc b { color: var(--text); font-weight: 600; }
   .rng { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding-top: 10px; padding-bottom: 12px; }
@@ -152,7 +153,7 @@
   .bt .sim { color: var(--res); border: 1px dashed var(--res); border-radius: 5px; padding: 0 5px; font-size: 10px; }
   .rs { display: flex; flex-direction: column; gap: 7px; }
   .r { display: grid; grid-template-columns: 18px 1fr 64px 64px; gap: 8px; align-items: center; font-size: 12.5px; }
-  .ic { width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; font-size: 9px; }
+  .ic { width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; font-size: 13px; font-weight: 800; }
   .ic.up { background: rgba(var(--up-rgb), .15); } .ic.down { background: rgba(var(--down-rgb), .15); }
   .tx { color: var(--text); line-height: 1.3; }
   .wb { height: 5px; border-radius: 3px; background: rgba(148,163,214,.08); overflow: hidden; }

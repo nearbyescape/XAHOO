@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Arrow from './Arrow.svelte';
   import { conn, status, model, markets, order, serverTime, tally, sortMode, view, cycle } from '../lib/store';
   import { clock, probColor } from '../lib/format';
   $: ms = $order.map(s => $markets[s]).filter(Boolean);
@@ -23,7 +24,7 @@
         {@const f = m.forecast?.h?.['1h']}
         <span class="c" style="background:{f?.show ? probColor(f.p, .9) : 'var(--line2)'}; height:{f?.show ? 8 + Math.min(14, Math.abs(f.p - 0.5) * 200) : 6}px" title="{m.short} {f?.show ? (f.p * 100).toFixed(1) + '% up' : 'no edge'}"></span>
       {/each}
-      <span class="tv num" style="color:{probColor(breadth)}">{ups}/{ps.length || coins.length} up · {(breadth * 100).toFixed(1)}%</span>
+      <span class="tv num" style="color:{probColor(breadth)}"><Arrow p={breadth} show={ps.length > 0} size={18} /> {ups}/{ps.length || coins.length} up · {(breadth * 100).toFixed(1)}%</span>
     </div>
   </div>
   <div class="seg" role="group" aria-label="View">
@@ -31,7 +32,7 @@
     <button class:on={$view === 'grid'} on:click={() => view.set('grid')}>Grid</button>
   </div>
   {#if $view === 'focus'}
-    <button class="tv" class:act={$cycle} on:click={() => cycle.set(!$cycle)} title="Move to the next market every 20 seconds (for a wall screen)"><i></i>Auto-cycle</button>
+    <button class="cyc" class:act={$cycle} on:click={() => cycle.set(!$cycle)} title="Move to the next market every 20 seconds (for a wall screen)"><i></i>Auto-cycle</button>
   {:else}
     <div class="seg" role="group" aria-label="Card order">
       <button class:on={$sortMode === 'fixed'} on:click={() => sortMode.set('fixed')}>Fixed</button>
@@ -60,14 +61,14 @@
   .tilt { display: flex; flex-direction: column; gap: 3px; }
   .chips { display: flex; align-items: flex-end; gap: 3px; height: 22px; }
   .c { width: 7px; border-radius: 2px; transition: height .6s ease, background .6s; }
-  .tv { margin-left: 8px; font-size: 12px; font-weight: 600; align-self: center; }
+  .tv { display: inline-flex; align-items: center; gap: 5px; margin-left: 8px; font-size: 12px; font-weight: 600; align-self: center; }
   .seg { display: inline-flex; gap: 0; }
   .seg button { border-radius: 0; padding: 5px 10px; font-size: 11px; }
   .seg button:first-child { border-radius: 8px 0 0 8px; } .seg button:last-child { border-radius: 0 8px 8px 0; border-left: 0; }
-  .tv { display: inline-flex; align-items: center; gap: 7px; border-radius: 99px; font-size: 11px; }
-  .tv i { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
-  .tv.act { color: var(--text); border-color: var(--accent); background: rgba(139,124,255,.12); }
-  .tv.act i { background: var(--accent); animation: beat2 1.4s ease-in-out infinite; }
+  .cyc { display: inline-flex; align-items: center; gap: 7px; border-radius: 99px; font-size: 11px; }
+  .cyc i { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+  .cyc.act { color: var(--text); border-color: var(--accent); background: rgba(139,124,255,.12); }
+  .cyc.act i { background: var(--accent); animation: beat2 1.4s ease-in-out infinite; }
   @keyframes beat2 { 0%, 100% { box-shadow: 0 0 0 0 rgba(139,124,255,.7); } 60% { box-shadow: 0 0 0 6px rgba(139,124,255,0); } }
   .right { margin-left: auto; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
   .live { display: inline-flex; align-items: center; gap: 7px; font: 600 10.5px var(--sans); letter-spacing: 1px; text-transform: uppercase; color: var(--muted);

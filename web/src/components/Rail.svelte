@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Arrow from './Arrow.svelte';
   // Left market list: price, 24h change and the 15m–4h lean; the focused market is highlighted.
   import { markets, order, focus, cycle } from '../lib/store';
   import { px, pct, probColor, lean, BADGE } from '../lib/format';
@@ -21,7 +22,7 @@
         <span class="num ch" class:up={chg != null && chg >= 0} class:down={chg != null && chg < 0}>{pct(chg)}</span></span>
       <span class="ln">
         {#if b != null}
-          <span class="arr num">{b >= 0.5 ? '▲' : '▼'} {((b >= 0.5 ? b : 1 - b) * 100).toFixed(1)}</span>
+          <span class="arr num"><Arrow p={b} size={17} /> {((b >= 0.5 ? b : 1 - b) * 100).toFixed(1)}</span>
           <span class="bar"><i style="width:{Math.abs(lean(b)) * 50}%; {b >= 0.5 ? 'left:50%' : 'right:50%'}"></i></span>
         {:else}<span class="ne">no edge</span>{/if}
       </span>
@@ -42,8 +43,8 @@
   .id b { font: 700 14px var(--sans); color: var(--text); } .id em { font-style: normal; font-size: 11px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .px { grid-row: 1; grid-column: 3; text-align: right; display: flex; gap: 8px; align-items: baseline; }
   .p { font-size: 13.5px; color: var(--text); font-weight: 600; } .ch { font-size: 10.5px; color: var(--muted); }
-  .ln { grid-column: 2 / 4; display: grid; grid-template-columns: 60px 1fr; gap: 8px; align-items: center; }
-  .arr { font-size: 11.5px; font-weight: 700; color: var(--c); transition: color .6s; }
+  .ln { grid-column: 2 / 4; display: grid; grid-template-columns: 68px 1fr; gap: 8px; align-items: center; }
+  .arr { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: var(--c); transition: color .6s; }
   .bar { position: relative; height: 5px; border-radius: 3px; background: rgba(148,163,214,.09); }
   .bar::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--line3); }
   .bar i { position: absolute; top: 0; bottom: 0; border-radius: 3px; background: var(--c); box-shadow: 0 0 8px var(--c); transition: width .7s ease, background .6s; }

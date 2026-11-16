@@ -66,7 +66,10 @@ class Models:
         for fam, hz in self.manifest["families"].items():
             for h, files in hz.items():
                 for kind, fn in files["files"].items():
-                    self.boosters[f"{fam}/{h}/{kind}"] = lgb.Booster(model_file=str(self.path / fn))
+                    if isinstance(fn, list):        # several models averaged (bagging)
+                        self.boosters[f"{fam}/{h}/{kind}"] = [lgb.Booster(model_file=str(self.path / f)) for f in fn]
+                    else:
+                        self.boosters[f"{fam}/{h}/{kind}"] = lgb.Booster(model_file=str(self.path / fn))
 
     @property
     def version(self) -> str:
@@ -94,9 +97,11 @@ class Models:
                 if b is not None:
                     fcols = spec.get("features_dir") or self.features
                     Xd = sub[fcols].to_numpy(dtype=np.float64)
-                    raw = b.predict(Xd)
+                    bs = b if isinstance(b, list) else [b]
+                    raw = np.mean([x.predict(Xd) for x in bs], axis=0)
                     p = apply_cal(spec["calibration"], raw)
-                    contrib = b.predict(Xd, pred_contrib=True)      # per-feature log-odds contributions (+ bias)
+                    # per-feature log-odds contributions (+ bias), averaged over the models
+                    contrib = np.mean([x.predict(Xd, pred_contrib=True) for x in bs], axis=0)
                     lidx = {g: [i for i, c in enumerate(fcols) if c.startswith(g + "_")] for g in LAYERS}
                 for j, i in enumerate(rows):
                     d = {"p": 0.5, "u68": float(q68[j]), "u95": float(q95[j]), "layers": {}, "top": [], "has_dir": b is not None}

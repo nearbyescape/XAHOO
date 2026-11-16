@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Arrow from './Arrow.svelte';
   // Every market at a glance: probability per horizon, position between support and resistance,
   // order-book tilt and big-trade flow. Click a row to focus it.
   import { markets, order, horizons, focus } from '../lib/store';
@@ -22,7 +23,7 @@
           {@const f = m.forecast?.h?.[h]}
           {#key m.changed[h]}
             <span class="cell num" class:off={!f?.show} class:fl={!!m.changed[h]} style={f?.show ? `background:${probBg(f.p, 0.32)}; color:${probColor(f.p)}` : ''}>
-              {#if f?.show}{f.p >= 0.5 ? '▲' : '▼'}{((f.p >= 0.5 ? f.p : 1 - f.p) * 100).toFixed(0)}{:else}·{/if}
+              {#if f?.show}<Arrow p={f.p} size={14} glow={false} />{((f.p >= 0.5 ? f.p : 1 - f.p) * 100).toFixed(0)}{:else}·{/if}
             </span>
           {/key}
         {/each}
@@ -44,7 +45,7 @@
   .row.on { background: rgba(139,124,255,.13); box-shadow: inset 0 0 0 1px rgba(139,124,255,.4); }
   .mk { display: flex; align-items: center; gap: 6px; font: 700 11.5px var(--sans); color: var(--text); text-align: left; }
   .mk i { width: 8px; height: 8px; border-radius: 3px; }
-  .cell { height: 19px; border-radius: 5px; font-size: 11px; font-weight: 700; display: grid; place-items: center; transition: background .8s ease, color .6s; }
+  .cell { height: 19px; border-radius: 5px; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 4px; transition: background .8s ease, color .6s; }
   .cell.off { color: var(--faint); background: repeating-linear-gradient(135deg, rgba(148,163,214,.05) 0 3px, transparent 3px 6px); }
   .cell.fl { animation: fl 1.4s ease-out; }
   @keyframes fl { from { box-shadow: 0 0 0 1px var(--accent), 0 0 14px rgba(139,124,255,.6); } to { box-shadow: none; } }

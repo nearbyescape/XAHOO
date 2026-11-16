@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Arrow from './Arrow.svelte';
   // One horizon: diverging bar from 50%, the probability, the expected move and a trail of the last 90 minutes.
   import { onMount, onDestroy } from 'svelte';
   import { tweened } from 'svelte/motion';
@@ -58,7 +59,7 @@
     {/if}
   </span>
   {#if show && fc}
-    <span class="v num" style="color:{col}">{p >= 0.5 ? '▲' : '▼'} {((p >= 0.5 ? p : 1 - p) * 100).toFixed(0)}<small>%</small></span>
+    <span class="v num" style="color:{col}"><Arrow {p} size={15} glow={false} />{((p >= 0.5 ? p : 1 - p) * 100).toFixed(0)}<small>%</small></span>
   {:else}
     <span class="v none">no edge</span>
   {/if}
@@ -77,7 +78,7 @@
   .bar { position: relative; height: 7px; border-radius: 4px; background: rgba(148, 163, 214, .08); overflow: hidden; }
   .bar .mid { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--line3); }
   .bar .fill { position: absolute; top: 0; bottom: 0; border-radius: 4px; transition: background .5s; }
-  .v { font-size: 13px; font-weight: 700; text-align: right; transition: color .5s; white-space: nowrap; }
+  .v { display: inline-flex; align-items: center; justify-content: flex-end; gap: 4px; font-size: 13px; font-weight: 700; text-align: right; transition: color .5s; white-space: nowrap; }
   .v small { font-size: 10px; font-weight: 500; opacity: .75; }
   .none { font: 500 10px var(--sans); color: var(--faint); text-align: right; letter-spacing: .3px; }
   .mv { font-size: 10.5px; color: var(--muted); text-align: right; }
