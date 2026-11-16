@@ -83,7 +83,9 @@ docker build --network=host -t xahoo:latest . && docker compose up -d --no-build
 The scoreboard lives in the `xahoo-data` Docker volume and survives updates.
 
 ## Notes
-- Live data: Binance public endpoints `fapi.binance.com` (REST) and `fstream.binance.com` (WebSocket); no API key.
+- Live data: Binance public endpoints `fapi.binance.com` (REST) and `wss://fstream.binance.com/market/...`
+  (WebSocket; Binance retired the unrouted stream URL on 2026-04-23); no API key. If the stream goes silent for
+  60 s the server reconnects and logs "stream silent".
 - If a market's backfill fails, the server retries every 3 minutes and also fills any bars missed during
   reconnects.
 - Limits: 1 CPU, 1 GB memory (see `docker-compose.yml`).

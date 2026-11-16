@@ -14,7 +14,10 @@ import pandas as pd
 
 log = logging.getLogger("xahoo.binance")
 REST = "https://fapi.binance.com"
-WS = "wss://fstream.binance.com/stream?streams="
+# Since 2026-04-23 Binance serves USD-M futures streams on routed paths; kline, markPrice, forceOrder and aggTrade
+# are "market" streams. The old unrouted URL still accepts connections but delivers none of these.
+WS = "wss://fstream.binance.com/market/stream?streams="
+IDLE_S = 60          # no message for this long on 40 busy streams = a dead connection: reconnect
 BAR_COLS = ["open", "high", "low", "close", "volume", "count", "taker_buy_volume"]
 METRIC_ENDPOINTS = {            # column -> (path, field)
     "oi": ("/futures/data/openInterestHist", "sumOpenInterest"),
@@ -160,7 +163,12 @@ async def stream(syms: list[str], on_event, stop: asyncio.Event | None = None):
             async with websockets.connect(url, ping_interval=150, ping_timeout=60, max_queue=4096) as ws:
                 log.info("stream connected (%d streams)", len(syms) * 4)
                 backoff = 1.0
-                async for raw in ws:
+                while True:
+                    try:
+                        raw = await asyncio.wait_for(ws.recv(), timeout=IDLE_S)
+                    except asyncio.TimeoutError:
+                        log.warning("stream silent for %ds; reconnecting", IDLE_S)
+                        break
                     ev = parse_ws(json.loads(raw))
                     if ev:
                         on_event(ev)

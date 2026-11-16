@@ -201,3 +201,9 @@ def test_reasons_and_orderflow():
 def test_parse_aggtrade():
     ev = binance.parse_ws({"data": {"e": "aggTrade", "E": 1, "s": "BTCUSDT", "p": "100000", "q": "3", "T": 5, "m": True}})
     assert ev == {"type": "trade", "sym": "BTCUSDT", "price": 100000.0, "qty": 3.0, "usd": 300000.0, "side": "sell", "ts": 5}
+
+
+def test_stream_url_uses_market_route():
+    # Binance retired the unrouted futures stream URL on 2026-04-23; these streams live on /market
+    assert binance.WS.startswith("wss://fstream.binance.com/market/stream?streams=")
+    assert binance.streams(["BTCUSDT"]) == "btcusdt@kline_1m/btcusdt@markPrice@1s/btcusdt@forceOrder/btcusdt@aggTrade"
