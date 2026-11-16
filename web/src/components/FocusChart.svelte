@@ -14,7 +14,8 @@
   import { px, pct, probColor, lean, HORIZON_MIN, BADGE, usd, biasWord, biasShort, conviction } from '../lib/format';
   import Roll from './Roll.svelte';
   export let sym: string;
-  let el: HTMLDivElement, cv: HTMLCanvasElement, fcv: HTMLCanvasElement;
+  let el: HTMLDivElement, cv: HTMLCanvasElement, fcv: HTMLCanvasElement, el2: HTMLDivElement, cv2: HTMLCanvasElement;
+  let chart2: IChartApi;                   // lower panel: big trades and volume, kept in step with the price chart
   let chart: IChartApi, candles: ISeriesApi<'Candlestick'>, buyV: ISeriesApi<'Histogram'>, sellV: ISeriesApi<'Histogram'>,
     bigS: ISeriesApi<'Histogram'>, scaleS: ISeriesApi<'Line'>;
   let cone: ISeriesApi<'Line'>[] = [];
@@ -35,7 +36,8 @@
   $: chg = m?.price != null && m?.dayAgo ? (m.price / m.dayAgo - 1) * 100 : null;
   const css = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   // vertical layout of the chart pane (fractions of its height)
-  const PRICE_BOTTOM = 0.70, BIG_TOP = 0.735, BIG_BOTTOM = 0.145, VOL_TOP = 0.875;
+  const PRICE_BOTTOM = 0.96;               // price chart now uses its whole pane
+  const STRIP_H = 190;                      // px height of the lower panel (incl. its time axis)
 
   // live totals for the flow column
   const share60 = tweened(0.5, { duration: 600, easing: cubicOut });
@@ -47,7 +49,8 @@
 
   const FUTURE_BARS = 24;                 // empty space kept right of the live candle (room for the direction line)
   let loadedTf = 0, userMoved = false;
-  let alive = true;                        // false once this chart is closed (market switched): late replies are ignored
+  let alive = true;
+  let widthTimer: ReturnType<typeof setInterval>, lastW = 0;                        // false once this chart is closed (market switched): late replies are ignored
   function liveView() {
     const nb = candles.data().length;
     chart.timeScale().setVisibleLogicalRange({ from: nb - 150, to: nb + FUTURE_BARS });
@@ -203,13 +206,6 @@
 
     // ---- candle area
     c.save(); c.beginPath(); c.rect(0, 0, plotW, plotH); c.clip();
-    // strip captions and separators
-    c.font = '700 9px Inter, sans-serif'; c.textBaseline = 'top'; c.fillStyle = 'rgba(152,163,192,.6)';
-    if (show.trades) c.fillText(`BIG TRADES · NET PER CANDLE (≥ $${usd($bigUsd[sym] || 0).slice(2)} EACH)`, 10, plotH * BIG_TOP + 2);
-    c.fillText('VOLUME PER CANDLE · BUYERS ▲  SELLERS ▼', 10, plotH * VOL_TOP + 2);
-    c.strokeStyle = 'rgba(148,163,214,.09)'; c.lineWidth = 1;
-    for (const f of [BIG_TOP - 0.01, VOL_TOP - 0.01]) { c.beginPath(); c.moveTo(0, Math.round(plotH * f) + 0.5); c.lineTo(plotW, Math.round(plotH * f) + 0.5); c.stroke(); }
-
     const labels: Lbl[] = [];
     if (show.levels && lv) {
       const tol = lv.tol || 0.003;
@@ -300,7 +296,19 @@
       }
     }
     c.restore();
+    drawStrips();
     drawFlow(t, plotH, Y, pulse);
+  }
+
+  function drawStrips() {
+    if (!cv2 || !chart2) return;
+    const { c } = canvas(cv2);
+    const ph = el2.clientHeight - chart2.timeScale().height(), pw = el2.clientWidth - chart2.priceScale('right').width();
+    c.font = '700 9px Inter, sans-serif'; c.textBaseline = 'top'; c.fillStyle = 'rgba(152,163,192,.7)';
+    if (show.trades) c.fillText(`BIG TRADES · NET BUY − SELL PER CANDLE (TRADES ≥ $${usd($bigUsd[sym] || 0).slice(2)})`, 10, 6);
+    c.fillText('VOLUME PER CANDLE · BUYERS ▲  SELLERS ▼', 10, ph * 0.5 + 4);
+    c.strokeStyle = 'rgba(148,163,214,.12)'; c.lineWidth = 1;
+    c.beginPath(); c.moveTo(0, Math.round(ph * 0.5) + 0.5); c.lineTo(pw, Math.round(ph * 0.5) + 0.5); c.stroke();
   }
 
   // ---- flow column: same vertical price scale as the chart
@@ -365,28 +373,54 @@
   onMount(() => {
     chart = createChart(el, {
       autoSize: true,
-      layout: { background: { color: 'transparent' }, textColor: css('--muted'), fontFamily: css('--mono'), fontSize: 11 },
+      layout: { background: { color: 'transparent' }, textColor: css('--muted'), fontFamily: css('--mono'), fontSize: 11, attributionLogo: false } as any,
       grid: { vertLines: { color: 'rgba(148,163,214,.05)' }, horzLines: { color: 'rgba(148,163,214,.05)' } },
-      rightPriceScale: { borderColor: 'rgba(148,163,214,.15)', scaleMargins: { top: 0.06, bottom: 1 - PRICE_BOTTOM } },
-      timeScale: { borderColor: 'rgba(148,163,214,.15)', timeVisible: true, secondsVisible: false, rightOffset: 8 },
+      rightPriceScale: { borderColor: 'rgba(148,163,214,.15)', scaleMargins: { top: 0.06, bottom: 0.06 }, minimumWidth: 78 },
+      timeScale: { borderColor: 'rgba(148,163,214,.15)', timeVisible: true, secondsVisible: false, rightOffset: 8, visible: false },
       crosshair: { mode: 0, vertLine: { color: 'rgba(139,124,255,.5)', labelBackgroundColor: '#3a3470' }, horzLine: { color: 'rgba(139,124,255,.5)', labelBackgroundColor: '#3a3470' } },
     });
     candles = chart.addCandlestickSeries({ upColor: css('--up'), downColor: css('--down'), wickUpColor: css('--up'), wickDownColor: css('--down'), borderVisible: false });
-    buyV = chart.addHistogramSeries({ priceScaleId: 'vol', priceLineVisible: false, lastValueVisible: false, base: 0, color: 'rgba(46,230,168,.6)' });
-    sellV = chart.addHistogramSeries({ priceScaleId: 'vol', priceLineVisible: false, lastValueVisible: false, base: 0, color: 'rgba(255,92,138,.6)' });
-    chart.priceScale('vol').applyOptions({ scaleMargins: { top: VOL_TOP, bottom: 0 }, visible: false });
-    bigS = chart.addHistogramSeries({ priceScaleId: 'big', priceLineVisible: false, lastValueVisible: false, base: 0 });
-    chart.priceScale('big').applyOptions({ scaleMargins: { top: BIG_TOP, bottom: BIG_BOTTOM }, visible: false });
+    chart2 = createChart(el2, {
+      autoSize: true,
+      layout: { background: { color: 'transparent' }, textColor: css('--muted'), fontFamily: css('--mono'), fontSize: 10 },
+      grid: { vertLines: { color: 'rgba(148,163,214,.05)' }, horzLines: { visible: false } },
+      rightPriceScale: { borderColor: 'rgba(148,163,214,.15)', scaleMargins: { top: 0.1, bottom: 0.55 }, minimumWidth: 78 },
+      timeScale: { borderColor: 'rgba(148,163,214,.15)', timeVisible: true, secondsVisible: false, rightOffset: 8 },
+      crosshair: { mode: 0, vertLine: { color: 'rgba(139,124,255,.5)', labelBackgroundColor: '#3a3470' }, horzLine: { visible: false, labelVisible: false } },
+      handleScroll: true, handleScale: true,
+    });
+    // big trades on the visible right scale (in $), volume on its own hidden scale in the lower half
+    bigS = chart2.addHistogramSeries({ priceScaleId: 'big', priceLineVisible: false, lastValueVisible: false, base: 0 });
+    chart2.priceScale('big').applyOptions({ scaleMargins: { top: 0.12, bottom: 0.56 }, visible: false });
+    buyV = chart2.addHistogramSeries({ priceScaleId: 'vol', priceLineVisible: false, lastValueVisible: false, base: 0, color: 'rgba(46,230,168,.6)' });
+    sellV = chart2.addHistogramSeries({ priceScaleId: 'vol', priceLineVisible: false, lastValueVisible: false, base: 0, color: 'rgba(255,92,138,.6)' });
+    chart2.priceScale('vol').applyOptions({ scaleMargins: { top: 0.58, bottom: 0.02 }, visible: false });
+    // keep both charts in step: scroll / zoom, crosshair, and the same price-axis width so the bars line up
+    let syncing = false;
+    chart.timeScale().subscribeVisibleLogicalRangeChange(r => { if (!r || syncing) return; syncing = true; chart2.timeScale().setVisibleLogicalRange(r); syncing = false; });
+    chart2.timeScale().subscribeVisibleLogicalRangeChange(r => { if (!r || syncing) return; syncing = true; chart.timeScale().setVisibleLogicalRange(r); syncing = false; });
+    chart2.subscribeCrosshairMove(prm => {
+      hoverT = prm.time != null ? (prm.time as number) : null;
+      if (prm.time != null) (chart as any).setCrosshairPosition?.(m?.price ?? 0, prm.time, candles); else (chart as any).clearCrosshairPosition?.();
+    });
+    widthTimer = setInterval(() => {
+      if (!alive) return;
+      const w = Math.max(chart.priceScale('right').width(), chart2.priceScale('right').width());
+      if (w > 0 && w !== lastW) { lastW = w; chart.applyOptions({ rightPriceScale: { minimumWidth: w } }); chart2.applyOptions({ rightPriceScale: { minimumWidth: w } }); }
+    }, 1000);
     scaleS = chart.addLineSeries({ lineVisible: false, pointMarkersVisible: false, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
     const mk = (color: string, style: LineStyle, w: 1 | 2) => chart.addLineSeries({ color, lineStyle: style, lineWidth: w, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, autoscaleInfoProvider: () => null });
     cone = [mk('rgba(139,124,255,.5)', LineStyle.Dotted, 1), mk('rgba(167,156,255,.95)', LineStyle.Dashed, 2), mk('rgba(167,156,255,.95)', LineStyle.Dashed, 2), mk('rgba(139,124,255,.5)', LineStyle.Dotted, 1)];
     load();
     timer = setInterval(load, 5000);           // the live candle's volume refreshes every 5 s
-    chart.subscribeCrosshairMove(prm => { hoverY = prm.point ? prm.point.y : null; hoverT = prm.time != null ? (prm.time as number) : null; });
+    chart.subscribeCrosshairMove(prm => {
+      hoverY = prm.point ? prm.point.y : null; hoverT = prm.time != null ? (prm.time as number) : null;
+      if (prm.time != null) (chart2 as any).setCrosshairPosition?.(0, prm.time, buyV); else (chart2 as any).clearCrosshairPosition?.();
+    });
     chart.timeScale().subscribeVisibleLogicalRangeChange(r => { userMoved = !!r && r.to < candles.data().length - 1; });
     raf = requestAnimationFrame(draw);
   });
-  onDestroy(() => { alive = false; clearInterval(timer); cancelAnimationFrame(raf); chart?.remove(); });
+  onDestroy(() => { alive = false; clearInterval(timer); clearInterval(widthTimer); cancelAnimationFrame(raf); chart?.remove(); chart2?.remove(); });
   $: if (chart && sym) { tf; load(); }
   const toggles: [Exclude<keyof typeof show, 'compact'>, string][] = [['arrow', 'Direction line'], ['levels', 'Support / resistance'], ['zones', 'Volume by price'], ['book', 'Order-book walls'], ['trades', 'Big trades'], ['cone', 'Expected range']];
   const f = (v: number) => `$${usd(v).slice(2)}`;
@@ -418,10 +452,13 @@
     {#if m.book?.sim}<span class="simtag" title="Replay mode: the archive has no order book or single trades, so these are simulated">SIMULATED BOOK &amp; TRADES</span>{/if}
   </div>
   <div class="area">
-    <div class="chart" bind:this={el}><canvas bind:this={cv}></canvas></div>
+    <div class="charts">
+      <div class="chart" bind:this={el}><canvas bind:this={cv}></canvas></div>
+      <div class="strips" bind:this={el2} style="height:{STRIP_H}px"><canvas bind:this={cv2}></canvas></div>
+    </div>
     <div class="flow">
       <canvas bind:this={fcv}></canvas>
-      <div class="live" style="top:{PRICE_BOTTOM * 100}%">
+      <div class="live" style="height:{STRIP_H}px">
         <div class="lt">Live · last 60 s</div>
         <div class="row"><b class="up num">{f(m.b60)}</b><b class="down num">{f(m.s60)}</b></div>
         <div class="split"><i style="width:{$share60 * 100}%"></i></div>
@@ -471,7 +508,11 @@
   .bar > .live { margin-left: auto; border-radius: 99px; color: var(--text); border-color: var(--accent); background: rgba(139,124,255,.15); font-weight: 600; animation: pop .3s ease-out; }
   @keyframes pop { from { transform: scale(.85); opacity: 0; } to { transform: none; opacity: 1; } }
   .simtag { margin-left: auto; font: 700 9.5px var(--sans); letter-spacing: 1.2px; color: var(--res); border: 1px dashed var(--res); padding: 2px 8px; border-radius: 6px; }
-  .area { flex: 1; min-height: 360px; display: grid; grid-template-columns: minmax(0, 1fr) 176px; gap: 0; margin: 0 10px 0 12px; }
+  .area { flex: 1; min-height: 480px; display: grid; grid-template-columns: minmax(0, 1fr) 176px; gap: 0; margin: 0 10px 0 12px; }
+  .charts { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .charts .chart { flex: 1; min-height: 260px; }
+  .strips { position: relative; flex: none; border-top: 1px solid rgba(148,163,214,.16); background: rgba(10,13,24,.25); }
+  .strips canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; }
   .chart { position: relative; min-width: 0; }
   .chart canvas, .flow canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; }
   .flow { position: relative; border-left: 1px solid rgba(148,163,214,.12); background: rgba(10,13,24,.35); border-radius: 0 10px 10px 0; overflow: hidden; }
