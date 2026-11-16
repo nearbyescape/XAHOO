@@ -205,6 +205,7 @@ async def _tick_loop(engine: Engine) -> None:
 async def lifespan(app: FastAPI):
     global ENGINE
     logging.basicConfig(level=os.environ.get("XAHOO_LOG", "INFO"), format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    logging.getLogger("httpx").setLevel(logging.WARNING)          # one line per Binance request is too noisy
     if MODE == "live" and not PASSWORD and not DEV:
         raise RuntimeError("XAHOO_ADMIN_PASSWORD is required (set XAHOO_DEV=1 only for local testing)")
     clock = time.time
