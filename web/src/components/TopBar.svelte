@@ -1,6 +1,6 @@
 <script lang="ts">
   import Arrow from './Arrow.svelte';
-  import { conn, status, model, markets, order, serverTime, tally, sortMode, view, cycle } from '../lib/store';
+  import { conn, connError, status, model, markets, order, serverTime, tally, sortMode, view, cycle } from '../lib/store';
   import { clock, probColor } from '../lib/format';
   $: ms = $order.map(s => $markets[s]).filter(Boolean);
   $: ages = ms.map(m => m.age).filter((a): a is number => a != null);
@@ -40,7 +40,8 @@
     </div>
   {/if}
   <div class="right">
-    <span class="live" class:ok={$conn === 'live'} class:bad={$conn === 'down'}><i></i>{$conn === 'live' ? ($status.feed || 'live') : $conn === 'down' ? 'reconnecting' : 'connecting'}</span>
+    <span class="live" class:ok={$conn === 'live'} class:poll={$conn === 'polling'} class:bad={$conn === 'down'}
+      title={$conn === 'polling' ? 'WebSocket blocked (check the nginx Upgrade headers); updating over HTTPS every 1.5 s' : $connError}><i></i>{$conn === 'live' ? ($status.feed || 'live') : $conn === 'polling' ? `${$status.feed || 'live'} · https` : $conn === 'down' ? 'reconnecting' : 'connecting'}</span>
     <span class="kv" title="Age of the oldest market's last update"><em>Data</em><b class="num">{age == null ? '—' : age < 1 ? `${Math.round(age * 1000)}ms` : `${age.toFixed(1)}s`}</b></span>
     <span class="kv" title="Time to compute all forecasts each minute"><em>Calc</em><b class="num">{$status.compute_ms ?? '—'}ms</b></span>
     <span class="kv" title="Forecasts resolved since this page opened: share whose more-likely direction came true"><em>Session</em><b class="num">{$tally.n ? `${(($tally.hit / $tally.n) * 100).toFixed(1)}% · ${$tally.n}` : '—'}</b></span>
@@ -76,6 +77,7 @@
   .live i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
   .live.ok { color: var(--up); border-color: rgba(var(--up-rgb), .35); background: rgba(var(--up-rgb), .06); }
   .live.ok i { animation: beat 1.8s ease-in-out infinite; }
+  .live.poll { color: var(--res); border-color: rgba(255,181,71,.4); background: rgba(255,181,71,.06); }
   .live.bad { color: var(--down); border-color: rgba(var(--down-rgb), .4); }
   @keyframes beat { 0%, 100% { box-shadow: 0 0 0 0 rgba(var(--up-rgb), .6); } 60% { box-shadow: 0 0 0 6px rgba(var(--up-rgb), 0); } }
   .kv { display: flex; flex-direction: column; line-height: 1.2; }

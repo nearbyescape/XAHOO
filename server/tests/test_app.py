@@ -26,7 +26,7 @@ def client(monkeypatch, tmp_path):
 
 
 def test_private_until_login(client):
-    for path in ("/", "/index.html", "/api/snapshot", "/api/health"):
+    for path in ("/", "/index.html", "/api/snapshot", "/api/health", "/api/tick", "/api/forecasts"):
         r = client.get(path, follow_redirects=False)
         assert r.status_code in (303, 401), path
     js = [p.name for p in (WEB / "assets").iterdir() if p.suffix == ".js"][0]
@@ -45,6 +45,9 @@ def test_login_then_data_and_lockout(client):
     assert len(snap["markets"]) == 10 and snap["horizons"] == ["1m", "5m", "15m", "1h", "4h", "1d"]
     assert client.get("/api/candles?sym=BTCUSDT&tf=1").status_code == 200
     assert client.get("/api/candles?sym=NOPE&tf=1").status_code == 404
+    t = client.get("/api/tick").json()                     # HTTP fallback when a WebSocket is blocked
+    assert t["type"] == "tick" and "forecast_ts" in t and len(t["m"]) == 10
+    assert client.get("/api/forecasts").json()["type"] == "forecast"
     with client.websocket_connect("/ws") as ws:
         assert ws.receive_json()["type"] == "snapshot"
     client.post("/api/logout")

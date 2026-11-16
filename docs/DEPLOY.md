@@ -42,6 +42,17 @@ location / {
 
 Then `sudo nginx -t && sudo systemctl reload nginx`.
 
+Check it (expect **403** — the WebSocket handshake reached XAHOO and was refused only because curl is not
+logged in; **303** or **400** means nginx is still not passing the upgrade):
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" -H "Connection: Upgrade" -H "Upgrade: websocket" \
+  -H "Sec-WebSocket-Version: 13" -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" https://xahoo.chaliyaboy.com/ws
+```
+
+Without the upgrade the screen still works: it falls back to HTTPS updates every 1.5 s and the status badge
+shows "LIVE · HTTPS" in amber instead of green.
+
 ## 3. Build and start
 
 ```bash

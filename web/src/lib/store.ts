@@ -8,7 +8,8 @@ export const resolved = writable<Resolved[]>([]);
 export const skill = writable<Record<string, Record<string, Skill>>>({});
 export const model = writable<{ version: string; trained_through?: string }>({ version: '—' });
 export const status = writable<Record<string, any>>({});
-export const conn = writable<'connecting' | 'live' | 'down'>('connecting');
+export const conn = writable<'connecting' | 'live' | 'polling' | 'down'>('connecting');
+export const connError = writable<string>('');
 export const serverTime = writable<number>(Date.now() / 1000);
 export const selected = writable<string | null>(null);
 export const levelsInfo = writable<any>(null);
@@ -114,21 +115,52 @@ function onMessage(msg: any) {
   }
 }
 
+// Live updates come over a WebSocket. If it cannot connect (for example a proxy that does not pass WebSocket
+// upgrades), the page falls back to fetching the same updates over HTTPS every 1.5 s, and keeps retrying the
+// WebSocket in the background; it switches back as soon as the socket opens.
 let ws: WebSocket | null = null;
 let retry = 1000;
+let fails = 0;
+let poll: ReturnType<typeof setInterval> | null = null;
+let lastForecast = 0;
 export function connect() {
-  conn.set('connecting');
+  if (get(conn) !== 'polling') conn.set('connecting');
   ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
-  ws.onopen = () => { conn.set('live'); retry = 1000; };
+  ws.onopen = () => { stopPolling(); conn.set('live'); connError.set(''); retry = 1000; fails = 0; };
   ws.onmessage = e => { try { onMessage(JSON.parse(e.data)); } catch (err) { console.error(err); } };
   ws.onclose = e => {
-    conn.set('down');
     if (e.code === 4401) { location.replace('/login'); return; }
-    setTimeout(connect, retry);
+    fails += 1;
+    if (fails >= 2) startPolling(); else if (get(conn) !== 'polling') conn.set('down');
+    setTimeout(connect, fails >= 2 ? 30000 : retry);
     retry = Math.min(retry * 2, 15000);
   };
   ws.onerror = () => ws?.close();
 }
+async function pollOnce(full: boolean) {
+  try {
+    if (full) { onMessage(await api<any>('/api/snapshot')); lastForecast = 0; }
+    const t = await api<any>('/api/tick');
+    onMessage(t);
+    if (t.forecast_ts && t.forecast_ts !== lastForecast) {
+      const f = await api<any>(`/api/forecasts`);
+      if (lastForecast) onMessage(f);          // the snapshot already carried the current forecast
+      lastForecast = t.forecast_ts;
+    }
+    if (get(conn) !== 'live') conn.set('polling');
+    connError.set('');
+  } catch (err) {
+    if (get(conn) !== 'live') conn.set('down');
+    connError.set(String((err as Error).message || err));
+  }
+}
+function startPolling() {
+  if (poll) return;
+  pollOnce(true);
+  let n = 0;
+  poll = setInterval(() => { n += 1; pollOnce(n % 200 === 0); }, 1500);      // full refresh every 5 minutes
+}
+function stopPolling() { if (poll) { clearInterval(poll); poll = null; } }
 // if the socket goes quiet (laptop sleep, network change) reconnect
 setInterval(() => { if (get(conn) === 'live' && lastMsg && Date.now() - lastMsg > 15000) ws?.close(); }, 5000);
 // a 401 on the socket handshake shows up as a plain close: check the session over HTTP

@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { flip } from 'svelte/animate';
   import { fade } from 'svelte/transition';
-  import { connect, checkAuth, markets, order, horizons, conn, model, sortMode, focus, view, cycle } from './lib/store';
+  import { connect, checkAuth, markets, order, horizons, conn, connError, model, sortMode, focus, view, cycle } from './lib/store';
   import TopBar from './components/TopBar.svelte';
   import Card from './components/Card.svelte';
   import Rail from './components/Rail.svelte';
@@ -50,7 +50,7 @@
 <svelte:window on:keydown={key} />
 <TopBar />
 {#if !$order.length}
-  <div class="wait"><span class="spin"></span>{$conn === 'down' ? 'Connection lost — reconnecting…' : 'Connecting to the live feed…'}</div>
+  <div class="wait"><span class="spin"></span>{$conn === 'down' ? 'Connection lost — reconnecting…' : 'Connecting to the live feed…'}{#if $connError}<em class="err">{$connError}</em>{/if}</div>
 {:else if $view === 'focus' && $markets[$focus]}
   <main class="focus" in:fade={{ duration: 250 }}>
     <div class="a"><Rail cycleLeft={cycleT / CYCLE_S} /></div>
@@ -90,6 +90,7 @@
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); gap: 14px; }
   .slot { min-width: 0; }
   .wait { padding: 120px; text-align: center; color: var(--muted); display: flex; gap: 12px; justify-content: center; align-items: center; }
+  .err { display: block; font-style: normal; font-size: 11px; color: var(--down); margin-left: 10px; }
   .spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line2); border-top-color: var(--accent); animation: spin 0.9s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .legend { display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 11px; color: var(--muted); padding: 0 4px; }

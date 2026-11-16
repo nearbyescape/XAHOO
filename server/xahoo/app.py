@@ -302,6 +302,21 @@ def snapshot():
     return _clean(ENGINE.snapshot())
 
 
+@app.get("/api/tick")
+def tick():
+    """HTTP fallback for screens whose WebSocket is blocked: the same per-second update."""
+    t = ENGINE.tick()
+    t["forecast_ts"] = ENGINE.status.get("last_forecast")
+    return _clean(t)
+
+
+@app.get("/api/forecasts")
+def forecasts():
+    """HTTP fallback: the latest forecast for every market, in the WebSocket message format."""
+    return _clean({"type": "forecast", "ts": ENGINE.status.get("last_forecast"),
+                   "markets": {s: m.forecast for s, m in ENGINE.m.items() if m.forecast}})
+
+
 @app.get("/api/candles")
 def candles(sym: str, tf: int = 1, limit: int = 500):
     if sym not in ENGINE.m or tf not in (1, 5, 15, 60):
