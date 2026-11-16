@@ -183,6 +183,8 @@
     bigS.setData(list.map(([t, v]) => ({ time: t as any, value: v, color: v >= 0 ? 'rgba(46,230,168,.9)' : 'rgba(255,92,138,.9)' })));
   }
   $: if (candles && last) { m?.big; show.trades; tf; safe(bigStrip, 'big trades'); }
+  // with big trades off, the volume bars use the whole lower panel
+  $: if (chart2) { const on = show.trades; safe(() => chart2.priceScale('vol').applyOptions({ scaleMargins: on ? { top: 0.58, bottom: 0.02 } : { top: 0.14, bottom: 0.02 } }), 'volume panel'); }
   $: if (chart) { show; safe(() => { drawCone(); keepLevels(); levelLines(); }, 'layers'); }
   $: if (candles && last && m?.price != null) {
     // bucket by the SERVER clock (the viewer's clock may be off, and replay runs on a simulated clock)
@@ -266,7 +268,7 @@
       }
     }
     const near = (l: Lbl) => hoverY != null && Math.abs(hoverY - l.y0) < 10;
-    const priceBottom = plotH * PRICE_BOTTOM + 10;
+    const priceBottom = Math.min(plotH * PRICE_BOTTOM + 10, plotH - 14);      // keep edge pills fully visible
     // levels above / below the visible chart: one small pill per side instead of a stack
     for (const [side, test, y] of [['↑', (l: Lbl) => l.y0 < 0, 12], ['↓', (l: Lbl) => l.y0 > priceBottom, priceBottom]] as const) {
       const off = labels.filter(test);
@@ -343,10 +345,12 @@
     const { c } = canvas(cv2);
     const ph = el2.clientHeight - chart2.timeScale().height(), pw = el2.clientWidth - chart2.priceScale('right').width();
     c.font = '700 9px Inter, sans-serif'; c.textBaseline = 'top'; c.fillStyle = 'rgba(152,163,192,.7)';
-    if (show.trades) c.fillText(`BIG TRADES · NET BUY − SELL PER CANDLE (TRADES ≥ $${usd($bigUsd[sym] || 0).slice(2)})`, 10, 6);
-    c.fillText('VOLUME PER CANDLE · BUYERS ▲  SELLERS ▼', 10, ph * 0.5 + 4);
-    c.strokeStyle = 'rgba(148,163,214,.12)'; c.lineWidth = 1;
-    c.beginPath(); c.moveTo(0, Math.round(ph * 0.5) + 0.5); c.lineTo(pw, Math.round(ph * 0.5) + 0.5); c.stroke();
+    if (show.trades) {
+      c.fillText(`BIG TRADES · NET BUY − SELL PER CANDLE (TRADES ≥ $${usd($bigUsd[sym] || 0).slice(2)})`, 10, 6);
+      c.strokeStyle = 'rgba(148,163,214,.12)'; c.lineWidth = 1;
+      c.beginPath(); c.moveTo(0, Math.round(ph * 0.5) + 0.5); c.lineTo(pw, Math.round(ph * 0.5) + 0.5); c.stroke();
+    }
+    c.fillText('VOLUME PER CANDLE · BUYERS ▲  SELLERS ▼', 10, show.trades ? ph * 0.5 + 4 : 6);
   }
 
   // ---- buyers / sellers area at the right edge of the price chart (24h volume by price, zones, book walls)
