@@ -34,15 +34,18 @@ def load_market(sym: str, start: pd.Timestamp, minutes: int):
     mark = pd.read_parquet(BN / f"{sym}_mark.parquet")["mark"]
     met = pd.read_parquet(BN / f"{sym}_metrics.parquet")
     fund = pd.read_parquet(BN / f"{sym}_funding.parquet")
-    return hist, play, mark, met, fund
+    daily = k["close"][(k.index >= start - pd.Timedelta(days=45)) & (k.index < start)]
+    daily = daily.resample("1D", label="left", closed="left").last().dropna()
+    return hist, play, mark, met, fund, daily
 
 
 def prime(engine: Engine, start: pd.Timestamp, minutes: int) -> dict:
     """Load history into the engine and return the bars to play, per symbol."""
     play = {}
     for sym in SYMS:
-        hist, p, mark, met, fund = load_market(sym, start, minutes)
+        hist, p, mark, met, fund, daily = load_market(sym, start, minutes)
         mk = engine.m[sym]
+        mk.daily = daily
         mk.bars = hist.copy()
         end = start + pd.Timedelta(minutes=minutes)
         mk.metrics = met[met.index < end]          # features only read snapshots older than each bar

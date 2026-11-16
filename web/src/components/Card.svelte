@@ -2,7 +2,7 @@
   import Arrow from './Arrow.svelte';
   import CoinLogo from './CoinLogo.svelte';
   import type { Market } from '../lib/types';
-  import { px, pct, probColor, lean, conviction } from '../lib/format';
+  import { px, pct, probColor, lean, conviction, overall } from '../lib/format';
   import { focus, view } from '../lib/store';
   import Roll from './Roll.svelte';
   import Gauge from './Gauge.svelte';
@@ -18,12 +18,13 @@
     const v = keys.map(k => f[k]).filter(x => x && x.show).map(x => x.p);
     return v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0.5;
   };
-  $: hasSlow = ['15m', '1h', '4h'].some(k => fc[k]?.show);
-  $: slow = blend(['15m', '1h', '4h'], fc);
+  $: ov = overall(m.forecast);
+  $: hasSlow = !!ov;
+  $: slow = ov ? ov.p : 0.5;
   $: fast = blend(['1m', '5m'], fc);
   $: hasFast = !!(fc['1m']?.show || fc['5m']?.show);
   $: tilt = lean(slow);
-  $: label = !hasSlow ? 'No tested edge' : conviction(slow) === 0 ? 'Neutral' : `${conviction(slow) === 1 ? 'Slight ' : ''}${slow > 0.5 ? 'long' : 'short'} bias`;
+  $: label = !ov ? 'No tested edge' : (ov.lab === 0 ? 'Neutral' : `${conviction(slow) === 2 ? '' : 'Slight '}${ov.lab > 0 ? 'long' : 'short'} bias`) + (ov.head ? ' · overall' : ` · ${ov.tf}`);
   $: glow = hasSlow ? Math.min(1, Math.abs(tilt)) : 0;
   $: liqFlash = m.liqPulse && performance.now() - m.liqPulse < 1500;
   $: stale = m.age != null && m.age > 20;
@@ -47,7 +48,7 @@
     <div class="dial">
       <Gauge {slow} {fast} {hasFast} size={112} />
       <div class="bias" style="color:{hasSlow ? probColor(slow) : 'var(--faint)'}">
-        {#if hasSlow}<span class="num ba"><Arrow p={slow} size={18} />{((slow >= 0.5 ? slow : 1 - slow) * 100).toFixed(1)}%</span>{/if}
+        {#if hasSlow}<span class="num ba"><Arrow p={slow} lab={ov?.lab} size={18} />{((slow >= 0.5 ? slow : 1 - slow) * 100).toFixed(1)}%</span>{/if}
         <span class="bl">{label}</span>
       </div>
     </div>

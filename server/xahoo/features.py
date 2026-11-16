@@ -9,6 +9,8 @@ Layers (prefix):
   b_  order flow            taker buy vs sell volume, activity, candle shape
   c_  positioning           open interest, long/short ratios, funding
   d_  leader                the leading market (BTC for coins, ETH for BTC, gold<->silver)
+  x_  EMA 9/26 structure    on 5m, 15m and 1h candles (ema_regime(); used by the 5m, 15m and 1h models)
+  r_  market state          trend efficiency and distance from the 20-day average (ema_regime(); 15m model)
 """
 from __future__ import annotations
 
@@ -171,3 +173,59 @@ def extra(k: pd.DataFrame, spot: pd.DataFrame | None = None, prem: pd.DataFrame 
         f["g_prem_ch60"] = P - P.shift(60)
     out = pd.DataFrame(f, index=idx).replace([np.inf, -np.inf], np.nan).astype("float32")
     return out.clip(-50, 50) if len(out.columns) else out
+
+
+# -------------------------------------------------------------------- EMA 9/26 and market state (research 2026-11-17)
+def _closed(series: pd.Series, tf: int, idx: pd.DatetimeIndex) -> pd.Series:
+    """A value computed on tf-minute candles, placed on the 1m rows where that candle has fully closed."""
+    s = series.copy()
+    s.index = s.index + pd.Timedelta(minutes=tf - 1)
+    return s.reindex(idx, method="ffill")
+
+
+def ema_regime(close: pd.Series, daily: pd.Series | None = None, idx: pd.DatetimeIndex | None = None) -> pd.DataFrame:
+    """x_ inputs, EMA 9/26 on 5m, 15m and 1h candles (a candle's value is used only after it has closed):
+         cross  +1 when EMA9 > EMA26, -1 below      gap    (EMA9 - EMA26) / price, in volatility units
+         age    log(1 + candles since the last cross) slope  one-candle change of EMA9 / price, volatility units
+         px     (price - EMA26) / price, volatility units
+       r_ inputs, market state:
+         er1h / er4h  efficiency ratio of 1h closes over 24h / 4h closes over 5 days (1 = straight line, 0 = chop)
+         d20          daily close vs its 20-day average, in volatility units
+         state        +1 trending up, -1 trending down, 0 range (er1h > 0.35 and the 24h move decides the side)
+    close: 1m closes (index = bar open, UTC). daily: optional daily closes (index = day open) for days older than
+    the 1m history; live use needs it because only ~7 days of 1m bars are kept and d20 needs about 21 days."""
+    c = close[~close.index.duplicated(keep="last")].astype("float64")
+    idx = c.index if idx is None else idx
+    sig = np.log(c).diff().rolling(1440, min_periods=360).std()
+    out = {}
+    for tf in (5, 15, 60):
+        k = c.resample(f"{tf}min", label="left", closed="left").last().dropna()
+        e9, e26 = k.ewm(span=9, adjust=False).mean(), k.ewm(span=26, adjust=False).mean()
+        side = np.sign(e9 - e26)
+        flip = side != side.shift(1)
+        age = flip.astype(int).groupby(flip.cumsum()).cumcount()
+        s_tf = _closed(sig, 1, k.index) * np.sqrt(tf)                 # volatility of one candle
+        feats = {"cross": side, "gap": (e9 - e26) / k / s_tf, "age": np.log1p(age.clip(upper=500)),
+                 "slope": (e9 - e9.shift(1)) / k / s_tf, "px": (k - e26) / k / s_tf}
+        for name, v in feats.items():
+            out[f"x_{name}{tf}"] = _closed(v, tf, idx)
+    h1 = c.resample("60min", label="left", closed="left").last().dropna()
+    h4 = c.resample("240min", label="left", closed="left").last().dropna()
+    d1 = c.resample("1D", label="left", closed="left").last().dropna()
+    if daily is not None and len(daily) and len(c):
+        first_full = c.index[0].ceil("1D")                            # the first day fully inside the 1m history
+        older = daily[daily.index < first_full].astype("float64")
+        d1 = pd.concat([older, d1[d1.index >= first_full]]).sort_index()
+        d1 = d1[~d1.index.duplicated(keep="last")]
+    er = lambda x, n: (x - x.shift(n)).abs() / (x.diff().abs().rolling(n).sum() + 1e-12)  # noqa: E731
+    er1h, er4h = er(h1, 24), er(h4, 30)
+    ret24 = np.log(h1 / h1.shift(24))
+    sig_d = _closed(sig, 1, d1.index) * np.sqrt(1440)
+    d20 = (d1 / d1.rolling(20).mean() - 1) / sig_d
+    state = np.where(er1h > 0.35, np.sign(ret24), 0.0)
+    out["r_er1h"] = _closed(er1h, 60, idx)
+    out["r_er4h"] = _closed(er4h, 240, idx)
+    out["r_d20"] = _closed(d20, 1440, idx)
+    out["r_state"] = _closed(pd.Series(state, index=h1.index), 60, idx)
+    x = pd.DataFrame(out, index=idx).replace([np.inf, -np.inf], np.nan).astype("float32")
+    return x.clip(-50, 50)

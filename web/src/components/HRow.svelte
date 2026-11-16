@@ -59,7 +59,7 @@
     {/if}
   </span>
   {#if show && fc}
-    <span class="v num" style="color:{col}"><Arrow {p} size={15} glow={false} />{((p >= 0.5 ? p : 1 - p) * 100).toFixed(0)}<small>%</small></span>
+    <span class="v num" style="color:{col}"><Arrow {p} lab={fc?.lab} size={15} glow={false} />{((p >= 0.5 ? p : 1 - p) * 100).toFixed(0)}<small>%</small></span>
   {:else}
     <span class="v none">no edge</span>
   {/if}

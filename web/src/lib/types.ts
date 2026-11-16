@@ -4,6 +4,12 @@ export interface Fc {
   p: number; band68: number; band95: number; lo68: number; hi68: number; lo95: number; hi95: number;
   move_bp: number; tradable: boolean; layers: Record<string, number>; show: boolean; tier: number;
   reasons?: Reason[];
+  lab?: number;                          // steady direction label from the server: 1 UP, -1 DOWN, 0 NEUTRAL
+}
+/** Overall direction: 5m, 15m, 1h and 4h combined (equal-weight average of their log-odds, calibrated to 1h). */
+export interface Head {
+  p: number; lab: number; agree: number; of: number; target: string; parts: Record<string, number>;
+  skill?: { acc?: number; shown_hit?: number; shown_share?: number; agree_hit?: number; agree_share?: number; basis?: string };
 }
 export interface Reason { t: string; push: number; w: number; layer: string; }
 export interface Zone { price: number; net: number; share: number; }
@@ -19,7 +25,7 @@ export interface Level {
   sources: string[]; reach: Record<string, number>;
 }
 export interface Levels { tol?: number; resistance: Level[]; support: Level[]; }
-export interface Forecast { ts: number; ref: number; h: Record<string, Fc>; levels?: Levels; profile?: Profile; }
+export interface Forecast { ts: number; ref: number; h: Record<string, Fc>; head?: Head | null; levels?: Levels; profile?: Profile; }
 export interface Meta { sym: string; name: string; short: string; kind: 'coin' | 'metal'; digits: number; }
 export interface Liq { ts: number; side: 'long' | 'short'; usd: number; price: number; }
 export interface Market extends Meta {

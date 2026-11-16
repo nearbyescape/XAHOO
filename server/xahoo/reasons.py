@@ -11,7 +11,8 @@ import math
 
 SPAN = {"1": "1 min", "5": "5 min", "15": "15 min", "60": "1h", "240": "4h", "1440": "1 day", "4320": "3 days",
         "10080": "7 days", "5m": "5 min", "1h": "1h", "4h": "4h", "1d": "1 day"}
-LAYER = {"a": "trend", "b": "flow", "c": "positioning", "d": "leader"}
+LAYER = {"a": "trend", "b": "flow", "c": "positioning", "d": "leader", "x": "EMA 9/26", "r": "market state"}
+TF = {"5": "5m", "15": "15m", "60": "1h"}
 
 
 def _q(z: float, lo: float = 0.5, hi: float = 1.5) -> str:
@@ -94,6 +95,45 @@ def describe(name: str, v: float, leader: str) -> str | None:
     return None
 
 
+def ema_describe(name: str, v: float, row) -> str | None:
+    """EMA 9/26 structure (x_) and market state (r_). Uses the related inputs of the same candle size."""
+    if v is None or not math.isfinite(v):
+        return None
+    get = (lambda k: row.get(k)) if hasattr(row, "get") else (lambda k: None)
+    up = v > 0
+    for kind in ("cross", "gap", "age", "slope", "px"):
+        if name.startswith("x_" + kind):
+            tf = TF.get(name[2 + len(kind):])
+            break
+    else:
+        tf = None
+    if name.startswith("x_px") and tf:
+        sl = get("x_slope" + name[4:])
+        trend = "" if sl is None or not math.isfinite(sl) or abs(sl) < 0.05 else (" and rising" if sl > 0 else " and falling")
+        return f"{'Above' if up else 'Below'} its {tf} EMA{trend}"
+    if name.startswith("x_slope") and tf:
+        return f"{tf} EMA 9 {'sloping up' if up else 'sloping down'}{' steeply' if abs(v) > 0.5 else ''}"
+    if name.startswith("x_cross") and tf:
+        return f"{tf} EMA 9 {'above' if up else 'below'} EMA 26 ({'bullish' if up else 'bearish'} cross)"
+    if name.startswith("x_gap") and tf:
+        return f"{tf} EMAs {'wide apart' if abs(v) > 1 else 'close together'}, {'bullish' if up else 'bearish'} side"
+    if name.startswith("x_age") and tf:
+        cr = get("x_cross" + name[5:])
+        n = int(round(math.expm1(v)))
+        side = "" if cr is None or not math.isfinite(cr) or cr == 0 else (" bullish" if cr > 0 else " bearish")
+        return f"{tf}{side} EMA cross {n} candle{'s' if n != 1 else ''} ago" if n < 400 else f"No {tf} EMA cross for a long time"
+    if name == "r_er1h":
+        return "Trending cleanly over the last 24h" if v > 0.35 else "Choppy, sideways over the last 24h"
+    if name == "r_er4h":
+        return "Trending cleanly over the last 5 days" if v > 0.3 else "Sideways over the last 5 days"
+    if name == "r_d20":
+        mag = "well " if abs(v) >= 1.5 else "slightly " if abs(v) < 0.5 else ""
+        return f"{mag}{'above' if up else 'below'} its 20-day average".capitalize()
+    if name == "r_state":
+        return "Market trending up" if v > 0 else "Market trending down" if v < 0 else "Market ranging"
+    return None
+
+
 def market_describe(name: str, v: float) -> str | None:
     """Wording for the optional market-wide layer (e_)."""
     if v is None or not math.isfinite(v):
@@ -126,7 +166,8 @@ def explain(top: list[tuple[str, float]], row, leader: str, n: int = 5) -> list[
         elif name == "a_dow":
             text = f"This weekday has tended to {'rise' if w > 0 else 'fall'}"
         else:
-            text = market_describe(name, v) if name.startswith("e_") else describe(name, v, leader)
+            text = (market_describe(name, v) if name.startswith("e_") else ema_describe(name, v, row)
+                    if name[:2] in ("x_", "r_") else describe(name, v, leader))
         if not text or text in seen or abs(w) < 0.004:
             continue
         seen.add(text)

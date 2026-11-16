@@ -94,6 +94,7 @@ async def live_feed(engine: Engine) -> None:
                 engine.closed[sym] = int(mk.bars.index[-1].timestamp())
             mk.metrics = await rest.metrics(sym)
             mk.funding = await rest.funding(sym)
+            mk.daily = await rest.daily(sym)
             log.info("backfilled %s: %d bars, %d metric rows", sym, len(mk.bars), len(mk.metrics))
         except Exception:  # noqa: BLE001
             log.exception("backfill failed for %s", sym)
@@ -182,6 +183,7 @@ async def _metrics_loop(engine: Engine, rest: binance.Rest) -> None:
                     mk.metrics = met[~met.index.duplicated(keep="last")].sort_index().iloc[-2400:]
                 if n % 12 == 0:
                     mk.funding = await rest.funding(sym)
+                    mk.daily = await rest.daily(sym)
             except Exception as e:  # noqa: BLE001
                 log.warning("metrics refresh %s: %s", sym, type(e).__name__)
 

@@ -1,15 +1,17 @@
 <script lang="ts">
   import Arrow from './Arrow.svelte';
   import { conn, connError, status, model, markets, order, serverTime, tally, sortMode, view, cycle } from '../lib/store';
-  import { clock, probColor } from '../lib/format';
+  import { clock, probColor, overall } from '../lib/format';
   $: ms = $order.map(s => $markets[s]).filter(Boolean);
   $: ages = ms.map(m => m.age).filter((a): a is number => a != null);
   $: age = ages.length ? Math.max(...ages) : null;
-  // tilt: each coin's 1h probability; the average reads as "risk on / risk off"
+  // tilt: each coin's overall direction (5m–4h combined); the average reads as "risk on / risk off"
   $: coins = ms.filter(m => m.kind === 'coin');
-  $: ps = coins.filter(m => m.forecast?.h?.['1h']?.show).map(m => m.forecast!.h['1h'].p);
+  $: ovs = coins.map(m => m.forecast?.head ?? null);
+  $: ps = ovs.filter((o): o is NonNullable<typeof o> => !!o).map(o => o.p);
   $: breadth = ps.length ? ps.reduce((a, b) => a + b, 0) / ps.length : 0.5;
-  $: ups = ps.filter(p => p > 0.5).length;
+  $: ups = ovs.filter(o => o && o.lab === 1).length;
+  $: downs = ovs.filter(o => o && o.lab === -1).length;
   async function logout() { await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }); location.replace('/login'); }
 </script>
 <header>
@@ -17,14 +19,14 @@
     <img class="emb" src="/icons/icon-192.png" alt="">
     <div><div class="logo">TREND MACHINE</div><div class="sub">Futures direction terminal · Binance USDⓈ-M perpetuals</div></div>
   </div>
-  <div class="tilt" title="1-hour probability for each coin; the average is the market tilt">
-    <div class="label">Market tilt · 1h</div>
+  <div class="tilt" title="Overall direction (5m–4h combined) for each coin; the average is the market tilt">
+    <div class="label">Market tilt · overall</div>
     <div class="chips">
       {#each coins as m (m.sym)}
-        {@const f = m.forecast?.h?.['1h']}
-        <span class="c" style="background:{f?.show ? probColor(f.p, .9) : 'var(--line2)'}; height:{f?.show ? 8 + Math.min(14, Math.abs(f.p - 0.5) * 200) : 6}px" title="{m.short} {f?.show ? (f.p * 100).toFixed(1) + '% up' : 'no edge'}"></span>
+        {@const f = m.forecast?.head}
+        <span class="c" style="background:{f ? probColor(f.p, .9) : 'var(--line2)'}; height:{f ? 8 + Math.min(14, Math.abs(f.p - 0.5) * 200) : 6}px" title="{m.short} {f ? (f.p * 100).toFixed(1) + '% up' : 'no edge'}"></span>
       {/each}
-      <span class="tv num" style="color:{probColor(breadth)}"><Arrow p={breadth} show={ps.length > 0} size={18} /> {ups}/{ps.length || coins.length} up · {(breadth * 100).toFixed(1)}%</span>
+      <span class="tv num" style="color:{probColor(breadth)}"><Arrow p={breadth} show={ps.length > 0} size={18} /> {ups} up · {downs} down · {(breadth * 100).toFixed(1)}%</span>
     </div>
   </div>
   <div class="seg" role="group" aria-label="View">

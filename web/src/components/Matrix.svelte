@@ -4,7 +4,7 @@
   // Every market at a glance: probability per horizon, position between support and resistance,
   // order-book tilt and big-trade flow. Click a row to focus it.
   import { markets, order, horizons, focus } from '../lib/store';
-  import { probColor, probBg } from '../lib/format';
+  import { probColor, probBg, overall } from '../lib/format';
   const pos = (m: any) => {
     const R = m.forecast?.levels?.resistance?.[0]?.price, S = m.forecast?.levels?.support?.[0]?.price;
     if (!R || !S || !m.price) return null;
@@ -14,17 +14,20 @@
 <section class="mx panel">
   <div class="ph">All markets <span class="r">click a row to focus</span></div>
   <div class="tbl">
-    <div class="hd"><span>Market</span>{#each $horizons as h}<span class="c">{h}</span>{/each}<span class="c">S ⟷ R</span><span class="c">Book</span><span class="c">Big trades 15m</span></div>
+    <div class="hd"><span>Market</span><span class="c all" title="Overall: 5m, 15m, 1h and 4h combined">Overall</span>{#each $horizons as h}<span class="c">{h}</span>{/each}<span class="c">S ⟷ R</span><span class="c">Book</span><span class="c">Big trades 15m</span></div>
     {#each $order as sym (sym)}
-      {@const m = $markets[sym]}{@const ps = pos(m)}
+      {@const m = $markets[sym]}{@const ps = pos(m)}{@const o = overall(m.forecast)}
       {@const bi = m.book?.['imb_0.25']}{@const tot = (m.big15?.[0] || 0) + (m.big15?.[1] || 0)}
       <button class="row" class:on={$focus === sym} on:click={() => focus.set(sym)}>
         <span class="mk"><CoinLogo {sym} short={m.short} size={20} glow={false} />{m.short}</span>
+        <span class="cell num all" class:off={!o} style={o ? `background:${probBg(o.p, 0.32)}; color:${probColor(o.p)}` : ''} title={o ? (o.head ? `overall, ${o.agree} of ${o.of} timeframes agree` : `${o.tf} (no overall for metals)`) : 'no edge'}>
+          {#if o}<Arrow p={o.p} lab={o.lab} size={14} glow={false} />{((o.p >= 0.5 ? o.p : 1 - o.p) * 100).toFixed(0)}{#if !o.head}<small>{o.tf}</small>{/if}{:else}·{/if}
+        </span>
         {#each $horizons as h}
           {@const f = m.forecast?.h?.[h]}
           {#key m.changed[h]}
             <span class="cell num" class:off={!f?.show} class:fl={!!m.changed[h]} style={f?.show ? `background:${probBg(f.p, 0.32)}; color:${probColor(f.p)}` : ''}>
-              {#if f?.show}<Arrow p={f.p} size={14} glow={false} />{((f.p >= 0.5 ? f.p : 1 - f.p) * 100).toFixed(0)}{:else}·{/if}
+              {#if f?.show}<Arrow p={f.p} lab={f.lab} size={14} glow={false} />{((f.p >= 0.5 ? f.p : 1 - f.p) * 100).toFixed(0)}{:else}·{/if}
             </span>
           {/key}
         {/each}
@@ -38,7 +41,7 @@
 <style>
   .mx { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
   .tbl { padding: 0 12px 10px; overflow: auto; }
-  .hd, .row { display: grid; grid-template-columns: 74px repeat(6, minmax(44px, 1fr)) 1.3fr 1fr 1.1fr; gap: 4px; align-items: center; }
+  .hd, .row { display: grid; grid-template-columns: 74px minmax(54px, 1.1fr) repeat(6, minmax(44px, 1fr)) 1.3fr 1fr 1.1fr; gap: 4px; align-items: center; }
   .hd { font: 600 9.5px var(--sans); letter-spacing: 1px; text-transform: uppercase; color: var(--faint); padding: 0 6px 4px; }
   .hd .c { text-align: center; }
   .row { border: 0; border-radius: 7px; padding: 2px 6px; background: transparent; width: 100%; height: 24px; }
@@ -46,6 +49,9 @@
   .row.on { background: rgba(139,124,255,.13); box-shadow: inset 0 0 0 1px rgba(139,124,255,.4); }
   .mk { display: flex; align-items: center; gap: 6px; font: 700 11.5px var(--sans); color: var(--text); text-align: left; }
   .cell { height: 19px; border-radius: 5px; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 4px; transition: background .8s ease, color .6s; }
+  .cell.all { box-shadow: inset 0 0 0 1px rgba(148,163,214,.22); font-size: 11.5px; }
+  .cell small { font-size: 8.5px; font-weight: 600; opacity: .7; }
+  .hd .all { color: var(--text); font-weight: 700; }
   .cell.off { color: var(--faint); background: repeating-linear-gradient(135deg, rgba(148,163,214,.05) 0 3px, transparent 3px 6px); }
   .cell.fl { animation: fl 1.4s ease-out; }
   @keyframes fl { from { box-shadow: 0 0 0 1px var(--accent), 0 0 14px rgba(139,124,255,.6); } to { box-shadow: none; } }

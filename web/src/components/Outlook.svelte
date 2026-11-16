@@ -3,7 +3,7 @@
   import { fly, fade } from 'svelte/transition';
   import { markets, fh, skill, levelsInfo, bigUsd, now, serverTime } from '../lib/store';
   import type { Market, Level } from '../lib/types';
-  import { px, pct, usd, probColor, ago, biasWord, conviction } from '../lib/format';
+  import { px, pct, usd, probColor, ago, biasWord, conviction, dirOf } from '../lib/format';
   import Gauge from './Gauge.svelte';
   export let sym: string;
   $: m = $markets[sym] as Market;
@@ -29,9 +29,9 @@
     <Gauge slow={f?.show ? f.p : 0.5} fast={f?.show ? f.p : 0.5} hasFast={false} size={132} />
     <div class="hl">
       {#if f?.show}
-        <div class="pbig num" style="color:{probColor(f.p)}"><Arrow p={f.p} size={40} />{((f.p >= 0.5 ? f.p : 1 - f.p) * 100).toFixed(1)}%</div>
-        <div class="bias" style="--c:{conviction(f.p) === 0 ? 'var(--muted)' : probColor(f.p)}">{biasWord(f.p)}{conviction(f.p) ? ' BIAS' : ''} · {$fh}</div>
-        {#if conviction(f.p) < 2}<div class="hint">{conviction(f.p) === 0 ? 'Close to a coin flip: no meaningful lean right now.' : 'A small lean: close to a coin flip.'}</div>{/if}
+        <div class="pbig num" style="color:{probColor(f.p)}"><Arrow p={f.p} lab={f.lab} size={40} />{((f.p >= 0.5 ? f.p : 1 - f.p) * 100).toFixed(1)}%</div>
+        <div class="bias" style="--c:{dirOf(f.p, f.lab) === 0 ? 'var(--muted)' : probColor(f.p)}">{biasWord(f.p, f.lab)}{dirOf(f.p, f.lab) ? ' BIAS' : ''} · {$fh}</div>
+        {#if conviction(f.p) < 2}<div class="hint">{dirOf(f.p, f.lab) === 0 ? 'Close to a coin flip: no meaningful lean right now.' : 'A small lean: close to a coin flip.'}</div>{/if}
         <div class="sub">{((f.p >= 0.5 ? f.p : 1 - f.p) * 100).toFixed(1)}% chance the {m.short} perpetual closes <b style="color:{probColor(f.p)}">{f.p >= 0.5 ? 'higher' : 'lower'}</b> in {$fh}</div>
         {#if sk?.accuracy != null}
           <div class="acc" title="Measured in walk-forward tests 2024–2026 on data the model never saw">

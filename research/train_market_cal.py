@@ -17,7 +17,7 @@ from train_eval import COINS, PRED  # noqa: E402
 from train_final import stats  # noqa: E402
 
 OUT = Path(__file__).resolve().parents[1] / "models"
-FILES = {"1m": "1m", "5m": "5m", "15m": "bag_15m", "1h": "bag_1h", "4h": "4h"}
+FILES = {"1m": "1m", "5m": "ema_5m", "15m": "ema_15m", "1h": "ema_1h", "4h": "4h"}     # out-of-sample predictions of the production recipe
 lg = lambda p: np.log(np.clip(p, 1e-4, 1 - 1e-4) / (1 - np.clip(p, 1e-4, 1 - 1e-4)))  # noqa: E731
 
 man = json.loads((OUT / "manifest.json").read_text())
@@ -40,10 +40,11 @@ for h, fn in FILES.items():
     for s in COINS:
         g = tq[tq["sym"] == s]
         old = man["skill"][s][h]
+        note = "; per-market calibration (tested 2024-07 → 2026-10)"
+        basis = old.get("basis", "walk-forward")
         man["skill"][s][h] = {**old, **stats(g["y"].to_numpy(), g["q"].to_numpy()),
-                              "basis": old.get("basis", "walk-forward") + "; per-market calibration (tested 2024-07 → 2026-10)"}
+                              "basis": basis if note in basis else basis + note}
     pooled = stats(tq["y"].to_numpy(), tq["q"].to_numpy())
     print(h, "per-market calibrated, out-of-sample:", pooled, "| BTC a,b =", cal["BTCUSDT"], flush=True)
-man["version"] = "2026.11.17"
 (OUT / "manifest.json").write_text(json.dumps(man, indent=1))
 print("manifest updated")

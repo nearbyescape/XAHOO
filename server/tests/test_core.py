@@ -228,3 +228,57 @@ def test_late_update_cannot_duplicate_a_closed_minute():
         d = eng.candles("XAUUSDT", tf)
         assert d["t"] == sorted(set(d["t"])), tf          # unique and ascending even with a stale forming bar
 
+
+
+def test_ema_regime_is_causal_and_uses_daily_history():
+    k = synth(30 * 1440, seed=3)
+    full = features.ema_regime(k["close"])
+    cut = k.index[20 * 1440 + 777]
+    part = features.ema_regime(k["close"][k.index <= cut])
+    a, b = full.loc[cut], part.loc[cut]
+    assert np.allclose(a.fillna(-9).to_numpy(), b.fillna(-9).to_numpy(), atol=1e-5)     # no look-ahead
+    # live: only ~7 days of 1m bars plus daily closes must give the 20-day input the full history gives
+    win = k["close"][(k.index > cut - pd.Timedelta(minutes=10_600)) & (k.index <= cut)]
+    daily = k["close"].resample("1D", label="left", closed="left").last()
+    live = features.ema_regime(win, daily[daily.index < cut.floor("1D")]).loc[cut]
+    assert np.isfinite(live["r_d20"]) and abs(live["r_d20"] - a["r_d20"]) < 1e-4
+    assert abs(live["x_px60"] - a["x_px60"]) < 1e-3
+    assert set(a.index) >= {"x_cross5", "x_px15", "x_slope60", "r_er1h", "r_state"}
+
+
+def test_steady_labels_hold_until_the_lean_fades():
+    from xahoo.model import steady
+    seq = [0.50, 0.521, 0.515, 0.511, 0.509, 0.47, 0.485, 0.495, 0.505]
+    lab, out = 0, []
+    for p in seq:
+        lab = steady(lab, p, 0.02, 0.01)
+        out.append(lab)
+    assert out == [0, 1, 1, 1, 0, -1, -1, 0, 0]
+    assert [steady(0, p) for p in (0.519, 0.52, 0.48)] == [0, 1, -1]      # default: today's fixed 2-point band
+
+
+def test_headline_combines_timeframes():
+    from xahoo.model import headline
+    spec = {"horizons": ["5m", "15m", "1h", "4h"], "calibration": {"x": [0.0, 1.0], "y": [0.0, 1.0]}, "target": "1h"}
+    fc = {h: {"p": p, "show": True} for h, p in zip(spec["horizons"], (0.53, 0.52, 0.55, 0.49))}
+    hd = headline(spec, fc)
+    assert 0.52 < hd["p"] < 0.53 and hd["agree"] == 3 and hd["of"] == 4
+    fc["4h"]["show"] = False
+    assert headline(spec, fc) is None and headline(None, fc) is None
+
+
+def test_ema_reasons_wording():
+    from xahoo.reasons import explain
+    row = {"x_px15": 1.2, "x_slope15": 0.3, "r_state": 0.0, "x_age60": float(np.log1p(6)), "x_cross60": -1.0}
+    r = explain([("x_px15", 0.05), ("r_state", -0.02), ("x_age60", -0.01)], row, "BTC")
+    assert r[0]["t"] == "Above its 15m EMA and rising" and r[0]["layer"] == "EMA 9/26"
+    assert r[1]["t"] == "Market ranging" and r[2]["t"] == "1h bearish EMA cross 6 candles ago"
+
+
+@pytest.mark.skipif(not HAVE_MODELS, reason="models not trained")
+def test_models_list_every_input_they_read():
+    from xahoo.model import Models
+    m = Models(MODELS)
+    for hz in m.manifest["families"].values():
+        for spec in hz.values():
+            assert set(spec.get("features_dir") or []) <= set(m.all_features)

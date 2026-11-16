@@ -1,3 +1,4 @@
+import type { Forecast } from './types';
 export const HORIZON_MIN: Record<string, number> = { '1m': 1, '5m': 5, '15m': 15, '1h': 60, '4h': 240, '1d': 1440 };
 export function px(v: number | null | undefined, digits: number): string {
   if (v == null || !isFinite(v)) return '—';
@@ -30,8 +31,28 @@ export function probBg(p: number, max = 0.2): string {
 export const side = (p: number) => (p >= 0.5 ? 'LONG' : 'SHORT');
 /** How strong the lean is, in words: within 2 points of 50% = NEUTRAL, 2-5 points = SLIGHT, 5+ points = full. */
 export const conviction = (p: number): 0 | 1 | 2 => { const d = Math.abs(p - 0.5); return d < 0.02 ? 0 : d < 0.05 ? 1 : 2; };
-export const biasWord = (p: number) => ['NEUTRAL', `SLIGHT ${side(p)}`, side(p)][conviction(p)];
-export const biasShort = (p: number) => ['NEUTRAL', side(p), side(p)][conviction(p)];
+/** Direction shown: the server's steady label when present (it holds a side until the lean clearly fades), else
+ *  the plain 2-point band. 1 UP, -1 DOWN, 0 NEUTRAL. */
+export const dirOf = (p: number, lab?: number | null): -1 | 0 | 1 =>
+  lab === 1 || lab === -1 || lab === 0 ? lab : conviction(p) === 0 ? 0 : p >= 0.5 ? 1 : -1;
+/** Strength word for a shown side: SLIGHT under 55%, full from 55%. */
+export const biasWord = (p: number, lab?: number | null) => {
+  const d = dirOf(p, lab);
+  return d === 0 ? 'NEUTRAL' : `${conviction(p) === 2 ? '' : 'SLIGHT '}${d > 0 ? 'LONG' : 'SHORT'}`;
+};
+/** The market's overall direction: the combined 5m–4h headline when the server sends one (coins); otherwise the
+ *  longest shown timeframe (metals have no tested headline). null = no tested edge anywhere. */
+export interface Overall { p: number; lab: number; tf: string; head: boolean; agree?: number; of?: number }
+export function overall(f: Forecast | null | undefined): Overall | null {
+  if (!f) return null;
+  if (f.head) return { p: f.head.p, lab: f.head.lab, tf: 'overall', head: true, agree: f.head.agree, of: f.head.of };
+  for (const h of ['4h', '1h', '15m', '5m']) {
+    const x = f.h?.[h];
+    if (x?.show) return { p: x.p, lab: dirOf(x.p, x.lab), tf: h, head: false };
+  }
+  return null;
+}
+export const biasShort = (p: number, lab?: number | null) => { const d = dirOf(p, lab); return d === 0 ? 'NEUTRAL' : d > 0 ? 'LONG' : 'SHORT'; };
 export const probText = (p: number, d = 0) => `${p >= 0.5 ? '▲' : '▼'} ${((p >= 0.5 ? p : 1 - p) * 100).toFixed(d)}%`;
 export function clock(ts: number, tz = 'UTC'): string {
   return new Date(ts * 1000).toLocaleTimeString('en-GB', { timeZone: tz, hour12: false });

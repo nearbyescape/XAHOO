@@ -23,7 +23,7 @@ from .reasons import explain
 from .binance import BAR_COLS
 from .config import KEEP_BARS, KIND, MARKETS, ROUND_TRIP_FEE_BP, STORE_EVERY
 from .features import HORIZONS, leader_of
-from .model import Models
+from .model import Models, headline, steady
 from .store import Store
 
 log = logging.getLogger("xahoo.engine")
@@ -41,6 +41,8 @@ class Market:
         self.next_funding = 0
         self.metrics = pd.DataFrame()
         self.funding = pd.DataFrame()
+        self.daily = pd.Series(dtype="float64")
+        self.labs: dict[str, int] = {}             # steady direction label per timeframe (and "all" for the headline)    # daily closes older than the 1m history (EMA / market-state inputs)
         self.flow = deque(maxlen=120)           # (second, buy_usd, sell_usd)
         self.liqs = deque(maxlen=50)
         self.forecast: dict = {}
@@ -193,6 +195,9 @@ class Engine:
         f = features.build(k, mk.metrics if len(mk.metrics) else None, mk.funding if len(mk.funding) else None,
                            lead if len(lead) else None)
         row = f.iloc[-1].copy()
+        xr = features.ema_regime(mk.bars["close"], mk.daily if len(mk.daily) else None, idx=k.index[-1:])
+        for c, v in xr.iloc[-1].items():
+            row[c] = v
         r1 = np.log(k["close"]).diff()
         row["sig1d"] = float(r1.iloc[-1440:].std())
         return row
@@ -209,7 +214,7 @@ class Engine:
                 syms.append(sym)
         out = {}
         if rows:
-            X = pd.DataFrame(rows).reindex(columns=self.models.features + ["sig1d"])
+            X = pd.DataFrame(rows).reindex(columns=self.models.all_features + ["sig1d"])
             preds = self.models.predict(X, [KIND[s] for s in syms], syms)
             to_store = []
             minute_idx = now // 60
@@ -235,10 +240,17 @@ class Engine:
                              "reasons": explain(d.get("top", []), r, lead_short) if d.get("top") else []}
                     if fc[h]["show"] and minute_idx % STORE_EVERY[h] == 0:      # only shown forecasts are scored
                         to_store.append((now, now + n * 60, sym, h, d["p"], ref, d["u68"], s_h, self.models.version))
+                band = self.models.manifest.get("labels", {"enter": 0.02, "leave": 0.02})
+                for h, x in fc.items():
+                    x["lab"] = mk.labs[h] = steady(mk.labs.get(h, 0), x["p"], band["enter"], band["leave"]) if x["show"] else 0
+                head = headline(self.models.manifest.get("headline"), fc)
+                if head:
+                    head["lab"] = mk.labs["all"] = steady(mk.labs.get("all", 0), head["p"], band["enter"], band["leave"])
+                    head["skill"] = self.models.manifest["headline"].get("skill", {})
                 tail = mk.bars.iloc[-1440:]
                 prof = delta_profile(tail["high"].to_numpy(), tail["low"].to_numpy(), tail["close"].to_numpy(),
                                      tail["volume"].to_numpy(), tail["taker_buy_volume"].to_numpy())
-                mk.forecast = {"ts": now, "ref": ref, "h": fc, "levels": self.levels(sym, ref, fc), "profile": prof}
+                mk.forecast = {"ts": now, "ref": ref, "h": fc, "head": head, "levels": self.levels(sym, ref, fc), "profile": prof}
                 mk.ribbon.append((now, {h: v["p"] for h, v in fc.items()}))
                 out[sym] = mk.forecast
             if to_store:

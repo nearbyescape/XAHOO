@@ -13,7 +13,7 @@
   import { createChart, type IChartApi, type ISeriesApi, type IPriceLine, LineStyle } from 'lightweight-charts';
   import { api, markets, fh, bigUsd, serverTime } from '../lib/store';
   import type { Market, Level } from '../lib/types';
-  import { px, pct, probColor, lean, HORIZON_MIN, usd, biasWord, biasShort, conviction } from '../lib/format';
+  import { px, pct, probColor, lean, HORIZON_MIN, usd, biasWord, biasShort, conviction, dirOf } from '../lib/format';
   import Roll from './Roll.svelte';
   import { safe, report } from '../lib/report';
   export let sym: string;
@@ -424,9 +424,20 @@
   $: if (chart && sym) { tf; load(); }
   const toggles: [Exclude<keyof typeof show, 'compact' | 'arrow'>, string][] = [['levels', 'Support / resistance'], ['zones', 'Volume by price'], ['book', 'Order-book walls'], ['trades', 'Big trades'], ['cone', 'Expected range']];
   const f = (v: number) => `$${usd(v).slice(2)}`;
+  // Big badge: the overall direction (5m, 15m, 1h, 4h combined) when the server sends one (coins). Metals have no
+  // tested overall, so their badge follows the selected timeframe instead.
+  $: head = m.forecast?.head ?? null;
   $: sel = fc[$fh];
-  $: dirKind = !sel?.show ? 'none' : conviction(sel.p) === 0 ? 'flat' : sel.p >= 0.5 ? 'up' : 'down';
+  $: bp = head ? head.p : sel?.p ?? 0.5;
+  $: blab = head ? head.lab : sel?.show ? dirOf(sel.p, sel.lab) : 0;
+  $: bshow = !!head || !!sel?.show;
+  $: dirKind = !bshow ? 'none' : blab === 0 ? 'flat' : blab > 0 ? 'up' : 'down';
   $: dirWord = { none: 'NO EDGE', flat: 'NEUTRAL', up: 'UP', down: 'DOWN' }[dirKind];
+  $: bsub = head ? `${((bp >= 0.5 ? bp : 1 - bp) * 100).toFixed(1)}% · next 1h` : sel?.show ? `${((bp >= 0.5 ? bp : 1 - bp) * 100).toFixed(1)}% · ${$fh}` : $fh;
+  $: btitle = head
+    ? `Overall: 5m, 15m, 1h and 4h combined (probability shown for the next hour). ${head.agree} of ${head.of} timeframes lean this way.`
+      + (head.skill?.shown_hit ? ` Tested 2024–26: UP/DOWN calls right ${(head.skill.shown_hit * 100).toFixed(1)}% of the time over the next hour.` : '')
+    : `Direction for the selected timeframe (${$fh}). NEUTRAL = within 2 points of 50%.`;
 </script>
 <section class="fc panel">
   <header>
@@ -434,11 +445,13 @@
     <div class="nm"><div class="t">{m.name} <span>{m.sym} · USDⓈ-M perpetual futures</span></div>
       <div class="pr"><span class="num big"><Roll value={m.price} format={v => px(v, m.digits)} /></span>
         <span class="num chg" class:up={chg != null && chg >= 0} class:down={chg != null && chg < 0}>{pct(chg)} <em>24h</em></span></div></div>
-    <div class="dirb {dirKind}" title="Direction for the selected timeframe ({$fh}). NEUTRAL = within 2 points of 50%.">
-      <Arrow p={sel?.p ?? 0.5} show={!!sel?.show} size={34} />
-      {#key dirKind + $fh}
+    <div class="dirb {dirKind}" title={btitle}>
+      <Arrow p={bp} lab={blab} show={bshow} size={34} />
+      {#key dirKind + (head ? 'all' : $fh)}
         <div class="dw" in:fly={{ y: dirKind === 'down' ? -10 : 10, duration: 380, easing: cubicOut }}>
-          <b>{dirWord}</b><span class="num">{sel?.show ? `${((sel.p >= 0.5 ? sel.p : 1 - sel.p) * 100).toFixed(1)}% · ${$fh}` : $fh}</span>
+          <small>{head ? 'OVERALL · 5m–4h' : `${$fh} · no overall for metals`}</small>
+          <b>{dirWord}</b><span class="num">{bsub}</span>
+          {#if head}<span class="agr">{#each Object.entries(head.parts) as [h, q]}<i class:u={q > 0.5} class:d={q < 0.5} title="{h}: {(q * 100).toFixed(1)}% up"></i>{/each}<em>{head.agree}/{head.of} agree</em></span>{/if}
         </div>
         <i class="flash"></i>
       {/key}
@@ -448,9 +461,9 @@
         {@const x = fc[h]}
         <button class="hb" class:on={$fh === h} class:off={!x?.show} on:click={() => fh.set(h)}
           style={x?.show ? `--c:${probColor(x.p)}; --w:${Math.abs(lean(x.p)) * 50}%; --l:${x.p >= 0.5 ? '50%' : `calc(50% - ${Math.abs(lean(x.p)) * 50}%)`}` : ''}>
-          <span class="hh num">{h}{#if x?.show}<b class="ls" class:long={x.p >= 0.5} class:neutral={conviction(x.p) === 0} class:slight={conviction(x.p) === 1}
-            title={biasWord(x.p)}>{biasShort(x.p)}</b>{/if}</span>
-          <span class="hv num"><Arrow p={x?.p ?? 0.5} show={!!x?.show} size={22} />{x?.show ? `${((x.p >= 0.5 ? x.p : 1 - x.p) * 100).toFixed(1)}%` : 'no edge'}</span>
+          <span class="hh num">{h}{#if x?.show}<b class="ls" class:long={dirOf(x.p, x.lab) > 0} class:neutral={dirOf(x.p, x.lab) === 0} class:slight={conviction(x.p) < 2}
+            title={biasWord(x.p, x.lab)}>{biasShort(x.p, x.lab)}</b>{/if}</span>
+          <span class="hv num"><Arrow p={x?.p ?? 0.5} lab={x?.lab} show={!!x?.show} size={22} />{x?.show ? `${((x.p >= 0.5 ? x.p : 1 - x.p) * 100).toFixed(1)}%` : 'no edge'}</span>
           <span class="hbar"><i></i></span>
         </button>
       {/each}
@@ -494,7 +507,12 @@
   .big { font-size: 30px; font-weight: 700; letter-spacing: -1px; line-height: 1.1; }
   .chg { font-size: 13px; } .chg em { font-style: normal; font-size: 10px; color: var(--faint); font-family: var(--sans); }
   .dirb { position: relative; display: flex; align-items: center; gap: 10px; padding: 8px 14px 8px 10px; border-radius: 14px; border: 1.5px solid var(--line2); background: rgba(148,163,214,.06); transition: all .4s; overflow: hidden; }
-  .dw { min-width: 96px; }
+  .dw { min-width: 112px; display: flex; flex-direction: column; gap: 2px; }
+  .dw small { font: 700 9px var(--sans); letter-spacing: 1.2px; color: var(--faint); }
+  .agr { display: flex; align-items: center; gap: 3px; margin-top: 1px; }
+  .agr i { width: 14px; height: 4px; border-radius: 2px; background: var(--line2); transition: background .5s; }
+  .agr i.u { background: var(--up); } .agr i.d { background: var(--down); }
+  .agr em { font: 600 10px var(--sans); font-style: normal; color: var(--muted); margin-left: 4px; }
   .flash { position: absolute; inset: -2px; border-radius: 14px; pointer-events: none; animation: dflash 1s ease-out forwards; }
   .dirb.up .flash { box-shadow: inset 0 0 0 2px var(--up), inset 0 0 24px rgba(var(--up-rgb), .45); }
   .dirb.down .flash { box-shadow: inset 0 0 0 2px var(--down), inset 0 0 24px rgba(var(--down-rgb), .45); }

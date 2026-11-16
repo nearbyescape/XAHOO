@@ -3,18 +3,14 @@
   import CoinLogo from './CoinLogo.svelte';
   // Left market list: price, 24h change and the 15m–4h lean; the focused market is highlighted.
   import { markets, order, focus, cycle } from '../lib/store';
-  import { px, pct, probColor, lean, conviction } from '../lib/format';
+  import { px, pct, probColor, lean, overall } from '../lib/format';
   import Roll from './Roll.svelte';
   export let cycleLeft = 0;              // 0..1 progress of the auto-cycle timer
-  const blend = (f: Record<string, any>) => {
-    const v = ['15m', '1h', '4h'].map(k => f?.[k]).filter(x => x && x.show).map(x => x.p);
-    return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
-  };
 </script>
 <nav class="rail panel">
-  <div class="ph">Markets <span class="r">bias 15m–4h</span></div>
+  <div class="ph">Markets <span class="r" title="5m, 15m, 1h and 4h combined; metals show their longest tested timeframe">overall 5m–4h</span></div>
   {#each $order as sym (sym)}
-    {@const m = $markets[sym]}{@const b = blend(m.forecast?.h || {})}
+    {@const m = $markets[sym]}{@const o = overall(m.forecast)}{@const b = o ? o.p : null}
     {@const chg = m.price != null && m.dayAgo ? (m.price / m.dayAgo - 1) * 100 : null}
     <button class="it" class:on={$focus === sym} on:click={() => focus.set(sym)} style="--c:{b != null ? probColor(b) : 'var(--faint)'}">
       <span class="badge"><CoinLogo {sym} short={m.short} size={34} glow={$focus === sym} /></span>
@@ -23,7 +19,7 @@
         <span class="num ch" class:up={chg != null && chg >= 0} class:down={chg != null && chg < 0}>{pct(chg)}</span></span>
       <span class="ln">
         {#if b != null}
-          <span class="arr num"><Arrow p={b} size={17} /> <i class="ls">{conviction(b) === 0 ? '–' : b >= 0.5 ? 'L' : 'S'}</i>{((b >= 0.5 ? b : 1 - b) * 100).toFixed(1)}</span>
+          <span class="arr num"><Arrow p={b} lab={o?.lab} size={17} /> <i class="ls">{o?.lab === 0 ? '–' : o?.lab === 1 ? 'L' : 'S'}</i>{((b >= 0.5 ? b : 1 - b) * 100).toFixed(1)}{#if o && !o.head}<i class="tf">{o.tf}</i>{/if}</span>
           <span class="bar"><i style="width:{Math.abs(lean(b)) * 50}%; {b >= 0.5 ? 'left:50%' : 'right:50%'}"></i></span>
         {:else}<span class="ne">no edge</span>{/if}
       </span>
@@ -44,6 +40,7 @@
   .p { font-size: 13.5px; color: var(--text); font-weight: 600; } .ch { font-size: 10.5px; color: var(--muted); }
   .ln { grid-column: 2 / 4; display: grid; grid-template-columns: 68px 1fr; gap: 8px; align-items: center; }
   .ls { font: 800 9.5px var(--sans); font-style: normal; letter-spacing: .5px; }
+  .tf { font: 600 9px var(--sans); font-style: normal; color: var(--faint); margin-left: 4px; }
   .arr { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: var(--c); transition: color .6s; }
   .bar { position: relative; height: 5px; border-radius: 3px; background: rgba(148,163,214,.09); }
   .bar::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--line3); }

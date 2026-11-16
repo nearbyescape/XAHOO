@@ -23,6 +23,7 @@ import pandas as pd
 from .features import HORIZONS
 
 LAYERS = {"a": "trend", "b": "flow", "c": "positioning", "d": "leader", "e": "market"}
+LAYER_OF = {"x": "a", "r": "a"}          # EMA structure and market state count towards the trend layer
 
 
 def binned_isotonic(raw: np.ndarray, y: np.ndarray, bins: int = 30) -> dict:
@@ -57,6 +58,31 @@ def apply_cal(cal: dict, raw: np.ndarray) -> np.ndarray:
     return np.interp(raw, cal["x"], cal["y"])
 
 
+def steady(prev: int, p: float, enter: float = 0.02, leave: float = 0.02) -> int:
+    """Direction label with hysteresis: +1 UP / -1 DOWN / 0 NEUTRAL. A side starts when the probability is at least
+    `enter` from 50% and is kept until it falls back within `leave`, so it doesn't flicker on tiny changes.
+    The probability itself is never changed. research/headline_eval.py measures the bands."""
+    d = p - 0.5
+    if prev == 1:
+        return -1 if d <= -enter else 1 if d >= leave else 0
+    if prev == -1:
+        return 1 if d >= enter else -1 if d <= -leave else 0
+    return 1 if d >= enter else -1 if d <= -enter else 0
+
+
+def headline(spec: dict | None, fc: dict) -> dict | None:
+    """One overall direction: the equal-weight average of the listed timeframes' log-odds, calibrated to the outcome
+    named in the spec (research/headline_eval.py). None unless every listed timeframe has a shown forecast."""
+    if not spec or not all(fc.get(h, {}).get("show") for h in spec["horizons"]):
+        return None
+    ps = [min(max(fc[h]["p"], 1e-4), 1 - 1e-4) for h in spec["horizons"]]
+    z = float(np.mean([np.log(p / (1 - p)) for p in ps]))
+    p = float(np.clip(apply_cal(spec["calibration"], np.array([1 / (1 + np.exp(-z))]))[0], 0.01, 0.99))
+    agree = sum(1 for q in ps if (q > 0.5) == (p > 0.5))
+    return {"p": round(p, 4), "agree": agree, "of": len(ps), "target": spec.get("target", "1h"),
+            "parts": {h: round(fc[h]["p"], 4) for h in spec["horizons"]}}
+
+
 class Models:
     def __init__(self, path: Path):
         self.path = Path(path)
@@ -70,6 +96,15 @@ class Models:
                         self.boosters[f"{fam}/{h}/{kind}"] = [lgb.Booster(model_file=str(self.path / f)) for f in fn]
                     else:
                         self.boosters[f"{fam}/{h}/{kind}"] = lgb.Booster(model_file=str(self.path / fn))
+
+    @property
+    def all_features(self) -> list[str]:
+        """Every input any model reads: the shared list plus horizon-specific extras (EMA / market state)."""
+        cols = list(self.features)
+        for hz in self.manifest["families"].values():
+            for spec in hz.values():
+                cols += [c for c in spec.get("features_dir") or [] if c not in cols]
+        return cols
 
     @property
     def version(self) -> str:
@@ -109,7 +144,7 @@ class Models:
                                 p[j] = 1 / (1 + np.exp(-(a + bb * np.log(q / (1 - q)))))
                     # per-feature log-odds contributions (+ bias), averaged over the models
                     contrib = np.mean([x.predict(Xd, pred_contrib=True) for x in bs], axis=0)
-                    lidx = {g: [i for i, c in enumerate(fcols) if c.startswith(g + "_")] for g in LAYERS}
+                    lidx = {g: [i for i, c in enumerate(fcols) if LAYER_OF.get(c[0], c[0]) == g and c[1] == "_"] for g in LAYERS}
                 for j, i in enumerate(rows):
                     d = {"p": 0.5, "u68": float(q68[j]), "u95": float(q95[j]), "layers": {}, "top": [], "has_dir": b is not None}
                     if b is not None:

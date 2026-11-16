@@ -31,49 +31,9 @@ from sklearn.metrics import roc_auc_score
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "research")); sys.path.insert(0, str(ROOT / "server"))
 from train_eval import COINS, METALS, PRED, STEP, walk_forward  # noqa: E402
+from xahoo.features import ema_regime  # noqa: E402
 
 BN, FEAT, XR = ROOT / "data/binance", ROOT / "data/features", ROOT / "data/features_xr"
-
-
-def closed(series: pd.Series, tf: int, idx: pd.DatetimeIndex) -> pd.Series:
-    """A value computed on tf-minute candles, placed on the 1m rows where that candle has fully closed."""
-    s = series.copy()
-    s.index = s.index + pd.Timedelta(minutes=tf - 1)
-    return s.reindex(idx, method="ffill")
-
-
-def ema_features(c: pd.Series, sig: pd.Series, idx) -> dict:
-    out = {}
-    for tf in (5, 15, 60):
-        k = c.resample(f"{tf}min", label="left", closed="left").last().dropna()
-        e9, e26 = k.ewm(span=9, adjust=False).mean(), k.ewm(span=26, adjust=False).mean()
-        side = np.sign(e9 - e26)
-        flip = side != side.shift(1)
-        age = flip.astype(int).groupby(flip.cumsum()).cumcount()
-        s_tf = closed(sig, 1, k.index) * np.sqrt(tf)                     # volatility of one candle (from 1m data)
-        feats = {"cross": side, "gap": (e9 - e26) / k / s_tf, "age": np.log1p(age.clip(upper=500)),
-                 "slope": (e9 - e9.shift(1)) / k / s_tf, "px": (k - e26) / k / s_tf}
-        for name, v in feats.items():
-            out[f"x_{name}{tf}"] = closed(v, tf, idx)
-    return out
-
-
-def regime_features(c: pd.Series, sig: pd.Series, idx) -> dict:
-    out = {}
-    h1 = c.resample("60min", label="left", closed="left").last().dropna()
-    h4 = c.resample("240min", label="left", closed="left").last().dropna()
-    d1 = c.resample("1D", label="left", closed="left").last().dropna()
-    er = lambda x, n: (x - x.shift(n)).abs() / (x.diff().abs().rolling(n).sum() + 1e-12)  # noqa: E731
-    er1h, er4h = er(h1, 24), er(h4, 30)
-    ret24 = np.log(h1 / h1.shift(24))
-    sig_d = closed(sig, 1, d1.index) * np.sqrt(1440)
-    d20 = (d1 / d1.rolling(20).mean() - 1) / sig_d
-    state = np.where(er1h > 0.35, np.sign(ret24), 0.0)
-    out["r_er1h"] = closed(er1h, 60, idx)
-    out["r_er4h"] = closed(er4h, 240, idx)
-    out["r_d20"] = closed(d20, 1440, idx)
-    out["r_state"] = closed(pd.Series(state, index=h1.index), 60, idx)
-    return out
 
 
 def build():
@@ -82,11 +42,8 @@ def build():
         t0 = time.time()
         k = pd.read_parquet(BN / f"{sym}_1m.parquet", columns=["close"])
         k = k[~k.index.duplicated()]
-        c = k["close"]
-        sig = np.log(c).diff().rolling(1440, min_periods=360).std()
         idx = pd.read_parquet(FEAT / f"{sym}.parquet", columns=["y_1m"]).index
-        f = {**ema_features(c, sig, idx), **regime_features(c, sig, idx)}
-        x = pd.DataFrame(f, index=idx).replace([np.inf, -np.inf], np.nan).astype("float32").clip(-50, 50)
+        x = ema_regime(k["close"], idx=idx)
         x.to_parquet(XR / f"{sym}.parquet")
         print(f"{sym}: {x.shape} missing {x.isna().mean().max():.3f} ({time.time() - t0:.0f}s)", flush=True)
 

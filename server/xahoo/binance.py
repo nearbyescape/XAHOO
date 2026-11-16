@@ -114,6 +114,11 @@ class Rest:
         out = pd.concat(parts).sort_index()
         return out[~out.index.duplicated(keep="last")]
 
+    async def daily(self, sym: str, days: int = 40) -> pd.Series:
+        """Daily closes (index = day open, UTC) for the last `days` days; the last row is the forming day."""
+        df = parse_klines(await self._get("/fapi/v1/klines", symbol=sym, interval="1d", limit=days))
+        return df["close"] if len(df) else pd.Series(dtype="float64")
+
     async def metrics(self, sym: str, points: int = 2100) -> pd.DataFrame:
         """5-minute positioning snapshots (open interest, long/short ratios, taker ratio), ~7 days by default."""
         cols = {}
