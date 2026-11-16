@@ -22,7 +22,7 @@ import pandas as pd
 
 from .features import HORIZONS
 
-LAYERS = {"a": "trend", "b": "flow", "c": "positioning", "d": "leader"}
+LAYERS = {"a": "trend", "b": "flow", "c": "positioning", "d": "leader", "e": "market"}
 
 
 def binned_isotonic(raw: np.ndarray, y: np.ndarray, bins: int = 30) -> dict:
@@ -99,9 +99,12 @@ class Models:
                     contrib = b.predict(Xd, pred_contrib=True)      # per-feature log-odds contributions (+ bias)
                     lidx = {g: [i for i, c in enumerate(fcols) if c.startswith(g + "_")] for g in LAYERS}
                 for j, i in enumerate(rows):
-                    d = {"p": 0.5, "u68": float(q68[j]), "u95": float(q95[j]), "layers": {}, "has_dir": b is not None}
+                    d = {"p": 0.5, "u68": float(q68[j]), "u95": float(q95[j]), "layers": {}, "top": [], "has_dir": b is not None}
                     if b is not None:
                         d["p"] = float(np.clip(p[j], 0.01, 0.99))
                         d["layers"] = {LAYERS[g]: float(contrib[j, idx].sum()) for g, idx in lidx.items() if idx}
+                        cj = contrib[j, :-1]                            # last column is the bias
+                        order = np.argsort(-np.abs(cj))[:10]
+                        d["top"] = [(fcols[k], float(cj[k])) for k in order]
                     out[i][h] = d
         return out

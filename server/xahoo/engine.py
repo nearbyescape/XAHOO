@@ -18,6 +18,8 @@ import json
 
 from . import features
 from .levels import find_levels, reach_prob
+from .orderflow import BIG_TRADE_USD, WallTracker, book_walls, delta_profile
+from .reasons import explain
 from .binance import BAR_COLS
 from .config import KEEP_BARS, KIND, MARKETS, ROUND_TRIP_FEE_BP, STORE_EVERY
 from .features import HORIZONS, leader_of
@@ -42,6 +44,9 @@ class Market:
         self.liqs = deque(maxlen=50)
         self.forecast: dict = {}
         self.ribbon = deque(maxlen=240)         # (ts, {h: p}) one per minute: 4 hours
+        self.big = deque(maxlen=60)             # recent big trades
+        self.book: dict = {}
+        self.walls = WallTracker()
         self.last_event = 0.0
 
     @property
@@ -96,6 +101,13 @@ class Engine:
         elif t == "mark":
             mk.mark = ev["mark"]
             mk.funding_now = ev.get("funding", math.nan)
+        elif t == "trade":
+            if ev["usd"] >= BIG_TRADE_USD.get(mk.sym, 1e9):
+                b = {"ts": ev["ts"], "side": ev["side"], "usd": round(ev["usd"]), "price": ev["price"]}
+                if ev.get("sim"):
+                    b["sim"] = True
+                mk.big.append(b)
+                self.emit({"type": "big", "sym": mk.sym, **b})
         elif t == "liq":
             mk.liqs.append({"ts": ev["ts"], "side": ev["side"], "usd": ev["usd"], "price": ev["price"]})
             self.emit({"type": "liq", "sym": mk.sym, "side": ev["side"], "usd": ev["usd"], "price": ev["price"], "ts": ev["ts"]})
@@ -145,6 +157,26 @@ class Engine:
                 self._close_bar(mk, {"t": minute_s * 1000, "open": c, "high": c, "low": c, "close": c, "volume": 0.0,
                                      "count": 0.0, "taker_buy_volume": 0.0})
 
+    def set_book(self, sym: str, depth: dict, simulated: bool = False) -> None:
+        """New order-book snapshot -> walls (with age) and imbalance; pushed to the screen."""
+        mk = self.m.get(sym)
+        if mk is None:
+            return
+        w = book_walls(depth.get("bids", []), depth.get("asks", []))
+        if not w:
+            return
+        mk.walls.update(w, self.clock())
+        w["ts"] = self.clock()
+        if simulated:
+            w["sim"] = True
+        mk.book = w
+        self.emit({"type": "book", "sym": sym, "book": w})
+
+    def big15(self, mk: Market, now_s: float) -> list[float]:
+        b = sum(x["usd"] for x in mk.big if x["side"] == "buy" and x["ts"] / 1000 > now_s - 900)
+        s_ = sum(x["usd"] for x in mk.big if x["side"] == "sell" and x["ts"] / 1000 > now_s - 900)
+        return [round(b), round(s_)]
+
     # ------------------------------------------------------------ forecasting
     def feature_row(self, sym: str) -> pd.Series | None:
         mk = self.m[sym]
@@ -180,6 +212,7 @@ class Engine:
                 ref = mk.mark if mk.mark == mk.mark else mk.price       # mark price is the reference; last price if absent
                 sig = float(r["sig1d"]) if r["sig1d"] == r["sig1d"] else 0.0
                 fc = {}
+                lead_short = self.m[leader_of(sym)].meta["short"]
                 for h, n in HORIZONS.items():
                     if h not in pr:
                         continue
@@ -192,10 +225,14 @@ class Engine:
                              "lo95": ref * math.exp(-b95), "hi95": ref * math.exp(b95),
                              "move_bp": round(b68 * 1e4, 1), "tradable": bool(b68 * 1e4 > ROUND_TRIP_FEE_BP),
                              "layers": {k: round(v, 3) for k, v in d["layers"].items()},
-                             "show": bool(skill.get("show", False)) and d["has_dir"], "tier": int(skill.get("tier", 0))}
+                             "show": bool(skill.get("show", False)) and d["has_dir"], "tier": int(skill.get("tier", 0)),
+                             "reasons": explain(d.get("top", []), r, lead_short) if d.get("top") else []}
                     if fc[h]["show"] and minute_idx % STORE_EVERY[h] == 0:      # only shown forecasts are scored
                         to_store.append((now, now + n * 60, sym, h, d["p"], ref, d["u68"], s_h, self.models.version))
-                mk.forecast = {"ts": now, "ref": ref, "h": fc, "levels": self.levels(sym, ref, fc)}
+                tail = mk.bars.iloc[-1440:]
+                prof = delta_profile(tail["high"].to_numpy(), tail["low"].to_numpy(), tail["close"].to_numpy(),
+                                     tail["volume"].to_numpy(), tail["taker_buy_volume"].to_numpy())
+                mk.forecast = {"ts": now, "ref": ref, "h": fc, "levels": self.levels(sym, ref, fc), "profile": prof}
                 mk.ribbon.append((now, {h: v["p"] for h, v in fc.items()}))
                 out[sym] = mk.forecast
             if to_store:
@@ -258,7 +295,7 @@ class Engine:
         for sym, mk in self.m.items():
             b5, s5 = mk.flow_sum(now_s, 5)
             b60, s60 = mk.flow_sum(now_s, 60)
-            out[sym] = {"price": mk.price, "mark": mk.mark, "b5": b5, "s5": s5, "b60": b60, "s60": s60,
+            out[sym] = {"price": mk.price, "mark": mk.mark, "b5": b5, "s5": s5, "b60": b60, "s60": s60, "big15": self.big15(mk, now_s),
                         "funding": mk.funding_now, "age": round(self.clock() - mk.last_event, 2) if mk.last_event else None}
         return {"type": "tick", "ts": self.clock(), "m": out}
 
@@ -277,12 +314,13 @@ class Engine:
                 "ls_ratio": float(ls.iloc[-1]) if len(ls) else None,
                 "funding": mk.funding_now if mk.funding_now == mk.funding_now else (float(mk.funding["funding"].iloc[-1]) if len(mk.funding) else None),
                 "liqs": list(mk.liqs)[-10:],
+                "big": list(mk.big)[-30:], "big15": self.big15(mk, self.clock()), "book": mk.book,
             }
         return {"type": "snapshot", "ts": self.clock(), "markets": MARKETS, "horizons": list(HORIZONS),
                 "m": mk_out, "model": {"version": self.models.version, "trained_through": self.models.manifest.get("trained_through"),
                                        "skill": self.models.manifest["skill"],
                                        "levels": {"hold": self.levels_info.get("hold"), "period": self.levels_info.get("period")}},
-                "status": self.status, "resolved": list(self.resolved_recent)[-40:]}
+                "status": self.status, "resolved": list(self.resolved_recent)[-40:], "big_usd": BIG_TRADE_USD}
 
     def candles(self, sym: str, tf_min: int = 1, limit: int = 500) -> dict:
         mk = self.m[sym]

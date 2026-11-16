@@ -115,3 +115,45 @@ def run_fast(engine: Engine, clock: SimClock, start: pd.Timestamp, minutes: int)
             engine.forecast(m)
             n += 1
     return n
+
+
+async def simulate_book_and_trades(engine: Engine, every: float = 3.0) -> None:
+    """Replay has no order book or individual trades in the archive. To exercise the screen, this makes a
+    SIMULATED book (walls near the 24h buyer/seller zones and support/resistance) and occasional big trades
+    shaped by each bar's taker buy share. Everything it produces is flagged sim=True and labelled on screen."""
+    from .orderflow import BIG_TRADE_USD
+    rng = np.random.default_rng(11)
+    await asyncio.sleep(5)
+    while True:
+        for sym, mk in engine.m.items():
+            if not len(mk.bars):
+                continue
+            px = mk.price
+            if not px == px:
+                continue
+            tail = mk.bars.iloc[-60:]
+            scale = float((tail["volume"] * tail["close"]).mean()) or 1e5
+            fc = mk.forecast or {}
+            anchors = [z["price"] for z in (fc.get("profile") or {}).get("zones", {}).get("buyers", [])] + \
+                      [x["price"] for x in (fc.get("levels") or {}).get("support", [])[:2]]
+            anchors_a = [z["price"] for z in (fc.get("profile") or {}).get("zones", {}).get("sellers", [])] + \
+                        [x["price"] for x in (fc.get("levels") or {}).get("resistance", [])[:2]]
+            book = {}
+            for side, sign, anc in (("bids", -1, anchors), ("asks", 1, anchors_a)):
+                d = np.sort(rng.uniform(0.00005, 0.012, 400))
+                prices = px * (1 + sign * d)
+                usd = rng.lognormal(0, 1.0, 400) * scale * 0.004
+                for a in anc:
+                    j = int(np.argmin(np.abs(prices - a)))
+                    usd[j] += scale * rng.uniform(0.3, 1.2)
+                book[side] = [[float(p), float(u / p)] for p, u in zip(prices, usd)]
+            engine.set_book(sym, book, simulated=True)
+            last = mk.bars.iloc[-1]
+            share = float(last["taker_buy_volume"] / last["volume"]) if last["volume"] > 0 else 0.5
+            thr = BIG_TRADE_USD.get(sym, 1e5)
+            if rng.random() < min(0.6, scale / thr * 0.05):
+                side = "buy" if rng.random() < share else "sell"
+                usd = thr * (1 + rng.exponential(1.2))
+                engine.on_event({"type": "trade", "sym": sym, "price": px, "qty": usd / px, "usd": usd, "side": side,
+                                 "ts": int(engine.clock() * 1000), "sim": True})
+        await asyncio.sleep(every)

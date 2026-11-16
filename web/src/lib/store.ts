@@ -1,5 +1,5 @@
 import { writable, get } from 'svelte/store';
-import type { Market, Meta, Resolved, Skill, Forecast } from './types';
+import type { Market, Meta, Resolved, Skill, Forecast, Big } from './types';
 
 export const markets = writable<Record<string, Market>>({});
 export const order = writable<string[]>([]);
@@ -12,6 +12,11 @@ export const conn = writable<'connecting' | 'live' | 'down'>('connecting');
 export const serverTime = writable<number>(Date.now() / 1000);
 export const selected = writable<string | null>(null);
 export const levelsInfo = writable<any>(null);
+export const focus = writable<string>('BTCUSDT');
+export const view = writable<'focus' | 'grid'>('focus');
+export const cycle = writable<boolean>(false);
+export const fh = writable<string>('1h');            // horizon the focus panel explains
+export const bigUsd = writable<Record<string, number>>({});
 export const sortMode = writable<'fixed' | 'strongest'>('fixed');
 export const tally = writable<{ hit: number; n: number }>({ hit: 0, n: 0 });   // forecasts resolved since this page opened
 
@@ -47,6 +52,7 @@ function onMessage(msg: any) {
           forecast: s.forecast && s.forecast.h ? s.forecast : null, ribbon: s.ribbon || [], spark: s.spark || [],
           b5: 0, s5: 0, b60: 0, s60: 0, funding: s.funding ?? null, oiChg1h: s.oi_chg_1h ?? null, lsRatio: s.ls_ratio ?? null,
           liqs: s.liqs || [], age: null, changed: {}, liqPulse: 0,
+          big: s.big || [], big15: s.big15 || [0, 0], book: s.book && s.book.mid ? s.book : null, bigPulse: 0,
         };
       }
       markets.set(out);
@@ -54,6 +60,7 @@ function onMessage(msg: any) {
       horizons.set(msg.horizons);
       skill.set(msg.model.skill || {});
       levelsInfo.set(msg.model.levels || null);
+      bigUsd.set(msg.big_usd || {});
       model.set({ version: msg.model.version, trained_through: msg.model.trained_through });
       status.set(msg.status || {});
       resolved.set((msg.resolved || []).slice().reverse());
@@ -68,6 +75,7 @@ function onMessage(msg: any) {
           if (t.mark != null) m.mark = t.mark;
           m.b5 = t.b5; m.s5 = t.s5; m.b60 = t.b60; m.s60 = t.s60; m.age = t.age;
           if (t.funding != null) m.funding = t.funding;
+          if (t.big15) m.big15 = t.big15;
         }
         return ms;
       });
@@ -84,6 +92,16 @@ function onMessage(msg: any) {
       tally.update(t => ({ n: t.n + items.length, hit: t.hit + items.filter(i => (i.p > 0.5) === (i.outcome === 1)).length }));
       break;
     }
+    case 'big':
+      markets.update(ms => {
+        const m = ms[msg.sym];
+        if (m) { m.big = [...m.big.slice(-59), { ts: msg.ts, side: msg.side, usd: msg.usd, price: msg.price, sim: msg.sim } as Big]; m.bigPulse = performance.now(); }
+        return ms;
+      });
+      break;
+    case 'book':
+      markets.update(ms => { const m = ms[msg.sym]; if (m) m.book = msg.book; return ms; });
+      break;
     case 'liq':
       markets.update(ms => {
         const m = ms[msg.sym];

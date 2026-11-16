@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Market } from '../lib/types';
   import { px, pct, probColor, lean, BADGE } from '../lib/format';
-  import { selected } from '../lib/store';
+  import { focus, view } from '../lib/store';
   import Roll from './Roll.svelte';
   import Gauge from './Gauge.svelte';
   import Spark from './Spark.svelte';
@@ -27,9 +27,9 @@
   $: stale = m.age != null && m.age > 20;
   $: badge = BADGE[m.sym] || ['#8b7cff', '#38c6f4'];
 </script>
-<div class="card panel" class:sel={$selected === m.sym} class:liq={liqFlash} class:stale
+<div class="card panel" class:sel={$focus === m.sym} class:liq={liqFlash} class:stale
   style="--glow:{probColor(slow, 0.5 * glow)}; --edge:{probColor(slow, 0.25 + 0.5 * glow)}"
-  role="button" tabindex="0" on:click={() => selected.set(m.sym)} on:keydown={e => e.key === 'Enter' && selected.set(m.sym)}>
+  role="button" tabindex="0" on:click={() => { focus.set(m.sym); view.set('focus'); }} on:keydown={e => { if (e.key === 'Enter') { focus.set(m.sym); view.set('focus'); } }}>
   <i class="edge"></i>
   <header>
     <span class="badge" class:long={m.short.length > 3} style="background:linear-gradient(135deg, {badge[0]}, {badge[1]})">{m.short}</span>

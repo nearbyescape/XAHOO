@@ -175,3 +175,29 @@ def test_gap_fill_adds_missing_bars_in_order():
     assert n == 3
     assert mk.bars.index.is_monotonic_increasing and not mk.bars.index.has_duplicates
     assert len(mk.bars) == 3999 and mk.bars.index[-1] == idx[-2]
+
+
+def test_reasons_and_orderflow():
+    from xahoo.orderflow import WallTracker, book_walls, delta_profile
+    from xahoo.reasons import explain
+    r = explain([("b_imb15", -0.3), ("a_tod_sin", 0.1), ("d_ret5", 0.05), ("c_oi_1h", 0.001)],
+                {"b_imb15": -0.2, "a_tod_sin": 0.4, "d_ret5": 1.8, "c_oi_1h": 0.01}, "BTC")
+    assert r[0] == {"t": "Sellers dominating, last 15 min", "push": -1, "w": -0.3, "layer": "flow"}
+    assert r[1]["t"] == "This time of day has tended to rise" and r[2]["t"] == "BTC sharply rising, last 5 min"
+    assert len(r) == 3                                           # tiny pushes are dropped
+    bids = [[100 - i * 0.01, 1.0] for i in range(300)]
+    asks = [[100.01 + i * 0.01, 1.0] for i in range(300)]
+    bids[50][1] = 80.0
+    w = book_walls(bids, asks)
+    assert len(w["bid"]) == 1 and abs(w["bid"][0]["price"] - 99.5) < 0.01 and not w["ask"]
+    t = WallTracker(); t.update(w, 100.0)
+    assert t.update(book_walls(bids, asks), 160.0)["bid"][0]["age"] == 60
+    rng = np.random.default_rng(1)
+    c = 100 + np.cumsum(rng.normal(0, 0.05, 1440)); v = np.full(1440, 10.0); tb = v * 0.5; tb[:200] = 9.0
+    p = delta_profile(c + 0.03, c - 0.03, c, v, tb)
+    assert p["zones"]["buyers"] and len(p["buy"]) == 48
+
+
+def test_parse_aggtrade():
+    ev = binance.parse_ws({"data": {"e": "aggTrade", "E": 1, "s": "BTCUSDT", "p": "100000", "q": "3", "T": 5, "m": True}})
+    assert ev == {"type": "trade", "sym": "BTCUSDT", "price": 100000.0, "qty": 3.0, "usd": 300000.0, "side": "sell", "ts": 5}

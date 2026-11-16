@@ -103,7 +103,20 @@ async def live_feed(engine: Engine) -> None:
     asyncio.create_task(binance.stream(SYMS, engine.on_event))
     asyncio.create_task(_metrics_loop(engine, rest))
     asyncio.create_task(_gap_loop(engine, rest))
+    asyncio.create_task(_book_loop(engine, rest))
     await _minute_loop(engine)
+
+
+async def _book_loop(engine: Engine, rest: binance.Rest, every: float = 15.0) -> None:
+    """Order-book snapshot for each market every ~15 s (weight 20 each: ~800 of Binance's 2,400 per minute)."""
+    while True:
+        for sym in SYMS:
+            t0 = time.time()
+            try:
+                engine.set_book(sym, await rest.depth(sym, 1000))
+            except Exception as e:  # noqa: BLE001
+                log.warning("depth %s: %s", sym, type(e).__name__)
+            await asyncio.sleep(max(0.0, every / len(SYMS) - (time.time() - t0)))
 
 
 async def gap_fill(engine: Engine, rest: binance.Rest, sym: str) -> int:
@@ -177,6 +190,7 @@ async def replay_feed(engine: Engine) -> None:
     from . import replay
     start = pd.Timestamp(os.environ.get("XAHOO_REPLAY_START", "2026-10-20 12:00"), tz="UTC")
     speed = float(os.environ.get("XAHOO_REPLAY_SPEED", "20"))
+    asyncio.create_task(replay.simulate_book_and_trades(engine))
     await replay.run(engine, engine.clock, start, int(os.environ.get("XAHOO_REPLAY_MINUTES", "2000")), speed)
 
 

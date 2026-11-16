@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { conn, status, model, markets, order, serverTime, tally, sortMode } from '../lib/store';
+  import { conn, status, model, markets, order, serverTime, tally, sortMode, view, cycle } from '../lib/store';
   import { clock, probColor } from '../lib/format';
   $: ms = $order.map(s => $markets[s]).filter(Boolean);
   $: ages = ms.map(m => m.age).filter((a): a is number => a != null);
@@ -26,10 +26,18 @@
       <span class="tv num" style="color:{probColor(breadth)}">{ups}/{ps.length || coins.length} up · {(breadth * 100).toFixed(1)}%</span>
     </div>
   </div>
-  <div class="seg" role="group" aria-label="Card order">
-    <button class:on={$sortMode === 'fixed'} on:click={() => sortMode.set('fixed')}>Fixed</button>
-    <button class:on={$sortMode === 'strongest'} on:click={() => sortMode.set('strongest')}>Strongest first</button>
+  <div class="seg" role="group" aria-label="View">
+    <button class:on={$view === 'focus'} on:click={() => view.set('focus')}>Focus</button>
+    <button class:on={$view === 'grid'} on:click={() => view.set('grid')}>Grid</button>
   </div>
+  {#if $view === 'focus'}
+    <button class="tv" class:act={$cycle} on:click={() => cycle.set(!$cycle)} title="Move to the next market every 20 seconds (for a wall screen)"><i></i>Auto-cycle</button>
+  {:else}
+    <div class="seg" role="group" aria-label="Card order">
+      <button class:on={$sortMode === 'fixed'} on:click={() => sortMode.set('fixed')}>Fixed</button>
+      <button class:on={$sortMode === 'strongest'} on:click={() => sortMode.set('strongest')}>Strongest first</button>
+    </div>
+  {/if}
   <div class="right">
     <span class="live" class:ok={$conn === 'live'} class:bad={$conn === 'down'}><i></i>{$conn === 'live' ? ($status.feed || 'live') : $conn === 'down' ? 'reconnecting' : 'connecting'}</span>
     <span class="kv" title="Age of the oldest market's last update"><em>Data</em><b class="num">{age == null ? '—' : age < 1 ? `${Math.round(age * 1000)}ms` : `${age.toFixed(1)}s`}</b></span>
@@ -56,6 +64,11 @@
   .seg { display: inline-flex; gap: 0; }
   .seg button { border-radius: 0; padding: 5px 10px; font-size: 11px; }
   .seg button:first-child { border-radius: 8px 0 0 8px; } .seg button:last-child { border-radius: 0 8px 8px 0; border-left: 0; }
+  .tv { display: inline-flex; align-items: center; gap: 7px; border-radius: 99px; font-size: 11px; }
+  .tv i { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+  .tv.act { color: var(--text); border-color: var(--accent); background: rgba(139,124,255,.12); }
+  .tv.act i { background: var(--accent); animation: beat2 1.4s ease-in-out infinite; }
+  @keyframes beat2 { 0%, 100% { box-shadow: 0 0 0 0 rgba(139,124,255,.7); } 60% { box-shadow: 0 0 0 6px rgba(139,124,255,0); } }
   .right { margin-left: auto; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
   .live { display: inline-flex; align-items: center; gap: 7px; font: 600 10.5px var(--sans); letter-spacing: 1px; text-transform: uppercase; color: var(--muted);
     padding: 4px 10px; border-radius: 99px; border: 1px solid var(--line2); }

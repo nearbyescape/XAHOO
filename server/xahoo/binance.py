@@ -48,6 +48,11 @@ def parse_ws(msg: dict) -> dict | None:
     if e == "markPriceUpdate":
         return {"type": "mark", "sym": d["s"], "mark": float(d["p"]), "index": float(d.get("i") or 0),
                 "funding": float(d.get("r") or 0), "next_funding": int(d.get("T") or 0), "ts": int(d["E"])}
+    if e == "aggTrade":
+        px, qty = float(d["p"]), float(d["q"])
+        # m = buyer is the maker, so the aggressive side was a seller
+        return {"type": "trade", "sym": d["s"], "price": px, "qty": qty, "usd": px * qty,
+                "side": "sell" if d.get("m") else "buy", "ts": int(d.get("T") or d["E"])}
     if e == "forceOrder":
         o = d["o"]
         qty, px = float(o.get("z") or o.get("q") or 0), float(o.get("ap") or o.get("p") or 0)
@@ -61,7 +66,7 @@ def streams(syms: list[str]) -> str:
     parts = []
     for s in syms:
         s = s.lower()
-        parts += [f"{s}@kline_1m", f"{s}@markPrice@1s", f"{s}@forceOrder"]
+        parts += [f"{s}@kline_1m", f"{s}@markPrice@1s", f"{s}@forceOrder", f"{s}@aggTrade"]
     return "/".join(parts)
 
 
@@ -133,6 +138,12 @@ class Rest:
         s = pd.Series({pd.Timestamp(int(r["fundingTime"]), unit="ms", tz="UTC"): float(r["fundingRate"]) for r in rows})
         return pd.DataFrame({"funding": s.sort_index()})
 
+    async def depth(self, sym: str, limit: int = 1000) -> dict:
+        """Order book snapshot: {"bids": [[price, qty], ...], "asks": [...]} best first."""
+        d = await self._get("/fapi/v1/depth", symbol=sym, limit=limit) or {}
+        return {"bids": [[float(p), float(q)] for p, q in d.get("bids", [])],
+                "asks": [[float(p), float(q)] for p, q in d.get("asks", [])], "ts": int(d.get("E") or 0)}
+
     async def close(self):
         await self.http.aclose()
 
@@ -147,7 +158,7 @@ async def stream(syms: list[str], on_event, stop: asyncio.Event | None = None):
     while not (stop and stop.is_set()):
         try:
             async with websockets.connect(url, ping_interval=150, ping_timeout=60, max_queue=4096) as ws:
-                log.info("stream connected (%d streams)", len(syms) * 3)
+                log.info("stream connected (%d streams)", len(syms) * 4)
                 backoff = 1.0
                 async for raw in ws:
                     ev = parse_ws(json.loads(raw))
