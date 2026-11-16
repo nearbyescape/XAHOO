@@ -74,7 +74,7 @@ class Store:
                     b[1] += p
                     b[2] += o
                     break
-        for h, d in out.items():
+        for d in out.values():
             n = d["n"]
             d["hit_rate"] = d["hits"] / n if n else None
             d["brier"] = d["brier"] / n if n else None

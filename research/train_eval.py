@@ -125,7 +125,6 @@ def main():
     pr, imp = walk_forward(df, cols, hname)
     pr.to_parquet(PRED / f"{hname}.parquet")
     coins, metals = pr[pr["sym"].isin(COINS)], pr[pr["sym"].isin(METALS)]
-    y_prev = None
     rep = {"horizon": hname, "coins": score(coins), "metals": score(metals) if len(metals) > 500 else None,
            "by_market": {s: {"n": int(len(g)), "auc": round(float(roc_auc_score(g["ret"] > 0, g["p"])), 4),
                              "accuracy": round(float(((g["p"] > 0.5) == (g["ret"] > 0)).mean()), 4)}

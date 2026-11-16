@@ -7,7 +7,6 @@ AUC >= 0.515 in BOTH halves of 2026 and the calibrated forecast beats a coin fli
   python research/metals_recheck.py   -> data/preds/metals_recheck.json
 """
 import json
-import sys
 from pathlib import Path
 
 import numpy as np

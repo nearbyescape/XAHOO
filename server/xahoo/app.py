@@ -318,6 +318,25 @@ def forecasts():
                    "markets": {s: m.forecast for s, m in ENGINE.m.items() if m.forecast}})
 
 
+CLIENT_LOG = {"n": 0}
+
+
+@app.post("/api/clientlog")
+async def clientlog(request: Request):
+    """Errors from the owner's browser, written to the server log so they show up in `docker logs`."""
+    if CLIENT_LOG["n"] >= 500:                                 # hard cap per server run
+        return {"ok": False}
+    CLIENT_LOG["n"] += 1
+    try:
+        body = await request.json()
+    except Exception:  # noqa: BLE001
+        body = {}
+    msg = str(body.get("msg", ""))[:400].replace("\n", " ")
+    where = str(body.get("where", ""))[:300].replace("\n", " ")
+    log.warning("browser error: %s | %s", msg, where)
+    return {"ok": True}
+
+
 @app.get("/api/candles")
 def candles(sym: str, tf: int = 1, limit: int = 500):
     if sym not in ENGINE.m or tf not in (1, 5, 15, 60):

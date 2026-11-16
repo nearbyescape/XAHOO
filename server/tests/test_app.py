@@ -55,3 +55,12 @@ def test_login_then_data_and_lockout(client):
     assert client.get("/api/snapshot").status_code == 401
     codes = [client.post("/api/login", json={"password": "x"}).status_code for _ in range(6)]
     assert codes[:5] == [401] * 5 and codes[5] == 429
+
+
+def test_client_error_log(client, caplog):
+    """Browser errors reach the server log (needs the login like every other /api route)."""
+    assert client.post("/api/clientlog", json={"msg": "x"}).status_code == 401
+    assert client.post("/api/login", json={"password": "pw-test-1"}).status_code == 200
+    with caplog.at_level("WARNING", logger="xahoo"):
+        assert client.post("/api/clientlog", json={"msg": "Value is null", "where": "live candle"}).json()["ok"]
+    assert any("browser error: Value is null | live candle" in r.getMessage() for r in caplog.records)

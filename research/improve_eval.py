@@ -20,7 +20,7 @@ import pandas as pd
 from sklearn.metrics import roc_auc_score
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from train_eval import COINS, FOLDS, PRED, load, walk_forward  # noqa: E402
+from train_eval import COINS, PRED, load, walk_forward  # noqa: E402
 
 MKT_COLS = ["a_ret15", "a_ret60", "a_ret240", "a_ret1440", "a_sma240", "b_imb5", "b_imb15", "b_imb60",
             "c_oi_1h", "c_taker_1h", "c_funding_z", "c_ls_acct_z"]

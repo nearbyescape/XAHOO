@@ -13,6 +13,7 @@
   import type { Market, Level } from '../lib/types';
   import { px, pct, probColor, lean, HORIZON_MIN, BADGE, usd, biasWord, biasShort, conviction } from '../lib/format';
   import Roll from './Roll.svelte';
+  import { safe, report } from '../lib/report';
   export let sym: string;
   let el: HTMLDivElement, cv: HTMLCanvasElement, fcv: HTMLCanvasElement, el2: HTMLDivElement, cv2: HTMLCanvasElement;
   let chart2: IChartApi;                   // lower panel: big trades and volume, kept in step with the price chart
@@ -57,38 +58,61 @@
     userMoved = false;
   }
   const volAt = new Map<number, { b: number; s: number }>();          // candle time -> taker buy / sell volume
+  let candleLastT = 0, volLastT = 0;                                  // newest time in each series (update() needs >=)
+  type Row = { time: number; open: number; high: number; low: number; close: number; v: number; tb: number };
+  function rows(d: any): Row[] {
+    const idx = (d?.t || []).map((_: number, i: number) => i).sort((a: number, b: number) => d.t[a] - d.t[b]);
+    const out: Row[] = [];
+    for (const i of idx) {
+      const r = { time: +d.t[i], open: +d.o[i], high: +d.h[i], low: +d.l[i], close: +d.c[i], v: +d.v[i] || 0, tb: +d.tb[i] || 0 };
+      if (![r.time, r.open, r.high, r.low, r.close].every(Number.isFinite)) continue;
+      if (out.length && out[out.length - 1].time === r.time) out[out.length - 1] = r; else out.push(r);
+    }
+    return out;
+  }
+  function candleUpdate(bar: { time: number; open: number; high: number; low: number; close: number }) {
+    if (bar.time < candleLastT || ![bar.open, bar.high, bar.low, bar.close].every(Number.isFinite)) return;
+    candles.update({ ...bar, time: bar.time as any });
+    candleLastT = bar.time;
+  }
   function setVol(t: number, v: number, tb: number, full = false) {
     const b = tb, s = Math.max(v - tb, 0);
     volAt.set(t, { b, s });
-    if (!full) {
+    if (!full && t >= volLastT) {
       buyV.update({ time: t as any, value: b });
       sellV.update({ time: t as any, value: -s });
+      volLastT = t;
     }
   }
   async function load() {
+    try { await loadInner(); } catch (err) { report(err, `chart load ${sym} tf=${tf}`); }
+  }
+  async function loadInner() {
     if (loadedTf !== tf) {                  // first load or timeframe change: full history and the default view
-      const d = await api<any>(`/api/candles?sym=${sym}&tf=${tf}&limit=500`);
-      if (!alive) return;
-      const data = d.t.map((t: number, i: number) => ({ time: t, open: d.o[i], high: d.h[i], low: d.l[i], close: d.c[i] }));
+      const want = tf;
+      const d = rows(await api<any>(`/api/candles?sym=${sym}&tf=${want}&limit=500`));
+      if (!alive || want !== tf) return;    // the user switched again while this was loading
+      const data = d.map(r => ({ time: r.time as any, open: r.open, high: r.high, low: r.low, close: r.close }));
       candles.setData(data);
       volAt.clear();
-      d.t.forEach((t: number, i: number) => setVol(t, d.v[i], d.tb[i], true));
-      buyV.setData(d.t.map((t: number, i: number) => ({ time: t, value: d.tb[i] })));
-      sellV.setData(d.t.map((t: number, i: number) => ({ time: t, value: -Math.max(d.v[i] - d.tb[i], 0) })));
-      last = data.length ? { ...data[data.length - 1] } : null;
+      d.forEach(r => setVol(r.time, r.v, r.tb, true));
+      buyV.setData(d.map(r => ({ time: r.time as any, value: r.tb })));
+      sellV.setData(d.map(r => ({ time: r.time as any, value: -Math.max(r.v - r.tb, 0) })));
+      candleLastT = volLastT = d.length ? d[d.length - 1].time : 0;
+      last = d.length ? { time: d[d.length - 1].time, open: d[d.length - 1].open, high: d[d.length - 1].high, low: d[d.length - 1].low, close: d[d.length - 1].close } : null;
       candles.applyOptions({ priceFormat: { type: 'price', precision: m.digits, minMove: 1 / 10 ** m.digits } });
       loadedTf = tf;
       bigSig = ''; drawCone(); keepLevels(); liveView(); bigStrip();
       return;
     }
     // refresh: only the newest bars, applied with update() so zoom and scroll stay where the user left them
-    const d = await api<any>(`/api/candles?sym=${sym}&tf=${tf}&limit=3`);
+    const d = rows(await api<any>(`/api/candles?sym=${sym}&tf=${tf}&limit=3`));
     if (!alive || loadedTf !== tf) return;
-    for (let i = 0; i < d.t.length; i++) {
-      if (last && d.t[i] < last.time) continue;
-      const bar = { time: d.t[i], open: d.o[i], high: d.h[i], low: d.l[i], close: d.c[i] };
-      candles.update({ ...bar, time: bar.time as any });
-      setVol(d.t[i], d.v[i], d.tb[i]);
+    for (const r of d) {
+      if (last && r.time < last.time) continue;
+      const bar = { time: r.time, open: r.open, high: r.high, low: r.low, close: r.close };
+      candleUpdate(bar);
+      setVol(r.time, r.v, r.tb);
       last = { ...bar };
     }
     drawCone(); keepLevels();
@@ -130,7 +154,7 @@
     const keep = [lv?.resistance?.[0], lv?.support?.[0]].filter(Boolean) as Level[];
     if (last && scaleS) scaleS.setData(show.levels ? keep.map((x, i) => ({ time: (last!.time - (keep.length - 1 - i) * tf * 60) as any, value: x.price })) : []);
   }
-  $: if (chart && m?.forecast) { drawCone(); keepLevels(); levelLines(); }
+  $: if (chart && m?.forecast) safe(() => { drawCone(); keepLevels(); levelLines(); }, 'forecast update');
   // big trades strip: one bar per candle, big buying minus big selling (USD)
   let bigSig = '';
   let hoverY: number | null = null, hoverT: number | null = null;
@@ -152,15 +176,16 @@
     bigSig = sig;
     bigS.setData(list.map(([t, v]) => ({ time: t as any, value: v, color: v >= 0 ? 'rgba(46,230,168,.9)' : 'rgba(255,92,138,.9)' })));
   }
-  $: if (candles && last) { m?.big; show.trades; tf; bigStrip(); }
-  $: if (chart) { show; drawCone(); keepLevels(); levelLines(); }
+  $: if (candles && last) { m?.big; show.trades; tf; safe(bigStrip, 'big trades'); }
+  $: if (chart) { show; safe(() => { drawCone(); keepLevels(); levelLines(); }, 'layers'); }
   $: if (candles && last && m?.price != null) {
     // bucket by the SERVER clock (the viewer's clock may be off, and replay runs on a simulated clock)
     const bucket = Math.floor($serverTime / (tf * 60)) * tf * 60;
     if (bucket - last.time > tf * 60 * 2 || bucket < last.time) { /* out of step: the next refresh fixes it */ }
     else if (bucket > last.time) last = { time: bucket, open: last.close, high: Math.max(last.close, m.price), low: Math.min(last.close, m.price), close: m.price };
     else { last.high = Math.max(last.high, m.price); last.low = Math.min(last.low, m.price); last.close = m.price; }
-    candles.update({ ...last, time: last.time as any });
+    const bar = last;
+    safe(() => candleUpdate(bar), 'live candle');
   }
 
   // ------------------------------------------------------------------ drawing helpers
@@ -198,6 +223,9 @@
     if (!alive) return;
     raf = requestAnimationFrame(draw);
     if (!chart || !cv || !m) return;
+    safe(() => drawFrame(t), 'chart overlay');
+  }
+  function drawFrame(t: number) {
     const { c, W, H } = canvas(cv);
     const plotW = W - chart.priceScale('right').width(), plotH = H - chart.timeScale().height();
     const Y = (p: number) => candles.priceToCoordinate(p);

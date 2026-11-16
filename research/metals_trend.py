@@ -45,7 +45,7 @@ for sym in ("XAUUSD", "XAGUSD"):
 rows = []
 for name, (n, step) in H.items():
     parts = []
-    for sym, f in frames.items():
+    for f in frames.values():
         minute = f.index.asi8 // (60 * 10 ** {"ns": 9, "us": 6, "ms": 3, "s": 0}[f.index.unit])
         g = f[minute % step == 0][cols + [f"y_{name}", "sym"]].rename(columns={f"y_{name}": "ret"})
         parts.append(g[g["ret"].notna() & (g["ret"] != 0)])

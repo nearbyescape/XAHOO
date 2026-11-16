@@ -115,6 +115,10 @@ class Engine:
             self.emit({"type": "liq", "sym": mk.sym, "side": ev["side"], "usd": ev["usd"], "price": ev["price"], "ts": ev["ts"]})
 
     def _on_bar(self, mk: Market, ev: dict) -> None:
+        # a late update for a minute that is already closed (the watchdog closes quiet minutes after a few
+        # seconds) must not reopen it: that would put the same minute on the chart twice
+        if len(mk.bars) and ev["t"] <= int(mk.bars.index[-1].timestamp() * 1000):
+            return
         cur = mk.cur
         if cur is not None and ev["t"] > cur["t"]:
             self._close_bar(mk, cur)            # the close flag was missed: finalize on the first tick of the next bar
@@ -327,10 +331,13 @@ class Engine:
     def candles(self, sym: str, tf_min: int = 1, limit: int = 500) -> dict:
         mk = self.m[sym]
         b = mk.bars
-        if mk.cur:
-            cur = pd.DataFrame([[mk.cur[c] for c in BAR_COLS]], columns=BAR_COLS,
-                               index=[pd.Timestamp(mk.cur["t"], unit="ms", tz="UTC")])
+        cur_ts = pd.Timestamp(mk.cur["t"], unit="ms", tz="UTC") if mk.cur else None
+        if cur_ts is not None and (not len(b) or cur_ts > b.index[-1]):        # the forming bar, only if it is newer
+            cur = pd.DataFrame([[mk.cur[c] for c in BAR_COLS]], columns=BAR_COLS, index=[cur_ts])
             b = pd.concat([b, cur])
+        b = b[~b.index.duplicated(keep="last")].sort_index()                    # charts need unique, ascending times
+        b = b[b[["open", "high", "low", "close"]].notna().all(axis=1)]
+        b = b.fillna({"volume": 0.0, "taker_buy_volume": 0.0})
         if tf_min > 1:
             b = b.resample(f"{tf_min}min").agg({"open": "first", "high": "max", "low": "min", "close": "last",
                                                 "volume": "sum", "taker_buy_volume": "sum"}).dropna()

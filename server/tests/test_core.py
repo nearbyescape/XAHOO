@@ -207,3 +207,24 @@ def test_stream_url_uses_market_route():
     # Binance retired the unrouted futures stream URL on 2026-04-23; these streams live on /market
     assert binance.WS.startswith("wss://fstream.binance.com/market/stream?streams=")
     assert binance.streams(["BTCUSDT"]) == "btcusdt@kline_1m/btcusdt@markPrice@1s/btcusdt@forceOrder/btcusdt@aggTrade"
+
+
+def test_late_update_cannot_duplicate_a_closed_minute():
+    """Quiet markets: the watchdog closes a minute, then a late partial update for it arrives. The chart data
+    must still have unique, ascending times (a duplicate froze the screen)."""
+    from xahoo.engine import Engine
+    from xahoo.model import Models
+    from xahoo.store import Store
+    eng = Engine(Models(MODELS), Store(Path(tempfile.mkdtemp()) / "t.db"))
+    mk = eng.m["XAUUSDT"]
+    idx = pd.date_range("2026-11-16 10:00", periods=5, freq="1min", tz="UTC")
+    mk.bars = pd.DataFrame({c: 1.0 for c in binance.BAR_COLS}, index=idx)
+    t_last = int(idx[-1].timestamp() * 1000)
+    eng.on_event({"type": "bar", "sym": "XAUUSDT", "t": t_last, "open": 1, "high": 2, "low": 1, "close": 2,
+                  "volume": 3, "count": 1, "taker_buy_volume": 1, "closed": False, "ts": t_last + 70_000})
+    assert mk.cur is None                                  # ignored: that minute is already closed
+    mk.cur = {"t": t_last, "open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 0.0, "count": 0.0, "taker_buy_volume": 0.0}
+    for tf in (1, 5):
+        d = eng.candles("XAUUSDT", tf)
+        assert d["t"] == sorted(set(d["t"])), tf          # unique and ascending even with a stale forming bar
+
