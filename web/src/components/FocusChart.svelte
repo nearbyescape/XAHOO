@@ -45,7 +45,7 @@
       nBars = data.length;
       candles.applyOptions({ priceFormat: { type: 'price', precision: m.digits, minMove: 1 / 10 ** m.digits } });
       loadedTf = tf;
-      drawCone(); keepLevels(); liveView();
+      markerSig = ''; drawCone(); keepLevels(); liveView(); tradeMarkers();
       return;
     }
     // refresh: only the newest bars, applied with update() so zoom and scroll stay where the user left them
@@ -99,6 +99,33 @@
     if (last && scaleS) scaleS.setData(show.levels ? keep.map((x, i) => ({ time: (last!.time - (keep.length - 1 - i) * tf * 60) as any, value: x.price })) : []);
   }
   $: if (chart && m?.forecast) { drawCone(); keepLevels(); levelLines(); }
+  // big trades as chart markers: one per candle and side, never drawn over the candles themselves
+  let markerSig = '';
+  function tradeMarkers() {
+    if (!candles || !last) return;
+    const thr = $bigUsd[sym] || 1e5;
+    const groups = new Map<string, { t: number; side: string; usd: number; n: number }>();
+    if (show.trades) for (const b of m?.big || []) {
+      const t = Math.floor(b.ts / 1000 / (tf * 60)) * tf * 60;
+      if (t > last.time) continue;                       // the bar is not on the chart yet
+      const key = `${t}|${b.side}`, g = groups.get(key) || { t, side: b.side, usd: 0, n: 0 };
+      g.usd += b.usd; g.n += 1; groups.set(key, g);
+    }
+    const list = [...groups.values()].sort((x, y) => x.t - y.t || (x.side < y.side ? -1 : 1));
+    const sig = list.map(g => `${g.t}${g.side}${Math.round(g.usd)}`).join(',');
+    if (sig === markerSig) return;
+    markerSig = sig;
+    candles.setMarkers(list.map(g => {
+      const buy = g.side === 'buy', big = g.usd >= 5 * thr;
+      return {
+        time: g.t as any, position: buy ? 'belowBar' : 'aboveBar', shape: buy ? 'arrowUp' : 'arrowDown',
+        color: buy ? 'rgba(46,230,168,.95)' : 'rgba(255,92,138,.95)',
+        size: Math.min(2, 0.6 + 0.4 * Math.sqrt(g.usd / thr)),
+        text: big ? `$${usd(g.usd).slice(2)}` : '',
+      };
+    }));
+  }
+  $: if (candles && last) { m?.big; show.trades; tf; tradeMarkers(); }
   $: if (chart) { show; drawCone(); keepLevels(); levelLines(); }
   $: if (candles && last && m?.price != null) {
     // bucket by the SERVER clock (the viewer's clock may be off, and replay runs on a simulated clock)
@@ -260,36 +287,6 @@
         c.fillStyle = col; c.textBaseline = 'middle'; c.fillText(txt, bx + 13, by + 14.5);
       }
     }
-    // big trades: grouped per candle and side so bursts don't pile up; size = total, "×n" = number of trades
-    if (show.trades && m.big?.length) {
-      const thr = $bigUsd[sym] || 1e5, nowMs = now() * 1000;
-      const groups = new Map<string, { t: number; side: string; usd: number; pv: number; n: number; newest: number }>();
-      for (const b of m.big) {
-        const t = Math.floor(b.ts / 1000 / (tf * 60)) * tf * 60, key = `${t}${b.side}`;
-        const g = groups.get(key) || { t, side: b.side, usd: 0, pv: 0, n: 0, newest: 0 };
-        g.usd += b.usd; g.pv += b.usd * b.price; g.n += 1; g.newest = Math.max(g.newest, b.ts);
-        groups.set(key, g);
-      }
-      const spacing = (chart.timeScale().options() as any).barSpacing || 6;
-      for (const g of groups.values()) {
-        const xc = chart.timeScale().timeToCoordinate(g.t as any), y = Y(g.pv / g.usd);
-        if (xc == null || y == null) continue;
-        const r = Math.min(13, 3.5 + 3.5 * Math.sqrt(g.usd / thr));
-        const x = xc + (g.side === 'buy' ? -1 : 1) * Math.min(r * 0.7, spacing);     // buys a little left, sells right
-        const col = g.side === 'buy' ? '46,230,168' : '255,92,138';
-        c.fillStyle = `rgba(${col},.28)`; c.strokeStyle = `rgba(${col},.95)`; c.lineWidth = 1.2;
-        c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); c.stroke();
-        if (g.n > 1) {
-          c.font = '700 9px Inter, sans-serif'; c.fillStyle = `rgb(${col})`; c.textBaseline = 'middle';
-          c.fillText(`×${g.n}`, x + r + 3, y);
-        }
-        const age = (nowMs - g.newest) / 1000;
-        if (age < 3) {                       // ripple when a trade arrives
-          const k = age / 3;
-          c.strokeStyle = `rgba(${col},${1 - k})`; c.beginPath(); c.arc(x, y, r + 16 * k, 0, Math.PI * 2); c.stroke();
-        }
-      }
-    }
     c.restore();
   }
 
@@ -371,7 +368,7 @@
   .chipb.act { opacity: 1; color: var(--text); }
   .sw { width: 10px; height: 10px; border-radius: 3px; }
   .sw.levels { height: 0; border-radius: 0; border-top: 3px solid var(--res); box-shadow: 0 5px 0 -1px var(--sup); } .sw.zones { background: linear-gradient(135deg, var(--up) 50%, var(--down) 50%); }
-  .sw.book { background: var(--up); box-shadow: 0 0 6px var(--up); } .sw.trades { border-radius: 50%; background: var(--down); } .sw.cone { background: #a79cff; }
+  .sw.book { background: var(--up); box-shadow: 0 0 6px var(--up); } .sw.trades { width: 0; height: 0; border-radius: 0; background: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 8px solid var(--up); } .sw.cone { background: #a79cff; }
   .sw.arrow { width: 14px; height: 0; border-radius: 0; border-top: 3px solid var(--up); position: relative; }
   .sw.arrow::after { content: ""; position: absolute; right: -3px; top: -6px; border-left: 6px solid var(--up); border-top: 4.5px solid transparent; border-bottom: 4.5px solid transparent; }
   .live { margin-left: auto; border-radius: 99px; color: var(--text); border-color: var(--accent); background: rgba(139,124,255,.15); font-weight: 600; animation: pop .3s ease-out; }
