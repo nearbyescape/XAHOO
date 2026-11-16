@@ -1,22 +1,30 @@
 <script lang="ts">
+  // Focus chart. Layout, so nothing sits on top of the candles:
+  //   candle area   candles, support / resistance lines, direction line, expected range (optional)
+  //   strips below  big trades per candle (net) and volume per candle (buyers up, sellers down)
+  //   flow column   right of the price axis, on the same price scale: 24h volume by price (sellers left,
+  //                 buyers right) with buyer / seller zones, order-book walls, and live buy / sell totals
   import Arrow from './Arrow.svelte';
   import { onMount, onDestroy } from 'svelte';
+  import { tweened } from 'svelte/motion';
+  import { cubicOut } from 'svelte/easing';
   import { createChart, type IChartApi, type ISeriesApi, type IPriceLine, LineStyle } from 'lightweight-charts';
-  import { api, markets, fh, bigUsd, now, serverTime } from '../lib/store';
+  import { api, markets, fh, bigUsd, serverTime } from '../lib/store';
   import type { Market, Level } from '../lib/types';
   import { px, pct, probColor, lean, HORIZON_MIN, BADGE, usd, biasWord, biasShort, conviction } from '../lib/format';
   import Roll from './Roll.svelte';
   export let sym: string;
-  let wrap: HTMLElement, el: HTMLDivElement, cv: HTMLCanvasElement;
-  let chart: IChartApi, candles: ISeriesApi<'Candlestick'>, delta: ISeriesApi<'Histogram'>, bigS: ISeriesApi<'Histogram'>, scaleS: ISeriesApi<'Line'>;
+  let el: HTMLDivElement, cv: HTMLCanvasElement, fcv: HTMLCanvasElement;
+  let chart: IChartApi, candles: ISeriesApi<'Candlestick'>, buyV: ISeriesApi<'Histogram'>, sellV: ISeriesApi<'Histogram'>,
+    bigS: ISeriesApi<'Histogram'>, scaleS: ISeriesApi<'Line'>;
   let cone: ISeriesApi<'Line'>[] = [];
   let plines: IPriceLine[] = [];
   let tf = 1;
   const FULL = { arrow: true, levels: true, zones: true, book: true, trades: true, cone: true, compact: false };
   const CLEAN = { arrow: true, levels: true, zones: true, book: true, trades: true, cone: false, compact: true };
   let show = { ...CLEAN };
-  try { const v = localStorage.getItem('xahoo.chart'); if (v) show = { ...CLEAN, ...JSON.parse(v) }; } catch { /* private mode */ }
-  $: try { localStorage.setItem('xahoo.chart', JSON.stringify(show)); } catch { /* ignore */ }
+  try { const v = localStorage.getItem('xahoo.chart2'); if (v) show = { ...CLEAN, ...JSON.parse(v) }; } catch { /* private mode */ }
+  $: try { localStorage.setItem('xahoo.chart2', JSON.stringify(show)); } catch { /* ignore */ }
   $: preset = JSON.stringify(show) === JSON.stringify(CLEAN) ? 'clean' : JSON.stringify(show) === JSON.stringify(FULL) ? 'full' : '';
   let last: { time: number; open: number; high: number; low: number; close: number } | null = null;
   let timer: ReturnType<typeof setInterval>, raf = 0;
@@ -26,33 +34,46 @@
   $: badge = BADGE[sym] || ['#8b7cff', '#38c6f4'];
   $: chg = m?.price != null && m?.dayAgo ? (m.price / m.dayAgo - 1) * 100 : null;
   const css = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  // vertical layout of the chart pane (fractions of its height)
+  const PRICE_BOTTOM = 0.70, BIG_TOP = 0.735, BIG_BOTTOM = 0.145, VOL_TOP = 0.875;
 
-  const FUTURE_BARS = 24;                 // empty space kept right of the live candle
-  let loadedTf = 0, userMoved = false, ours = false, nBars = 0;
-  const dcol = (v: number) => (v >= 0 ? 'rgba(46,230,168,.55)' : 'rgba(255,92,138,.55)');
+  // live totals for the flow column
+  const share60 = tweened(0.5, { duration: 600, easing: cubicOut });
+  const share15 = tweened(0.5, { duration: 600, easing: cubicOut });
+  const shareBook = tweened(0.5, { duration: 600, easing: cubicOut });
+  $: share60.set(m && m.b60 + m.s60 > 0 ? m.b60 / (m.b60 + m.s60) : 0.5);
+  $: share15.set(m && m.big15 && m.big15[0] + m.big15[1] > 0 ? m.big15[0] / (m.big15[0] + m.big15[1]) : 0.5);
+  $: shareBook.set(m?.book?.['imb_0.25'] ?? 0.5);
+
+  const FUTURE_BARS = 24;                 // empty space kept right of the live candle (room for the direction line)
+  let loadedTf = 0, userMoved = false;
   function liveView() {
-    ours = true;
-    // leave enough empty space right of the live candle for the volume strip and its labels
-    const spacing = (chart.timeScale().options() as any).barSpacing || 6;
-    const plotW = el.clientWidth - chart.priceScale('right').width();
-    const fut = Math.max(FUTURE_BARS, Math.ceil((Math.min(170, plotW * 0.16) + 75) / spacing));
     const nb = candles.data().length;
-    chart.timeScale().setVisibleLogicalRange({ from: nb - 150, to: nb + fut });
+    chart.timeScale().setVisibleLogicalRange({ from: nb - 150, to: nb + FUTURE_BARS });
     userMoved = false;
-    setTimeout(() => (ours = false), 50);
+  }
+  const volAt = new Map<number, { b: number; s: number }>();          // candle time -> taker buy / sell volume
+  function setVol(t: number, v: number, tb: number, full = false) {
+    const b = tb, s = Math.max(v - tb, 0);
+    volAt.set(t, { b, s });
+    if (!full) {
+      buyV.update({ time: t as any, value: b });
+      sellV.update({ time: t as any, value: -s });
+    }
   }
   async function load() {
     if (loadedTf !== tf) {                  // first load or timeframe change: full history and the default view
       const d = await api<any>(`/api/candles?sym=${sym}&tf=${tf}&limit=500`);
       const data = d.t.map((t: number, i: number) => ({ time: t, open: d.o[i], high: d.h[i], low: d.l[i], close: d.c[i] }));
       candles.setData(data);
-      delta.setData(d.t.map((t: number, i: number) => ({ time: t, value: 2 * d.tb[i] - d.v[i], color: dcol(2 * d.tb[i] - d.v[i]) })));
-      deltaAt.clear(); d.t.forEach((t: number, i: number) => deltaAt.set(t, 2 * d.tb[i] - d.v[i]));
+      volAt.clear();
+      d.t.forEach((t: number, i: number) => setVol(t, d.v[i], d.tb[i], true));
+      buyV.setData(d.t.map((t: number, i: number) => ({ time: t, value: d.tb[i] })));
+      sellV.setData(d.t.map((t: number, i: number) => ({ time: t, value: -Math.max(d.v[i] - d.tb[i], 0) })));
       last = data.length ? { ...data[data.length - 1] } : null;
-      nBars = data.length;
       candles.applyOptions({ priceFormat: { type: 'price', precision: m.digits, minMove: 1 / 10 ** m.digits } });
       loadedTf = tf;
-      markerSig = ''; drawCone(); keepLevels(); liveView(); tradeMarkers();
+      bigSig = ''; drawCone(); keepLevels(); liveView(); bigStrip();
       return;
     }
     // refresh: only the newest bars, applied with update() so zoom and scroll stay where the user left them
@@ -60,11 +81,8 @@
     for (let i = 0; i < d.t.length; i++) {
       if (last && d.t[i] < last.time) continue;
       const bar = { time: d.t[i], open: d.o[i], high: d.h[i], low: d.l[i], close: d.c[i] };
-      if (!last || bar.time > last.time) nBars += 1;
       candles.update({ ...bar, time: bar.time as any });
-      const v = 2 * d.tb[i] - d.v[i];
-      delta.update({ time: d.t[i] as any, value: v, color: dcol(v) });
-      deltaAt.set(d.t[i], v);
+      setVol(d.t[i], d.v[i], d.tb[i]);
       last = { ...bar };
     }
     drawCone(); keepLevels();
@@ -107,170 +125,123 @@
     if (last && scaleS) scaleS.setData(show.levels ? keep.map((x, i) => ({ time: (last!.time - (keep.length - 1 - i) * tf * 60) as any, value: x.price })) : []);
   }
   $: if (chart && m?.forecast) { drawCone(); keepLevels(); levelLines(); }
-  // big trades in their own strip under the candles: one bar per candle, big buying minus big selling (USD)
-  let markerSig = '';
+  // big trades strip: one bar per candle, big buying minus big selling (USD)
+  let bigSig = '';
   let hoverY: number | null = null, hoverT: number | null = null;
-  const deltaAt = new Map<number, number>();                       // candle time -> aggressive buy - sell volume
-  let bigAt = new Map<number, { buy: number; sell: number }>();     // candle time -> big trade totals
-  function tradeMarkers() {
+  let bigAt = new Map<number, { buy: number; sell: number }>();
+  function bigStrip() {
     if (!bigS || !last) return;
     const per = new Map<number, number>();
     const bigs = new Map<number, { buy: number; sell: number }>();
     if (show.trades) for (const b of m?.big || []) {
       const t = Math.floor(b.ts / 1000 / (tf * 60)) * tf * 60;
-      if (t > last.time) continue;                       // the bar is not on the chart yet
+      if (t > last.time) continue;
       per.set(t, (per.get(t) || 0) + (b.side === 'buy' ? b.usd : -b.usd));
       const g = bigs.get(t) || { buy: 0, sell: 0 }; g[b.side === 'buy' ? 'buy' : 'sell'] += b.usd; bigs.set(t, g);
     }
     bigAt = bigs;
     const list = [...per.entries()].sort((x, y) => x[0] - y[0]);
     const sig = list.map(([t, v]) => `${t}:${Math.round(v)}`).join(',');
-    if (sig === markerSig) return;
-    markerSig = sig;
+    if (sig === bigSig) return;
+    bigSig = sig;
     bigS.setData(list.map(([t, v]) => ({ time: t as any, value: v, color: v >= 0 ? 'rgba(46,230,168,.9)' : 'rgba(255,92,138,.9)' })));
   }
-  $: if (candles && last) { m?.big; show.trades; tf; tradeMarkers(); }
+  $: if (candles && last) { m?.big; show.trades; tf; bigStrip(); }
   $: if (chart) { show; drawCone(); keepLevels(); levelLines(); }
   $: if (candles && last && m?.price != null) {
     // bucket by the SERVER clock (the viewer's clock may be off, and replay runs on a simulated clock)
     const bucket = Math.floor($serverTime / (tf * 60)) * tf * 60;
-    if (bucket - last.time > tf * 60 * 2 || bucket < last.time) { /* out of step: the next reload fixes it */ }
-    else if (bucket > last.time) { nBars += 1; last = { time: bucket, open: last.close, high: Math.max(last.close, m.price), low: Math.min(last.close, m.price), close: m.price }; }
+    if (bucket - last.time > tf * 60 * 2 || bucket < last.time) { /* out of step: the next refresh fixes it */ }
+    else if (bucket > last.time) last = { time: bucket, open: last.close, high: Math.max(last.close, m.price), low: Math.min(last.close, m.price), close: m.price };
     else { last.high = Math.max(last.high, m.price); last.low = Math.min(last.low, m.price); last.close = m.price; }
     candles.update({ ...last, time: last.time as any });
   }
 
-  // ------------------------------------------------------------------ overlay
-  function pill(c: CanvasRenderingContext2D, x: number, y: number, text: string, col: string, align: 'left' | 'right' = 'left', bg = 'rgba(12,16,30,.88)') {
-    c.font = '600 11px Inter, sans-serif';
-    const w = c.measureText(text).width + 14, h = 19;
+  // ------------------------------------------------------------------ drawing helpers
+  function pill(c: CanvasRenderingContext2D, x: number, y: number, text: string, col: string, align: 'left' | 'right' = 'left',
+                bg = 'rgba(12,16,30,.9)', size = 11) {
+    c.font = `600 ${size}px Inter, sans-serif`;
+    const w = c.measureText(text).width + (size > 10 ? 14 : 10), h = size + 8;
     const x0 = align === 'left' ? x : x - w;
     c.fillStyle = bg; c.strokeStyle = col; c.lineWidth = 1;
-    c.beginPath(); c.roundRect(x0, y - h / 2, w, h, 6); c.fill(); c.stroke();
-    c.fillStyle = col; c.textBaseline = 'middle'; c.fillText(text, x0 + 7, y + 0.5);
+    c.beginPath(); c.roundRect(x0, y - h / 2, w, h, 5); c.fill(); c.stroke();
+    c.fillStyle = col; c.textBaseline = 'middle'; c.fillText(text, x0 + (size > 10 ? 7 : 5), y + 0.5);
     return w;
   }
-  type Lbl = { y: number; y0: number; text: string; col: string; lane: 'l' | 'r'; short?: string; hide?: boolean };
-  function layout(ls: Lbl[], gap = 22, top = 12, bottom = 1e9) {
+  type Lbl = { y: number; y0: number; text: string; col: string; lane: 'l' | 'r'; short?: string };
+  function layout(ls: Lbl[], gap: number, top: number, bottom: number) {
     for (const lane of ['l', 'r'] as const) {
       const xs = ls.filter(l => l.lane === lane).sort((a, b) => a.y - b.y);
+      // push apart downwards, keep the lowest inside the area, push apart upwards, keep the highest inside
       for (let i = 1; i < xs.length; i++) if (xs[i].y - xs[i - 1].y < gap) xs[i].y = xs[i - 1].y + gap;
+      if (xs.length && xs[xs.length - 1].y > bottom) xs[xs.length - 1].y = bottom;
       for (let i = xs.length - 2; i >= 0; i--) if (xs[i].y > xs[i + 1].y - gap) xs[i].y = xs[i + 1].y - gap;
-      xs.forEach(l => (l.y = Math.max(top, Math.min(bottom, l.y))));
+      xs.forEach(l => (l.y = Math.max(top, l.y)));
     }
   }
+  function canvas(cvs: HTMLCanvasElement) {
+    const dpr = devicePixelRatio || 1, W = cvs.clientWidth, H = cvs.clientHeight;
+    if (cvs.width !== Math.round(W * dpr) || cvs.height !== Math.round(H * dpr)) { cvs.width = Math.round(W * dpr); cvs.height = Math.round(H * dpr); }
+    const c = cvs.getContext('2d')!;
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.clearRect(0, 0, W, H);
+    return { c, W, H };
+  }
+
   function draw(t: number) {
     raf = requestAnimationFrame(draw);
     if (!chart || !cv || !m) return;
-    const dpr = devicePixelRatio || 1, W = el.clientWidth, H = el.clientHeight;
-    if (cv.width !== W * dpr || cv.height !== H * dpr) { cv.width = W * dpr; cv.height = H * dpr; }
-    const c = cv.getContext('2d')!;
-    c.setTransform(dpr, 0, 0, dpr, 0, 0);
-    c.clearRect(0, 0, W, H);
+    const { c, W, H } = canvas(cv);
     const plotW = W - chart.priceScale('right').width(), plotH = H - chart.timeScale().height();
-    c.save(); c.beginPath(); c.rect(0, 0, plotW, plotH); c.clip();
     const Y = (p: number) => candles.priceToCoordinate(p);
     const pulse = 0.5 + 0.5 * Math.sin(t / 380);
-    const RES = css('--res'), SUP = css('--sup');
     const compact = !!show.compact;
-    const profW = compact ? Math.min(90, plotW * 0.08) : Math.min(170, plotW * 0.16);
-    c.font = '700 9px Inter, sans-serif'; c.textBaseline = 'top'; c.fillStyle = 'rgba(152,163,192,.55)';
-    if (show.trades) c.fillText(`BIG TRADES · NET PER CANDLE (≥ $${usd($bigUsd[sym] || 0).slice(2)} EACH)`, 10, plotH * 0.735 + 2);
-    c.fillText('AGGRESSIVE BUY − SELL VOLUME', 10, plotH * 0.875 + 2);
-    c.strokeStyle = 'rgba(148,163,214,.08)'; c.lineWidth = 1;
-    for (const f of [0.725, 0.865]) { c.beginPath(); c.moveTo(0, Math.round(plotH * f) + 0.5); c.lineTo(plotW, Math.round(plotH * f) + 0.5); c.stroke(); }
-    const labels: Lbl[] = [];
 
-    // buyer / seller volume by price (last 24 h), right edge
-    const pr = m.forecast?.profile;
-    if (show.zones && pr && pr.buy?.length) {
-      const n = pr.buy.length, bw = (pr.hi - pr.lo) / n;
-      const mx = Math.max(...pr.buy.map((b, i) => b + pr.sell[i])) || 1;
-      const zb = new Set(pr.zones.buyers.map(z => Math.min(n - 1, Math.floor((z.price - pr.lo) / bw))));
-      const zs = new Set(pr.zones.sellers.map(z => Math.min(n - 1, Math.floor((z.price - pr.lo) / bw))));
-      for (let i = 0; i < n; i++) {
-        const y1 = Y(pr.lo + (i + 1) * bw), y0 = Y(pr.lo + i * bw);
-        if (y1 == null || y0 == null) continue;
-        const h = Math.max(1, y0 - y1 - 1), lb = (pr.buy[i] / mx) * profW, ls = (pr.sell[i] / mx) * profW;
-        const hot = zb.has(i) || zs.has(i);
-        const lo = compact ? 0.10 : 0.22, hi = compact ? 0.55 : 0.75;
-        c.fillStyle = `rgba(46,230,168,${hot && zb.has(i) ? hi : lo})`; c.fillRect(plotW - lb, y1, lb, h);
-        c.fillStyle = `rgba(255,92,138,${hot && zs.has(i) ? hi : lo})`; c.fillRect(plotW - lb - ls, y1, ls, h);
-      }
-      for (const [zones, col, name] of [[pr.zones.buyers, '#2ee6a8', 'BUYERS'], [pr.zones.sellers, '#ff5c8a', 'SELLERS']] as const) {
-        for (const z of zones) {
-          const y = Y(z.price); if (y == null) continue;
-          labels.push({ y, y0: y, text: `${name} ${usd(z.net)} net · 24h`, col, lane: 'r', hide: compact });
-        }
-      }
-    }
-    // support / resistance zones
+    // ---- candle area
+    c.save(); c.beginPath(); c.rect(0, 0, plotW, plotH); c.clip();
+    // strip captions and separators
+    c.font = '700 9px Inter, sans-serif'; c.textBaseline = 'top'; c.fillStyle = 'rgba(152,163,192,.6)';
+    if (show.trades) c.fillText(`BIG TRADES · NET PER CANDLE (≥ $${usd($bigUsd[sym] || 0).slice(2)} EACH)`, 10, plotH * BIG_TOP + 2);
+    c.fillText('VOLUME PER CANDLE · BUYERS ▲  SELLERS ▼', 10, plotH * VOL_TOP + 2);
+    c.strokeStyle = 'rgba(148,163,214,.09)'; c.lineWidth = 1;
+    for (const f of [BIG_TOP - 0.01, VOL_TOP - 0.01]) { c.beginPath(); c.moveTo(0, Math.round(plotH * f) + 0.5); c.lineTo(plotW, Math.round(plotH * f) + 0.5); c.stroke(); }
+
+    const labels: Lbl[] = [];
     if (show.levels && lv) {
       const tol = lv.tol || 0.003;
       const all: [Level, string, string][] = [
-        ...(lv.resistance || []).map((x, i) => [x, RES, `R${i + 1}`] as [Level, string, string]),
-        ...(lv.support || []).map((x, i) => [x, SUP, `S${i + 1}`] as [Level, string, string])];
+        ...(lv.resistance || []).map((x, i) => [x, css('--res'), `R${i + 1}`] as [Level, string, string]),
+        ...(lv.support || []).map((x, i) => [x, css('--sup'), `S${i + 1}`] as [Level, string, string])];
       for (const [x, col, tag] of all) {
         const y = Y(x.price);
         if (y == null) continue;
-        // the line itself is a chart price line; here only a glow when price is close to the level
-        if (m.price != null && Math.abs(Math.log(m.price / x.price)) < tol) {
+        if (m.price != null && Math.abs(Math.log(m.price / x.price)) < tol) {      // glow when price is near
           c.strokeStyle = col; c.globalAlpha = 0.25 + 0.45 * pulse; c.lineWidth = 7; c.shadowColor = col; c.shadowBlur = 14;
           c.beginPath(); c.moveTo(0, y); c.lineTo(plotW, y); c.stroke();
           c.shadowBlur = 0; c.globalAlpha = 1;
         }
         const r = x.reach?.[$fh] ?? x.reach?.['1h'];
-        labels.push({ y, y0: y, col, lane: 'l', text: `${tag}  ${px(x.price, m.digits)}  ${'●'.repeat(x.strength)}${'○'.repeat(3 - x.strength)}  ${r != null ? `reach ${$fh in (x.reach || {}) ? $fh : '1h'} ${Math.round(r * 100)}%` : ''}`,
-                      short: compact ? `${tag}${r != null ? ` · ${Math.round(r * 100)}%` : ''}` : undefined });
+        const rh = $fh in (x.reach || {}) ? $fh : '1h';
+        labels.push({ y, y0: y, col, lane: 'l', text: `${tag}  ${px(x.price, m.digits)}  ${'●'.repeat(x.strength)}${'○'.repeat(3 - x.strength)}  ${r != null ? `reach ${rh} ${Math.round(r * 100)}%` : ''}`,
+                      short: compact ? `${tag} · ${r != null ? `${Math.round(r * 100)}% reach ${rh}` : px(x.price, m.digits)}` : undefined });
       }
     }
-    // order-book walls
-    const bk = m.book;
-    if (show.book && bk) {
-      const mx = Math.max(1, ...bk.bid.map(w => w.usd), ...bk.ask.map(w => w.usd));
-      for (const [walls, col, name] of [[bk.bid, '#2ee6a8', 'BID WALL'], [bk.ask, '#ff5c8a', 'ASK WALL']] as const) {
-        for (const w of walls) {
-          const y = Y(w.price); if (y == null) continue;
-          const len = Math.max(14, profW * (w.usd / mx));
-          if (!compact) {
-            c.strokeStyle = col; c.globalAlpha = 0.25; c.lineWidth = 1; c.setLineDash([1, 3]);
-            c.beginPath(); c.moveTo(0, y); c.lineTo(plotW - profW, y); c.stroke(); c.setLineDash([]);
-          }
-          c.globalAlpha = 0.7 + 0.3 * pulse; c.fillStyle = col;
-          c.shadowColor = col; c.shadowBlur = 12 * pulse;
-          c.fillRect(plotW - len, y - 2.5, len, 5);
-          c.shadowBlur = 0; c.globalAlpha = 1;
-          labels.push({ y, y0: y, col, lane: 'r', hide: compact, text: `${name} $${usd(w.usd).slice(2)}${w.age != null ? ` · ${w.age < 60 ? w.age + 's' : Math.round(w.age / 60) + 'm'}` : ''}` });
-        }
-      }
-    }
-    // labels, spread out so none overlap; a thin leader shows where a moved label belongs
-    // walls / zones off the visible chart are skipped; levels keep an ↑ / ↓ edge marker
-    for (let i = labels.length - 1; i >= 0; i--) if (labels[i].lane === 'r' && (labels[i].y0 < 0 || labels[i].y0 > plotH)) labels.splice(i, 1);
-    // compact view: right-lane labels only appear when the crosshair is near their price
     const near = (l: Lbl) => hoverY != null && Math.abs(hoverY - l.y0) < 10;
-    for (let i = labels.length - 1; i >= 0; i--) if (labels[i].hide && !near(labels[i])) labels.splice(i, 1);
-    layout(labels, 22, 12, plotH - 12);
+    const priceBottom = plotH * PRICE_BOTTOM + 10;
+    layout(labels, 22, 12, priceBottom);
     for (const l of labels) {
-      const x = l.lane === 'l' ? 10 : plotW - 6;           // right-lane labels sit over the volume strip, clear of the candles
-      if (Math.abs(l.y - l.y0) > 2) {
-        c.strokeStyle = l.col; c.globalAlpha = 0.6; c.lineWidth = 1;
-        c.beginPath(); c.moveTo(x - (l.lane === 'l' ? -4 : 4), l.y); c.lineTo(x - (l.lane === 'l' ? 2 : 2), l.y0); c.stroke(); c.globalAlpha = 1;
-      }
       const body = l.short && !near(l) ? l.short : l.text;
-      const txt = l.y0 < 0 ? `↑ ${body}` : l.y0 > plotH ? `↓ ${body}` : body;      // level is off the visible chart
-      pill(c, x, l.y, txt, l.col, l.lane === 'l' ? 'left' : 'right');
+      pill(c, 10, l.y, l.y0 < 0 ? `↑ ${body}` : l.y0 > priceBottom ? `↓ ${body}` : body, l.col);
     }
-    if (hoverT != null) {
-      const g = bigAt.get(hoverT), dv = deltaAt.get(hoverT);
-      const hh = new Date(hoverT * 1000).toISOString().slice(11, 16);
-      const parts = [`${hh} UTC`];
-      if (dv != null) parts.push(`buy − sell ${dv >= 0 ? '+' : '−'}${Math.abs(dv).toLocaleString('en-US', { maximumFractionDigits: dv > 100 ? 0 : 2 })} ${m.short}`);
+    if (hoverT != null) {                    // candle under the cursor
+      const g = bigAt.get(hoverT), v = volAt.get(hoverT);
+      const parts = [`${new Date(hoverT * 1000).toISOString().slice(11, 16)} UTC`];
+      const q = (x: number) => x.toLocaleString('en-US', { maximumFractionDigits: x > 100 ? 0 : 2 });
+      if (v) parts.push(`buyers ${q(v.b)} · sellers ${q(v.s)} ${m.short}`);
       parts.push(g ? `big trades: buy $${usd(g.buy).slice(2)} · sell $${usd(g.sell).slice(2)}` : 'no big trades');
       pill(c, 10, 64, parts.join('   ·   '), 'rgba(152,163,192,.9)', 'left', 'rgba(10,13,24,.92)');
     }
-    // direction line: from the live price toward the side the forecast leans, ending at the edge of the
-    // 68% range on that side at the end of the selected horizon. Thicker / brighter = stronger lean.
+    // direction line toward the side the forecast leans, ending at the 68% range edge for the horizon
     const fd = fc[$fh];
     if (show.arrow && fd?.show && last && m.price != null) {
       const x0 = chart.timeScale().timeToCoordinate(last.time as any);
@@ -280,20 +251,20 @@
         const up = fd.p >= 0.5, k = Math.min(1, Math.abs(lean(fd.p)));
         const endPx = m.price * Math.exp((up ? 1 : -1) * fd.band68);
         let x1 = x0 + (HORIZON_MIN[$fh] / tf) * spacing, y1 = Y(endPx) ?? (up ? 0 : plotH);
-        const maxX = plotW - profW - 24;
-        if (x1 > maxX) { y1 = y0 + (y1 - y0) * ((maxX - x0) / (x1 - x0)); x1 = maxX; }   // keep the head on screen
+        const maxX = plotW - 24;
+        if (x1 > maxX) { y1 = y0 + (y1 - y0) * ((maxX - x0) / (x1 - x0)); x1 = maxX; }
         const col = probColor(fd.p), rgb = up ? '46,230,168' : '255,92,138';
         const w = 4 + 5 * k;
         const g = c.createLinearGradient(x0, y0, x1, y1);
         g.addColorStop(0, `rgba(${rgb},.15)`); g.addColorStop(1, `rgba(${rgb},.95)`);
         c.save();
-        c.strokeStyle = `rgba(${rgb},${0.10 + 0.08 * pulse})`; c.lineWidth = w + 12; c.lineCap = 'round';      // soft halo
+        c.strokeStyle = `rgba(${rgb},${0.10 + 0.08 * pulse})`; c.lineWidth = w + 12; c.lineCap = 'round';
         c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
         c.shadowColor = col; c.shadowBlur = 10 + 14 * k * pulse;
-        c.strokeStyle = g; c.lineWidth = w; c.lineCap = 'round';
+        c.strokeStyle = g; c.lineWidth = w;
         c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
         c.shadowBlur = 0;
-        c.strokeStyle = 'rgba(255,255,255,.55)'; c.lineWidth = 1.2; c.setLineDash([3, 9]); c.lineDashOffset = -(t / 40) % 12;   // flowing dashes
+        c.strokeStyle = 'rgba(255,255,255,.55)'; c.lineWidth = 1.2; c.setLineDash([3, 9]); c.lineDashOffset = -(t / 40) % 12;
         c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke(); c.setLineDash([]);
         const ang = Math.atan2(y1 - y0, x1 - x0), hl = 16 + 8 * k;
         c.fillStyle = col; c.shadowColor = col; c.shadowBlur = 16;
@@ -303,16 +274,75 @@
         c.shadowBlur = 0;
         c.fillStyle = col; c.beginPath(); c.arc(x0, y0, 4.5, 0, Math.PI * 2); c.fill();
         c.restore();
-        // badge at the top of the chart: never collides with the level / wall labels
         const txt = `${conviction(fd.p) === 0 ? '→' : up ? '↗' : '↘'} ${biasWord(fd.p)}  ${((up ? fd.p : 1 - fd.p) * 100).toFixed(1)}%  ·  ${$fh}  ·  68% edge ${px(endPx, m.digits)}`;
         c.font = '800 13px Inter, sans-serif';
-        const bw = c.measureText(txt).width + 26, bx = (plotW - profW) / 2 - bw / 2, by = 10;
+        const bw = c.measureText(txt).width + 26, bx = plotW / 2 - bw / 2, by = 10;
         c.fillStyle = `rgba(${rgb},.16)`; c.strokeStyle = col; c.lineWidth = 1.5;
         c.shadowColor = col; c.shadowBlur = 8 + 10 * pulse;
         c.beginPath(); c.roundRect(bx, by, bw, 28, 9); c.fill(); c.stroke(); c.shadowBlur = 0;
         c.fillStyle = col; c.textBaseline = 'middle'; c.fillText(txt, bx + 13, by + 14.5);
       }
     }
+    c.restore();
+    drawFlow(t, plotH, Y, pulse);
+  }
+
+  // ---- flow column: same vertical price scale as the chart
+  function drawFlow(t: number, plotH: number, Y: (p: number) => number | null, pulse: number) {
+    if (!fcv) return;
+    const { c, W } = canvas(fcv);
+    const bottom = plotH * PRICE_BOTTOM + 6, mid = W / 2, half = mid - 4;
+    c.save(); c.beginPath(); c.rect(0, 0, W, bottom); c.clip();
+    // centre line and price marker
+    c.strokeStyle = 'rgba(148,163,214,.14)'; c.lineWidth = 1;
+    c.beginPath(); c.moveTo(mid + 0.5, 0); c.lineTo(mid + 0.5, bottom); c.stroke();
+    const labels: Lbl[] = [];
+    const pr = m.forecast?.profile;
+    if (show.zones && pr && pr.buy?.length) {
+      const n = pr.buy.length, bw = (pr.hi - pr.lo) / n;
+      const mx = Math.max(...pr.buy, ...pr.sell) || 1;
+      const zb = new Set(pr.zones.buyers.map(z => Math.min(n - 1, Math.floor((z.price - pr.lo) / bw))));
+      const zs = new Set(pr.zones.sellers.map(z => Math.min(n - 1, Math.floor((z.price - pr.lo) / bw))));
+      for (let i = 0; i < n; i++) {
+        const y1 = Y(pr.lo + (i + 1) * bw), y0 = Y(pr.lo + i * bw);
+        if (y1 == null || y0 == null) continue;
+        const h = Math.max(1, y0 - y1 - 1);
+        const lb = (pr.buy[i] / mx) * half, ls = (pr.sell[i] / mx) * half;
+        c.fillStyle = `rgba(255,92,138,${zs.has(i) ? 0.85 : 0.32})`; c.fillRect(mid - ls, y1, ls, h);
+        c.fillStyle = `rgba(46,230,168,${zb.has(i) ? 0.85 : 0.32})`; c.fillRect(mid + 1, y1, lb, h);
+      }
+      for (const z of pr.zones.sellers) { const y = Y(z.price); if (y != null) labels.push({ y, y0: y, lane: 'l', col: '#ff5c8a', text: `SELLERS ${usd(z.net).replace('−', '-').slice(1)}` }); }
+      for (const z of pr.zones.buyers) { const y = Y(z.price); if (y != null) labels.push({ y, y0: y, lane: 'r', col: '#2ee6a8', text: `BUYERS ${usd(z.net).slice(1)}` }); }
+    }
+    const bk = m.book;
+    if (show.book && bk) {
+      for (const [walls, col, lane, name] of [[bk.ask, '#ff5c8a', 'l', 'ASK'], [bk.bid, '#2ee6a8', 'r', 'BID']] as const) {
+        for (const w of walls) {
+          const y = Y(w.price); if (y == null) continue;
+          c.globalAlpha = 0.65 + 0.35 * pulse; c.fillStyle = col; c.shadowColor = col; c.shadowBlur = 10 * pulse;
+          c.fillRect(lane === 'l' ? 0 : mid + 1, y - 1.5, lane === 'l' ? mid - 1 : mid - 1, 3);
+          c.shadowBlur = 0; c.globalAlpha = 1;
+          labels.push({ y, y0: y, lane, col, text: `${name} $${usd(w.usd).slice(2)}${w.age != null ? ` ${w.age < 60 ? w.age + 's' : Math.round(w.age / 60) + 'm'}` : ''}` });
+        }
+      }
+    }
+    if (m.price != null) {
+      const y = Y(m.price);
+      if (y != null) { c.strokeStyle = 'rgba(232,236,246,.75)'; c.setLineDash([3, 3]); c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); c.setLineDash([]); }
+    }
+    // say what is still loading instead of leaving the column blank (profile comes with the first forecast,
+    // the order book with the first snapshot a few seconds after start)
+    const waiting = [show.zones && !pr?.buy?.length ? 'Volume by price: loading…' : '', show.book && !bk ? 'Order book: loading…' : ''].filter(Boolean);
+    c.font = '600 10px Inter, sans-serif'; c.fillStyle = 'rgba(152,163,192,.75)'; c.textBaseline = 'middle';
+    waiting.forEach((w, i) => { const tw = c.measureText(w).width; c.fillText(w, Math.max(4, mid - tw / 2), 40 + i * 16); });
+    for (let i = labels.length - 1; i >= 0; i--) if (labels[i].y0 < 4 || labels[i].y0 > bottom - 4) labels.splice(i, 1);
+    layout(labels, 19, 28, bottom - 10);
+    for (const l of labels) pill(c, l.lane === 'l' ? 3 : W - 3, l.y, l.text, l.col, l.lane === 'l' ? 'left' : 'right', 'rgba(10,13,24,.88)', 9.5);
+    // header
+    c.fillStyle = 'rgba(10,13,24,.85)'; c.fillRect(0, 0, W, 20);
+    c.font = '700 9px Inter, sans-serif'; c.textBaseline = 'middle';
+    c.fillStyle = '#ff5c8a'; c.fillText('◂ SELLERS', 4, 10);
+    c.fillStyle = '#2ee6a8'; const tw = c.measureText('BUYERS ▸').width; c.fillText('BUYERS ▸', W - tw - 4, 10);
     c.restore();
   }
 
@@ -321,30 +351,31 @@
       autoSize: true,
       layout: { background: { color: 'transparent' }, textColor: css('--muted'), fontFamily: css('--mono'), fontSize: 11 },
       grid: { vertLines: { color: 'rgba(148,163,214,.05)' }, horzLines: { color: 'rgba(148,163,214,.05)' } },
-      rightPriceScale: { borderColor: 'rgba(148,163,214,.15)', scaleMargins: { top: 0.06, bottom: 0.3 } },
+      rightPriceScale: { borderColor: 'rgba(148,163,214,.15)', scaleMargins: { top: 0.06, bottom: 1 - PRICE_BOTTOM } },
       timeScale: { borderColor: 'rgba(148,163,214,.15)', timeVisible: true, secondsVisible: false, rightOffset: 8 },
       crosshair: { mode: 0, vertLine: { color: 'rgba(139,124,255,.5)', labelBackgroundColor: '#3a3470' }, horzLine: { color: 'rgba(139,124,255,.5)', labelBackgroundColor: '#3a3470' } },
     });
     candles = chart.addCandlestickSeries({ upColor: css('--up'), downColor: css('--down'), wickUpColor: css('--up'), wickDownColor: css('--down'), borderVisible: false });
-    delta = chart.addHistogramSeries({ priceScaleId: 'delta', priceLineVisible: false, lastValueVisible: false, base: 0 });
-    chart.priceScale('delta').applyOptions({ scaleMargins: { top: 0.875, bottom: 0 }, visible: false });
+    buyV = chart.addHistogramSeries({ priceScaleId: 'vol', priceLineVisible: false, lastValueVisible: false, base: 0, color: 'rgba(46,230,168,.6)' });
+    sellV = chart.addHistogramSeries({ priceScaleId: 'vol', priceLineVisible: false, lastValueVisible: false, base: 0, color: 'rgba(255,92,138,.6)' });
+    chart.priceScale('vol').applyOptions({ scaleMargins: { top: VOL_TOP, bottom: 0 }, visible: false });
     bigS = chart.addHistogramSeries({ priceScaleId: 'big', priceLineVisible: false, lastValueVisible: false, base: 0 });
-    chart.priceScale('big').applyOptions({ scaleMargins: { top: 0.735, bottom: 0.145 }, visible: false });
+    chart.priceScale('big').applyOptions({ scaleMargins: { top: BIG_TOP, bottom: BIG_BOTTOM }, visible: false });
     scaleS = chart.addLineSeries({ lineVisible: false, pointMarkersVisible: false, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
     const mk = (color: string, style: LineStyle, w: 1 | 2) => chart.addLineSeries({ color, lineStyle: style, lineWidth: w, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, autoscaleInfoProvider: () => null });
     cone = [mk('rgba(139,124,255,.5)', LineStyle.Dotted, 1), mk('rgba(167,156,255,.95)', LineStyle.Dashed, 2), mk('rgba(167,156,255,.95)', LineStyle.Dashed, 2), mk('rgba(139,124,255,.5)', LineStyle.Dotted, 1)];
     load();
-    timer = setInterval(load, 20000);
+    timer = setInterval(load, 5000);           // the live candle's volume refreshes every 5 s
     chart.subscribeCrosshairMove(prm => { hoverY = prm.point ? prm.point.y : null; hoverT = prm.time != null ? (prm.time as number) : null; });
-    // the user zoomed or scrolled: stop forcing the default view and offer a way back
-    chart.timeScale().subscribeVisibleLogicalRangeChange(r => { userMoved = !!r && r.to < candles.data().length - 1; });   // live candle off-screen
+    chart.timeScale().subscribeVisibleLogicalRangeChange(r => { userMoved = !!r && r.to < candles.data().length - 1; });
     raf = requestAnimationFrame(draw);
   });
   onDestroy(() => { clearInterval(timer); cancelAnimationFrame(raf); chart?.remove(); });
   $: if (chart && sym) { tf; load(); }
-  const toggles: [Exclude<keyof typeof show, 'compact'>, string][] = [['arrow', 'Direction line'], ['levels', 'Support / resistance lines'], ['zones', 'Buyer / seller zones'], ['book', 'Order-book walls'], ['trades', 'Big trades'], ['cone', 'Expected range']];
+  const toggles: [Exclude<keyof typeof show, 'compact'>, string][] = [['arrow', 'Direction line'], ['levels', 'Support / resistance'], ['zones', 'Volume by price'], ['book', 'Order-book walls'], ['trades', 'Big trades'], ['cone', 'Expected range']];
+  const f = (v: number) => `$${usd(v).slice(2)}`;
 </script>
-<section class="fc panel" bind:this={wrap}>
+<section class="fc panel">
   <header>
     <span class="badge" class:long={m.short.length > 3} style="background:linear-gradient(135deg, {badge[0]}, {badge[1]})">{m.short}</span>
     <div class="nm"><div class="t">{m.name} <span>{m.sym} · USDⓈ-M perpetual futures</span></div>
@@ -365,13 +396,29 @@
   </header>
   <div class="bar">
     <span class="seg">{#each [[1, '1m'], [5, '5m'], [15, '15m'], [60, '1h']] as [v, l]}<button class:on={tf === v} on:click={() => (tf = +v)}>{l}</button>{/each}</span>
-    <span class="seg pre"><button class:on={preset === 'clean'} on:click={() => (show = { ...CLEAN })} title="Everything stays, shown compactly: hover a level, wall or candle for its details">Clean</button><button class:on={preset === 'full'} on:click={() => (show = { ...FULL })}>Full</button></span>
+    <span class="seg pre"><button class:on={preset === 'clean'} on:click={() => (show = { ...CLEAN })} title="Short level tags (full on hover), no expected-range cone">Clean</button><button class:on={preset === 'full'} on:click={() => (show = { ...FULL })}>Full</button></span>
     <span class="tg">{#each toggles as [k, l]}<button class="chipb" class:act={show[k]} on:click={() => (show[k] = !show[k])}><i class="sw {k}"></i>{l}</button>{/each}</span>
     {#if userMoved}<button class="live" on:click={liveView} title="Return to the live edge">⟲ Back to live</button>{/if}
     {#if m.book?.sim}<span class="simtag" title="Replay mode: the archive has no order book or single trades, so these are simulated">SIMULATED BOOK &amp; TRADES</span>{/if}
   </div>
-  <div class="chart" bind:this={el}><canvas bind:this={cv}></canvas></div>
-  <div class="foot"><span><i class="k d"></i>bars under candles: aggressive buy − sell volume</span><span><i class="k z"></i>right edge: 24h volume by price (buyers / sellers)</span><span><i class="k c"></i>dashed violet: 68% and 95% expected range</span></div>
+  <div class="area">
+    <div class="chart" bind:this={el}><canvas bind:this={cv}></canvas></div>
+    <div class="flow">
+      <canvas bind:this={fcv}></canvas>
+      <div class="live" style="top:{PRICE_BOTTOM * 100}%">
+        <div class="lt">Live · last 60 s</div>
+        <div class="row"><b class="up num">{f(m.b60)}</b><b class="down num">{f(m.s60)}</b></div>
+        <div class="split"><i style="width:{$share60 * 100}%"></i></div>
+        <div class="lt">Big trades · 15 min</div>
+        <div class="row"><b class="up num">{f(m.big15?.[0] || 0)}</b><b class="down num">{f(m.big15?.[1] || 0)}</b></div>
+        <div class="split"><i style="width:{$share15 * 100}%"></i></div>
+        <div class="lt">Order book ±0.25%</div>
+        <div class="row"><b class="up num">{m.book?.['imb_0.25'] != null ? `${Math.round(m.book['imb_0.25'] * 100)}% bids` : '—'}</b><b class="down num">{m.book?.['imb_0.25'] != null ? `${100 - Math.round(m.book['imb_0.25'] * 100)}% asks` : ''}</b></div>
+        <div class="split"><i style="width:{$shareBook * 100}%"></i></div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span><i class="k z"></i>right column: 24h volume by price (sellers ◂ ▸ buyers), order-book walls, live buy / sell totals</span><span><i class="k d"></i>strips: big trades and volume per candle</span><span>hover the chart for details</span></div>
 </section>
 <style>
   .fc { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
@@ -387,7 +434,8 @@
   .hb { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding: 8px 11px; border-radius: 11px; background: rgba(148,163,214,.04); text-align: left; }
   .hb.on { background: rgba(139,124,255,.14); border-color: var(--accent); box-shadow: 0 0 0 1px rgba(139,124,255,.3), 0 8px 24px rgba(139,124,255,.15); }
   .hh { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; width: 100%; }
-  .ls { font: 800 9px var(--sans); letter-spacing: 1px; color: var(--down); } .ls.long { color: var(--up); } .ls.slight { opacity: .6; } .ls.neutral { color: var(--faint); } .hv { display: inline-flex; align-items: center; gap: 7px; font-size: 17px; font-weight: 700; color: var(--c, var(--faint)); transition: color .6s; }
+  .ls { font: 800 9px var(--sans); letter-spacing: 1px; color: var(--down); } .ls.long { color: var(--up); } .ls.slight { opacity: .6; } .ls.neutral { color: var(--faint); }
+  .hv { display: inline-flex; align-items: center; gap: 7px; font-size: 17px; font-weight: 700; color: var(--c, var(--faint)); transition: color .6s; }
   .hb.off .hv { font: 500 12px var(--sans); }
   .hbar { position: relative; width: 100%; height: 4px; border-radius: 2px; background: rgba(148,163,214,.1); }
   .hbar i { position: absolute; top: 0; bottom: 0; left: var(--l, 50%); width: var(--w, 0); background: var(--c); border-radius: 2px; transition: all .7s ease; box-shadow: 0 0 8px var(--c); }
@@ -398,17 +446,27 @@
   .chipb { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; font-size: 11px; border-radius: 99px; opacity: .55; }
   .chipb.act { opacity: 1; color: var(--text); }
   .sw { width: 10px; height: 10px; border-radius: 3px; }
-  .sw.levels { height: 0; border-radius: 0; border-top: 3px solid var(--res); box-shadow: 0 5px 0 -1px var(--sup); } .sw.zones { background: linear-gradient(135deg, var(--up) 50%, var(--down) 50%); }
-  .sw.book { background: var(--up); box-shadow: 0 0 6px var(--up); } .sw.trades { width: 10px; height: 10px; border-radius: 1px; background: linear-gradient(90deg, var(--up) 0 30%, transparent 30% 70%, var(--down) 70%); } .sw.cone { background: #a79cff; }
+  .sw.levels { height: 0; border-radius: 0; border-top: 3px solid var(--res); box-shadow: 0 5px 0 -1px var(--sup); }
+  .sw.zones { background: linear-gradient(90deg, var(--down) 0 45%, transparent 45% 55%, var(--up) 55%); }
+  .sw.book { background: var(--up); box-shadow: 0 0 6px var(--up); height: 3px; }
+  .sw.trades { border-radius: 1px; background: linear-gradient(90deg, var(--up) 0 30%, transparent 30% 70%, var(--down) 70%); } .sw.cone { background: #a79cff; }
   .sw.arrow { width: 14px; height: 0; border-radius: 0; border-top: 3px solid var(--up); position: relative; }
   .sw.arrow::after { content: ""; position: absolute; right: -3px; top: -6px; border-left: 6px solid var(--up); border-top: 4.5px solid transparent; border-bottom: 4.5px solid transparent; }
-  .live { margin-left: auto; border-radius: 99px; color: var(--text); border-color: var(--accent); background: rgba(139,124,255,.15); font-weight: 600; animation: pop .3s ease-out; }
+  .bar > .live { margin-left: auto; border-radius: 99px; color: var(--text); border-color: var(--accent); background: rgba(139,124,255,.15); font-weight: 600; animation: pop .3s ease-out; }
   @keyframes pop { from { transform: scale(.85); opacity: 0; } to { transform: none; opacity: 1; } }
   .simtag { margin-left: auto; font: 700 9.5px var(--sans); letter-spacing: 1.2px; color: var(--res); border: 1px dashed var(--res); padding: 2px 8px; border-radius: 6px; }
-  .chart { position: relative; flex: 1; min-height: 360px; margin: 0 8px 0 12px; }
-  canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; }
+  .area { flex: 1; min-height: 360px; display: grid; grid-template-columns: minmax(0, 1fr) 176px; gap: 0; margin: 0 10px 0 12px; }
+  .chart { position: relative; min-width: 0; }
+  .chart canvas, .flow canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; }
+  .flow { position: relative; border-left: 1px solid rgba(148,163,214,.12); background: rgba(10,13,24,.35); border-radius: 0 10px 10px 0; overflow: hidden; }
+  .flow .live { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 8px 6px; display: flex; flex-direction: column; gap: 3px; border-top: 1px solid rgba(148,163,214,.12); background: rgba(10,13,24,.6); z-index: 4; }
+  .lt { font: 700 9px var(--sans); letter-spacing: 1.1px; text-transform: uppercase; color: var(--faint); margin-top: 3px; }
+  .row { display: flex; justify-content: space-between; font-size: 11.5px; }
+  .split { position: relative; height: 5px; border-radius: 3px; background: rgba(255,92,138,.75); overflow: hidden; }
+  .split i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--up); }
+  .split::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,.7); }
   .foot { display: flex; gap: 20px; padding: 6px 18px 10px; font-size: 10.5px; color: var(--faint); flex-wrap: wrap; }
   .k { display: inline-block; width: 10px; height: 8px; margin-right: 6px; border-radius: 2px; vertical-align: 0; }
-  .k.d { background: linear-gradient(90deg, var(--up) 50%, var(--down) 50%); } .k.z { background: linear-gradient(90deg, rgba(46,230,168,.5) 50%, rgba(255,92,138,.5) 50%); }
-  .k.c { height: 0; border-top: 2px dashed #a79cff; }
+  .k.d { background: linear-gradient(90deg, var(--up) 50%, var(--down) 50%); } .k.z { background: linear-gradient(90deg, rgba(255,92,138,.6) 50%, rgba(46,230,168,.6) 50%); }
+  @media (max-width: 900px) { .area { grid-template-columns: minmax(0, 1fr) 120px; } }
 </style>

@@ -14,8 +14,8 @@
 </script>
 <header>
   <div class="brand">
-    <span class="mark"><svg viewBox="0 0 24 24"><path d="M4 18 L10 11 L14 14 L20 6" /><circle cx="20" cy="6" r="2" /></svg></span>
-    <div><div class="logo">XAHOO</div><div class="sub">Futures direction terminal · Binance USDⓈ-M perpetuals</div></div>
+    <img class="emb" src="/icons/icon-192.png" alt="">
+    <div><div class="logo">TREND MACHINE</div><div class="sub">Futures direction terminal · Binance USDⓈ-M perpetuals</div></div>
   </div>
   <div class="tilt" title="1-hour probability for each coin; the average is the market tilt">
     <div class="label">Market tilt · 1h</div>
@@ -54,10 +54,8 @@
   header { display: flex; align-items: center; gap: 26px; padding: 10px 20px; position: sticky; top: 0; z-index: 20; flex-wrap: wrap;
     background: rgba(7, 10, 19, .72); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-bottom: 1px solid var(--line); }
   .brand { display: flex; align-items: center; gap: 11px; }
-  .mark { width: 34px; height: 34px; border-radius: 10px; background: var(--brand); display: grid; place-items: center; box-shadow: 0 6px 20px rgba(139,124,255,.35); }
-  .mark svg { width: 20px; height: 20px; fill: none; stroke: #0a0d18; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
-  .mark circle { fill: #0a0d18; stroke: none; }
-  .logo { font: 800 17px var(--sans); letter-spacing: 4px; background: var(--brand); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .emb { width: 38px; height: 38px; border-radius: 50%; box-shadow: 0 4px 16px rgba(56,198,244,.3); }
+  .logo { font: 800 16px var(--sans); letter-spacing: 2.5px; background: var(--brand); -webkit-background-clip: text; background-clip: text; color: transparent; }
   .sub { font-size: 10.5px; color: var(--faint); letter-spacing: .4px; margin-top: -1px; }
   .tilt { display: flex; flex-direction: column; gap: 3px; }
   .chips { display: flex; align-items: flex-end; gap: 3px; height: 22px; }
