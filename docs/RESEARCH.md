@@ -165,3 +165,21 @@ honest per coin, so a strong reading on screen is rarer and more trustworthy. Mo
 **Where this leaves accuracy.** With everything Binance publishes that can also be read live, the forecasts are
 at about 52–53% overall and 55–57% on the strong calls, depending on horizon. The live scoreboard will show
 whether that holds after launch.
+
+## 10. Gold and silver re-check with per-market calibration (2026-11-17)
+
+`research/metals_recheck.py`: walk-forward coin-model forecasts (gold/silver never in training), a gold- or
+silver-specific calibration fitted on Jan–May 2026, tested on Jun–Oct 2026. Shown only if AUC ≥ 0.515 in both
+halves and the calibrated forecast beats a coin flip.
+
+| Horizon | Gold AUC Jan–May / Jun–Oct | Silver AUC Jan–May / Jun–Oct | Result |
+|---|---|---|---|
+| 1m | 0.547 / 0.543 | 0.529 / 0.434 | gold passes (already shown); silver flips sign |
+| 5m | 0.514 / 0.525 | 0.512 / 0.465 | no (gold just short in Jan–May; calibrated probabilities stay within 45–55%) |
+| 15m | 0.484 / 0.523 | 0.495 / 0.511 | no (below 0.5 in Jan–May) |
+| 1h | 0.504 / 0.522 | 0.499 / 0.506 | no |
+| 4h | 0.490 / 0.526 | 0.501 / 0.517 | no (the 17-year trend model, shown as weak, stays) |
+| 1d | 0.484 / 0.510 | 0.520 / 0.515 | no (under 1,000 days of samples; calibration fails) |
+
+Gold's later months look better than its early months, which is what a real but still-forming pattern and
+plain luck both look like with this little history. The check should be repeated as Binance gold history grows.
