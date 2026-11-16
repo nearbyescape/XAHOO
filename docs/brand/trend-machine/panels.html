@@ -1,0 +1,150 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+@font-face { font-family: "Inter"; font-weight: 100 900; src: url("Inter-latin.woff2") format("woff2"); }
+@font-face { font-family: "JB"; font-weight: 100 800; src: url("JetBrainsMono-latin.woff2") format("woff2"); }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; padding: 20px; display: flex; flex-direction: column; gap: 20px; align-items: flex-start; }
+.bg { position: relative; overflow: hidden; background:
+  radial-gradient(60% 90% at 10% 0%, rgba(139,124,255,.28), transparent 70%),
+  radial-gradient(50% 80% at 100% 100%, rgba(46,230,168,.16), transparent 70%),
+  linear-gradient(160deg, #0f1528 0%, #070a13 80%); }
+.grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(148,163,214,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,214,.07) 1px, transparent 1px); }
+
+/* ---------- panels 640 x 200 (shown at 320 x 100) */
+.panel { width: 640px; height: 200px; border-radius: 0; }
+.panel .grid { background-size: 32px 32px; -webkit-mask-image: linear-gradient(90deg, transparent, #000 60%); }
+.panel .ic { position: absolute; left: 40px; top: 40px; width: 120px; height: 120px; border-radius: 30px; display: grid; place-items: center;
+  background: rgba(12,16,30,.85); border: 3px solid var(--a); box-shadow: 0 0 36px -6px var(--a), inset 0 0 24px -8px var(--a); }
+.panel .ic svg { width: 64px; height: 64px; fill: none; stroke: var(--a); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.panel h2 { position: absolute; left: 196px; top: 50px; font: 900 48px/1 Inter, sans-serif; letter-spacing: 3px; color: #eef1f8; text-transform: uppercase; }
+.panel p { position: absolute; left: 198px; top: 118px; font: 600 21px JB, monospace; letter-spacing: 3px; color: var(--a); text-transform: uppercase; }
+.panel .em { position: absolute; right: -40px; top: -30px; width: 260px; height: 260px; opacity: .14; }
+.panel .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 6px; background: linear-gradient(90deg, #8b7cff, #38c6f4, #2ee6a8); }
+
+/* ---------- offline screen 1920 x 1080 */
+#offline { width: 1920px; height: 1080px; background:
+  radial-gradient(55% 60% at 15% 10%, rgba(139,124,255,.30), transparent 70%),
+  radial-gradient(50% 55% at 95% 95%, rgba(46,230,168,.18), transparent 70%),
+  radial-gradient(70% 70% at 50% 50%, #0d1324 0%, #070a13 75%); }
+#offline .grid { background-size: 60px 60px; -webkit-mask-image: radial-gradient(ellipse at 50% 45%, #000 30%, transparent 80%); }
+#offline svg.chart { position: absolute; inset: 0; }
+#offline svg.big { position: absolute; left: 200px; top: 300px; width: 420px; height: 420px; overflow: visible; }
+#offline .word { position: absolute; left: 700px; top: 320px; }
+#offline h1 { font: 900 150px/0.9 Inter, sans-serif; letter-spacing: 6px; color: #eef1f8; }
+#offline h1 span { background: linear-gradient(100deg, #2ee6a8 0%, #38c6f4 50%, #8b7cff 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+#offline .status { position: absolute; left: 700px; top: 220px; display: inline-flex; align-items: center; gap: 16px; padding: 14px 28px; border-radius: 99px;
+  border: 2px solid rgba(152,163,192,.45); background: rgba(152,163,192,.08); font: 800 26px Inter, sans-serif; letter-spacing: 6px; color: #c9d1e3; }
+#offline .status i { width: 16px; height: 16px; border-radius: 50%; background: #98a3c0; }
+#offline .tag { position: absolute; left: 706px; top: 620px; font: 600 30px JB, monospace; letter-spacing: 6px; color: #98a3c0; }
+#offline .tag b { color: #2ee6a8; }
+#offline .tag i { font-style: normal; color: #4a5470; margin: 0 16px; }
+#offline .follow { position: absolute; left: 706px; top: 690px; font: 600 30px Inter, sans-serif; color: #e8ecf6; }
+#offline .follow span { color: #8b7cff; }
+#offline .foot { position: absolute; left: 0; right: 0; bottom: 56px; text-align: center; font: 500 24px Inter, sans-serif; letter-spacing: 2px; color: #5d6888; }
+#offline .rule { position: absolute; left: 50%; bottom: 112px; width: 520px; margin-left: -260px; height: 3px; background: linear-gradient(90deg, transparent, #8b7cff, #38c6f4, #2ee6a8, transparent); opacity: .7; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <linearGradient id="trend" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#8b7cff"/><stop offset=".55" stop-color="#38c6f4"/><stop offset="1" stop-color="#2ee6a8"/></linearGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8b7cff"/><stop offset="1" stop-color="#2ee6a8"/></linearGradient>
+    <radialGradient id="disk" cx=".5" cy=".42" r=".6"><stop offset="0" stop-color="#18203a"/><stop offset="1" stop-color="#0a0e1b"/></radialGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="5"/></filter>
+    <filter id="softglow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="10"/></filter>
+    <symbol id="mark" viewBox="0 0 200 200" style="overflow:visible">
+      <circle cx="100" cy="100" r="96" fill="url(#ring)" opacity=".16" filter="url(#softglow)"/>
+      <circle cx="100" cy="100" r="88" fill="url(#disk)" stroke="url(#ring)" stroke-width="3"/>
+      <g id="ticks"></g>
+      <circle cx="100" cy="100" r="70" fill="none" stroke="rgba(148,163,214,.12)" stroke-width="1"/>
+      <polyline points="50,140 73,80 100,116 140,58" fill="none" stroke="url(#trend)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)" opacity=".85"/>
+      <polyline points="50,140 73,80 100,116 140,58" fill="none" stroke="url(#trend)" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+      <polygon points="156,36 152,74 120,52" fill="#2ee6a8" filter="url(#glow)" opacity=".9"/>
+      <polygon points="156,36 152,74 120,52" fill="#2ee6a8" stroke="#2ee6a8" stroke-width="3" stroke-linejoin="round"/>
+      <circle cx="50" cy="140" r="8" fill="#8b7cff"/><circle cx="50" cy="140" r="3.5" fill="#0a0e1b"/>
+    </symbol>
+  </defs>
+</svg>
+
+<!-- panels: icon, title, sub-caption -->
+<div class="panel bg" id="p-about" style="--a:#8b7cff">
+  <div class="grid"></div><svg class="em" viewBox="0 0 200 200"><use href="#mark"/></svg>
+  <div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.5v.01"/></svg></div>
+  <h2>About</h2><p>Trend Machine</p><i class="bar"></i>
+</div>
+<div class="panel bg" id="p-screen" style="--a:#2ee6a8">
+  <div class="grid"></div><svg class="em" viewBox="0 0 200 200"><use href="#mark"/></svg>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M3 17l5-6 4 3 7-8"/><path d="M14 6h5v5"/><path d="M3 21h18"/></svg></div>
+  <h2>On Screen</h2><p>How to read it</p><i class="bar"></i>
+</div>
+<div class="panel bg" id="p-numbers" style="--a:#38c6f4">
+  <div class="grid"></div><svg class="em" viewBox="0 0 200 200"><use href="#mark"/></svg>
+  <div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/></svg></div>
+  <h2>The Numbers</h2><p>Tested, not promised</p><i class="bar"></i>
+</div>
+<div class="panel bg" id="p-disclaimer" style="--a:#ffb547">
+  <div class="grid"></div><svg class="em" viewBox="0 0 200 200"><use href="#mark"/></svg>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M12 8v5"/><path d="M12 16v.01"/></svg></div>
+  <h2>Disclaimer</h2><p>Education only</p><i class="bar"></i>
+</div>
+<div class="panel bg" id="p-rules" style="--a:#ff5c8a">
+  <div class="grid"></div><svg class="em" viewBox="0 0 200 200"><use href="#mark"/></svg>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8"/><path d="M8 12h5"/></svg></div>
+  <h2>Chat Rules</h2><p>Respect · No scams</p><i class="bar"></i>
+</div>
+
+<!-- offline screen -->
+<div id="offline" class="bg">
+  <div class="grid"></div>
+  <svg class="chart" viewBox="0 0 1920 1080" id="chart"></svg>
+  <svg class="big" viewBox="0 0 200 200"><use href="#mark"/></svg>
+  <div class="status"><i></i>STREAM OFFLINE</div>
+  <div class="word"><h1>TREND<br><span>MACHINE</span></h1></div>
+  <div class="tag"><b>LIVE</b> FUTURES<i>/</i>PROBABILITIES<i>/</i>ORDER FLOW</div>
+  <div class="follow">Follow to get notified when the markets go live <span>→</span></div>
+  <i class="rule"></i>
+  <div class="foot">Data over hype · Education only, not financial advice</div>
+</div>
+
+<script>
+const NS = 'http://www.w3.org/2000/svg';
+const ticks = document.getElementById('ticks');
+for (let i = 0; i < 60; i++) {
+  const a = (i / 60) * Math.PI * 2, major = i % 5 === 0, r1 = 80, r2 = major ? 73 : 76.5;
+  const l = document.createElementNS(NS, 'line');
+  l.setAttribute('x1', 100 + r1 * Math.sin(a)); l.setAttribute('y1', 100 - r1 * Math.cos(a));
+  l.setAttribute('x2', 100 + r2 * Math.sin(a)); l.setAttribute('y2', 100 - r2 * Math.cos(a));
+  l.setAttribute('stroke', major ? 'rgba(232,236,246,.55)' : 'rgba(148,163,214,.28)');
+  l.setAttribute('stroke-width', major ? 2 : 1.2); l.setAttribute('stroke-linecap', 'round');
+  ticks.appendChild(l);
+}
+// offline screen: a faint rising candle chart along the bottom right with a glowing trend line and arrow
+const svg = document.getElementById('chart');
+let seed = 11; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+const N = 46, x0 = 1380, x1 = 1850, w = (x1 - x0) / N;
+let p = 990; const bars = [];
+for (let i = 0; i < N; i++) {
+  const o = p, c = o - 4.8 + (rnd() - 0.5) * 30;
+  bars.push({ x: x0 + i * w + w / 2, o, c, h: Math.min(o, c) - rnd() * 16, l: Math.max(o, c) + rnd() * 16 }); p = c;
+}
+bars.forEach((b, i) => {
+  const col = b.c < b.o ? '#2ee6a8' : '#ff5c8a', op = 0.12 + 0.55 * (i / N);
+  svg.insertAdjacentHTML('beforeend', `<line x1="${b.x}" x2="${b.x}" y1="${b.h}" y2="${b.l}" stroke="${col}" stroke-width="2" opacity="${op * 0.8}"/>
+    <rect x="${b.x - w * 0.32}" y="${Math.min(b.o, b.c)}" width="${w * 0.64}" height="${Math.max(3, Math.abs(b.o - b.c))}" rx="2" fill="${col}" opacity="${op}"/>`);
+});
+const pts = bars.map((b, i) => [b.x, bars.slice(Math.max(0, i - 5), i + 1).reduce((a, x) => a + x.c, 0) / Math.min(i + 1, 6) + 40]);
+const d = pts.map((q, i) => (i ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' ');
+svg.insertAdjacentHTML('beforeend', `<defs><linearGradient id="tl" x1="0" x2="1"><stop offset="0" stop-color="#8b7cff" stop-opacity="0"/><stop offset=".4" stop-color="#8b7cff"/><stop offset=".8" stop-color="#38c6f4"/><stop offset="1" stop-color="#2ee6a8"/></linearGradient>
+  <filter id="g2" x="-10%" y="-50%" width="120%" height="200%"><feGaussianBlur stdDeviation="8"/></filter></defs>
+  <path d="${d}" fill="none" stroke="url(#tl)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" filter="url(#g2)" opacity=".6"/>
+  <path d="${d}" fill="none" stroke="url(#tl)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/>`);
+const [ax, ay] = pts[pts.length - 1], [bx, by] = pts[pts.length - 5];
+const ang = Math.atan2(ay - by, ax - bx), L = 38, tip = [ax + Math.cos(ang) * 20, ay + Math.sin(ang) * 20];
+const q1 = [tip[0] - Math.cos(ang - 0.5) * L, tip[1] - Math.sin(ang - 0.5) * L], q2 = [tip[0] - Math.cos(ang + 0.5) * L, tip[1] - Math.sin(ang + 0.5) * L];
+svg.insertAdjacentHTML('beforeend', `<polygon points="${tip} ${q1} ${q2}" fill="#2ee6a8" opacity=".9"/>`);
+</script>
+</body>
+</html>
