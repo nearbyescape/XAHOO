@@ -1,17 +1,10 @@
 <script lang="ts">
-  import Arrow from './Arrow.svelte';
-  import { conn, connError, status, model, markets, order, serverTime, tally, sortMode, view, cycle } from '../lib/store';
-  import { clock, probColor, overall } from '../lib/format';
+  import CoinPicker from './CoinPicker.svelte';
+  import { conn, connError, status, model, markets, order, serverTime, tally } from '../lib/store';
+  import { clock } from '../lib/format';
   $: ms = $order.map(s => $markets[s]).filter(Boolean);
   $: ages = ms.map(m => m.age).filter((a): a is number => a != null);
   $: age = ages.length ? Math.max(...ages) : null;
-  // tilt: each coin's overall direction (5m–4h combined); the average reads as "risk on / risk off"
-  $: coins = ms.filter(m => m.kind === 'coin');
-  $: ovs = coins.map(m => m.forecast?.head ?? null);
-  $: ps = ovs.filter((o): o is NonNullable<typeof o> => !!o).map(o => o.p);
-  $: breadth = ps.length ? ps.reduce((a, b) => a + b, 0) / ps.length : 0.5;
-  $: ups = ovs.filter(o => o && o.lab === 1).length;
-  $: downs = ovs.filter(o => o && o.lab === -1).length;
   async function logout() { await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }); location.replace('/login'); }
 </script>
 <header>
@@ -19,28 +12,7 @@
     <img class="emb" src="/icons/icon-192.png" alt="">
     <div><div class="logo">TREND MACHINE</div><div class="sub">Futures direction terminal · Binance USDⓈ-M perpetuals</div></div>
   </div>
-  <div class="tilt" title="Overall direction (5m–4h combined) for each coin; the average is the market tilt">
-    <div class="label">Market tilt · overall</div>
-    <div class="chips">
-      {#each coins as m (m.sym)}
-        {@const f = m.forecast?.head}
-        <span class="c" style="background:{f ? probColor(f.p, .9) : 'var(--line2)'}; height:{f ? 8 + Math.min(14, Math.abs(f.p - 0.5) * 200) : 6}px" title="{m.short} {f ? (f.p * 100).toFixed(1) + '% up' : 'no edge'}"></span>
-      {/each}
-      <span class="tv num" style="color:{probColor(breadth)}"><Arrow p={breadth} show={ps.length > 0} size={18} /> {ups} up · {downs} down · {(breadth * 100).toFixed(1)}%</span>
-    </div>
-  </div>
-  <div class="seg" role="group" aria-label="View">
-    <button class:on={$view === 'focus'} on:click={() => view.set('focus')}>Focus</button>
-    <button class:on={$view === 'grid'} on:click={() => view.set('grid')}>Grid</button>
-  </div>
-  {#if $view === 'focus'}
-    <button class="cyc" class:act={$cycle} on:click={() => cycle.set(!$cycle)} title="Move to the next market every 20 seconds (for a wall screen)"><i></i>Auto-cycle</button>
-  {:else}
-    <div class="seg" role="group" aria-label="Card order">
-      <button class:on={$sortMode === 'fixed'} on:click={() => sortMode.set('fixed')}>Fixed</button>
-      <button class:on={$sortMode === 'strongest'} on:click={() => sortMode.set('strongest')}>Strongest first</button>
-    </div>
-  {/if}
+  <CoinPicker />
   <div class="right">
     <span class="live" class:ok={$conn === 'live'} class:poll={$conn === 'polling'} class:bad={$conn === 'down'}
       title={$conn === 'polling' ? 'WebSocket blocked (check the nginx Upgrade headers); updating over HTTPS every 1.5 s' : $connError}><i></i>{$conn === 'live' ? ($status.feed || 'live') : $conn === 'polling' ? `${$status.feed || 'live'} · https` : $conn === 'down' ? 'reconnecting' : 'connecting'}</span>
@@ -59,18 +31,6 @@
   .emb { width: 38px; height: 38px; border-radius: 50%; box-shadow: 0 4px 16px rgba(56,198,244,.3); }
   .logo { font: 800 16px var(--sans); letter-spacing: 2.5px; background: var(--brand); -webkit-background-clip: text; background-clip: text; color: transparent; }
   .sub { font-size: 10.5px; color: var(--faint); letter-spacing: .4px; margin-top: -1px; }
-  .tilt { display: flex; flex-direction: column; gap: 3px; }
-  .chips { display: flex; align-items: flex-end; gap: 3px; height: 22px; }
-  .c { width: 7px; border-radius: 2px; transition: height .6s ease, background .6s; }
-  .tv { display: inline-flex; align-items: center; gap: 5px; margin-left: 8px; font-size: 12px; font-weight: 600; align-self: center; }
-  .seg { display: inline-flex; gap: 0; }
-  .seg button { border-radius: 0; padding: 5px 10px; font-size: 11px; }
-  .seg button:first-child { border-radius: 8px 0 0 8px; } .seg button:last-child { border-radius: 0 8px 8px 0; border-left: 0; }
-  .cyc { display: inline-flex; align-items: center; gap: 7px; border-radius: 99px; font-size: 11px; }
-  .cyc i { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
-  .cyc.act { color: var(--text); border-color: var(--accent); background: rgba(139,124,255,.12); }
-  .cyc.act i { background: var(--accent); animation: beat2 1.4s ease-in-out infinite; }
-  @keyframes beat2 { 0%, 100% { box-shadow: 0 0 0 0 rgba(139,124,255,.7); } 60% { box-shadow: 0 0 0 6px rgba(139,124,255,0); } }
   .right { margin-left: auto; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
   .live { display: inline-flex; align-items: center; gap: 7px; font: 600 10.5px var(--sans); letter-spacing: 1px; text-transform: uppercase; color: var(--muted);
     padding: 4px 10px; border-radius: 99px; border: 1px solid var(--line2); }
@@ -88,5 +48,5 @@
   .icon { padding: 5px; display: grid; place-items: center; }
   .icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
   @media (max-width: 1100px) { .kv, .sub { display: none; } }
-  @media (max-width: 700px) { header { gap: 12px; padding: 8px 12px; } .seg, .clock em:last-of-type { display: none; } .tilt .label { display: none; } }
+  @media (max-width: 700px) { header { gap: 12px; padding: 8px 12px; } .clock em:last-of-type { display: none; } }
 </style>

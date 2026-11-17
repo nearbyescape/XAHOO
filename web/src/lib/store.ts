@@ -14,11 +14,8 @@ export const serverTime = writable<number>(Date.now() / 1000);
 export const selected = writable<string | null>(null);
 export const levelsInfo = writable<any>(null);
 export const focus = writable<string>('BTCUSDT');
-export const view = writable<'focus' | 'grid'>('focus');
-export const cycle = writable<boolean>(false);
 export const fh = writable<string>('1h');            // horizon the focus panel explains
 export const bigUsd = writable<Record<string, number>>({});
-export const sortMode = writable<'fixed' | 'strongest'>('fixed');
 export const tally = writable<{ hit: number; n: number }>({ hit: 0, n: 0 });   // forecasts resolved since this page opened
 
 let offset = 0;            // server clock − local clock (replay mode runs on a simulated clock)
