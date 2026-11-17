@@ -189,3 +189,38 @@ fall the next minute was up only 41.6% of the time), but in Jun–Oct that faded
 the gold calibration lowered the Jun–Oct AUC at 1m from 0.543 to 0.522, so it was not adopted. The screen now
 labels the strength of a lean: NEUTRAL within 2 points of 50%, SLIGHT LONG/SHORT for 2–5 points, LONG/SHORT
 from 55%.
+
+## 11. EMA 9/26, market state, one overall direction and steady labels (2026-11-17/18)
+
+**EMA 9/26 as model inputs (research/ema_regime_eval.py).** On its own, an EMA 9/26 cross on 5m candles is not
+predictive (47–49% in the cross direction). As inputs inside the model, EMA structure on 5m, 15m and 1h candles
+(cross side, EMA gap, candles since the cross, EMA 9 slope, price vs EMA 26), plus market-state inputs (trend
+efficiency over 24h and 5 days, distance from the 20-day average), were tested walk-forward against the current
+model. Adopted where better in at least 4 of 5 unseen folds:
+
+| Timeframe | Adopted | Folds better | Coins, right overall (per-market calibrated) | Strong calls (55%+) |
+|---|---|---|---|---|
+| 5m | + EMA | 5 of 5 | 52.18% → 52.28% | 55.6% → 56.0% |
+| 15m | + EMA + market state | 4 of 5 | 52.55% → 52.56% | 56.4% → 56.7% |
+| 1h | + EMA | 4 of 5 | 52.29% → 52.32% | 55.3% → 56.1% |
+| 4h | unchanged (EMA worse in 4 of 5) | 1 of 5 | — | — |
+
+The model uses where price sits against the EMAs and how steeply they slope, mostly on 5m and 15m candles; the
+moment of the cross itself carries little. Live inputs come from features.ema_regime(), the same code as research;
+with the 7 days of 1m bars the server keeps plus daily closes from Binance, values match research within 0.001.
+
+**One overall direction (research/headline_eval.py).** The equal-weight average of the 5m, 15m, 1h and 4h
+log-odds, calibrated to the next hour, beat the 1h model alone on the next hour in 4 of 4 unseen periods
+(AUC 0.5399 vs 0.5361; right 53.0% vs 52.5%). Weights learned by logistic regression did worse than the plain
+average (better in 1 of 4), so the plain average is used. When all four timeframes agree (52% of the time) the
+direction was right 53.9% of the time over the next hour, against 51.0% when they disagree. Metals have no overall
+(their 5m–1h forecasts have no tested edge); they show their longest tested timeframe instead.
+
+**Steady labels.** Labels (UP / DOWN / NEUTRAL) now use hysteresis; the probability itself is unchanged. Rule fixed
+before the results: the fewest label changes per hour among bands whose hit rate is within 0.1 point of the old
+fixed 2-point band and which still show a side at least 85% as often. Chosen: a side starts 2.5 points from 50%
+and holds until the lean fades within 1.5 points. On 5m forecasts every 10 minutes: 3.03 → 2.34 label changes
+per hour (−23%), hit rate 53.6% → 53.6%, a side shown 49% → 46% of the time.
+
+Scripts: research/train_ema.py (models), research/train_market_cal.py (per-market correction),
+research/train_headline.py (overall calibration and label band). Models 2026.11.18.
