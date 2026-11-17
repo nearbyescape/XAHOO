@@ -1,5 +1,6 @@
 <script lang="ts">
-  // Direction symbol: green ↑ = UP, red ↓ = DOWN, grey – = NEUTRAL (within 2 points of 50%) or no tested edge.
+  // Direction symbol: green ↑ = UP, red ↓ = DOWN, grey – = NEUTRAL or no tested edge.
+  // With the server's steady label (lab), a side starts 2.5 points from 50% and holds until within 1.5 points.
   // When the direction changes the symbol pops in with a ripple; strong calls (55%+) gently bob.
   import { scale } from 'svelte/transition';
   import { backOut } from 'svelte/easing';

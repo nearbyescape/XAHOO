@@ -24,7 +24,7 @@
   $: fast = blend(['1m', '5m'], fc);
   $: hasFast = !!(fc['1m']?.show || fc['5m']?.show);
   $: tilt = lean(slow);
-  $: label = !ov ? 'No tested edge' : (ov.lab === 0 ? 'Neutral' : `${conviction(slow) === 2 ? '' : 'Slight '}${ov.lab > 0 ? 'long' : 'short'} bias`) + (ov.head ? ' · overall' : ` · ${ov.tf}`);
+  $: label = !ov ? 'No tested edge' : (ov.lab === 0 ? 'Neutral' : `${conviction(slow) === 2 ? '' : 'Slight '}${ov.lab > 0 ? 'long' : 'short'}`) + (ov.head ? '' : ` · ${ov.tf}`);
   $: glow = hasSlow ? Math.min(1, Math.abs(tilt)) : 0;
   $: liqFlash = m.liqPulse && performance.now() - m.liqPulse < 1500;
   $: stale = m.age != null && m.age > 20;

@@ -433,11 +433,14 @@
   $: bshow = !!head || !!sel?.show;
   $: dirKind = !bshow ? 'none' : blab === 0 ? 'flat' : blab > 0 ? 'up' : 'down';
   $: dirWord = { none: 'NO EDGE', flat: 'NEUTRAL', up: 'UP', down: 'DOWN' }[dirKind];
-  $: bsub = head ? `${((bp >= 0.5 ? bp : 1 - bp) * 100).toFixed(1)}% · next 1h` : sel?.show ? `${((bp >= 0.5 ? bp : 1 - bp) * 100).toFixed(1)}% · ${$fh}` : $fh;
+  $: bpct = blab === 0 ? `${(bp * 100).toFixed(1)}% up` : `${((bp >= 0.5 ? bp : 1 - bp) * 100).toFixed(1)}%`;
+  $: bsub = head ? `${bpct} · next 1h` : sel?.show ? `${bpct} · ${$fh}` : $fh;
   $: btitle = head
     ? `Overall: 5m, 15m, 1h and 4h combined (probability shown for the next hour). ${head.agree} of ${head.of} timeframes lean this way.`
-      + (head.skill?.shown_hit ? ` Tested 2024–26: UP/DOWN calls right ${(head.skill.shown_hit * 100).toFixed(1)}% of the time over the next hour.` : '')
-    : `Direction for the selected timeframe (${$fh}). NEUTRAL = within 2 points of 50%.`;
+      + (head.skill?.shown_hit ? ` Tested 2024–26 on unseen data: when it leans (52%+) it was right ${(head.skill.shown_hit * 100).toFixed(1)}% of the time over the next hour` : '')
+      + (head.skill?.agree_hit ? `; when all four timeframes agree, ${(head.skill.agree_hit * 100).toFixed(1)}%.` : '.')
+      + ' A side shows from 2.5 points away from 50% and holds until the lean fades within 1.5 points.'
+    : `Direction for the selected timeframe (${$fh}). A side shows from 2.5 points away from 50% and holds until the lean fades within 1.5 points.`;
 </script>
 <section class="fc panel">
   <header>
@@ -451,7 +454,7 @@
         <div class="dw" in:fly={{ y: dirKind === 'down' ? -10 : 10, duration: 380, easing: cubicOut }}>
           <small>{head ? 'OVERALL · 5m–4h' : `${$fh} · no overall for metals`}</small>
           <b>{dirWord}</b><span class="num">{bsub}</span>
-          {#if head}<span class="agr">{#each Object.entries(head.parts) as [h, q]}<i class:u={q > 0.5} class:d={q < 0.5} title="{h}: {(q * 100).toFixed(1)}% up"></i>{/each}<em>{head.agree}/{head.of} agree</em></span>{/if}
+          {#if head}<span class="agr">{#each Object.entries(head.parts) as [h, q]}<i style="background:{probColor(q)}" title="{h}: {(q * 100).toFixed(1)}% up"></i>{/each}<em>{head.lab === 0 ? 'mixed' : `${head.agree}/${head.of} agree`}</em></span>{/if}
         </div>
         <i class="flash"></i>
       {/key}
@@ -511,7 +514,6 @@
   .dw small { font: 700 9px var(--sans); letter-spacing: 1.2px; color: var(--faint); }
   .agr { display: flex; align-items: center; gap: 3px; margin-top: 1px; }
   .agr i { width: 14px; height: 4px; border-radius: 2px; background: var(--line2); transition: background .5s; }
-  .agr i.u { background: var(--up); } .agr i.d { background: var(--down); }
   .agr em { font: 600 10px var(--sans); font-style: normal; color: var(--muted); margin-left: 4px; }
   .flash { position: absolute; inset: -2px; border-radius: 14px; pointer-events: none; animation: dflash 1s ease-out forwards; }
   .dirb.up .flash { box-shadow: inset 0 0 0 2px var(--up), inset 0 0 24px rgba(var(--up-rgb), .45); }
