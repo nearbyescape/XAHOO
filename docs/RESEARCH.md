@@ -224,3 +224,24 @@ per hour (−23%), hit rate 53.6% → 53.6%, a side shown 49% → 46% of the tim
 
 Scripts: research/train_ema.py (models), research/train_market_cal.py (per-market correction),
 research/train_headline.py (overall calibration and label band). Models 2026.11.18.
+
+## 12. Strong direction alerts on the chart (2026-11-18)
+
+**Rule.** An alert fires when all four timeframes (5m, 15m, 1h, 4h) lean the same way and the strength of their
+average, |mean log-odds| of the pooled probabilities, is in the strongest 5% of readings (live level 0.1726).
+Coins only; one open alert per coin; each alert is scored after 15 minutes and after 1 hour (mark price).
+
+**Tested (research/alerts_eval.py, balanced re-test on unseen periods 2024-07 → 2026-10):** right 60.2% after
+15 minutes (periods 59 / 64 / 67 / 53) and 56.1% after 1 hour (59 / 55 / 54 / 55). Stricter levels (strongest
+3%, 2%, 1%) were not reliably better: too few cases, and single periods swung between 43% and 100%.
+
+**Two corrections found by running the live engine over past data:**
+1. The walk-forward test probabilities leaned towards "up", so their strongest 5% was 83% longs; the balanced
+   re-test centres each timeframe on earlier periods only (alerts about 56% long / 44% short).
+2. The final production models give less extreme readings than the walk-forward models, so the level is the
+   production models' own 95th percentile (2026), not the test level (which would almost never fire live).
+
+**Frequency.** On hourly checks about 1.2 alerts per coin per day; checked every minute, as live, about 4.4 per
+coin per day (2-day engine run), because short strong spells between hourly marks are caught too. Alerts
+cluster: in market-wide moves several coins alert within minutes in the same direction, and are right or wrong
+together. Level kept at the tested 5% by the owner's choice (2026-11-18).
