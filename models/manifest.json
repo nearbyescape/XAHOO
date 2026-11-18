@@ -1647,5 +1647,22 @@
    "shown_hit": 0.5363
   },
   "basis": "5m forecasts every 10 minutes, coins, 2024-01 \u2192 2026-10"
+ },
+ "alerts": {
+  "z_min": 0.248,
+  "avg_p": 0.5617,
+  "agree": 4,
+  "window_min": 60,
+  "checks": [
+   15,
+   60
+  ],
+  "skill": {
+   "hit15": 0.5994,
+   "hit60": 0.572,
+   "per_coin_day": 1.18,
+   "long_share": 0.829,
+   "basis": "walk-forward 2024-07 \u2192 2026-10, coins, hourly checks; mark price after 15 min / 1 h"
+  }
  }
 }

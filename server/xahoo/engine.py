@@ -81,6 +81,10 @@ class Engine:
         self.last_minute: int | None = None      # open time (s) of the last bar that was forecast
         self.closed: dict[str, int] = {}         # sym -> open time (s) of its newest closed bar
         self.resolved_recent: deque = deque(maxlen=80)
+        # strong direction alerts: one open alert per market, restored from the store after a restart
+        self.alerts: dict[str, dict] = {}
+        for a in self.store.alerts(int(self.clock()) - 2 * 3600, open_only=True):
+            self.alerts[a["sym"]] = {**a, "end": a["t0"] + 3600}
         self.listeners: list = []                # callables(message dict)
         self.status = {"started": clock(), "feed": "starting", "bars": 0, "forecasts": 0, "last_forecast": None,
                        "compute_ms": None}
@@ -231,7 +235,7 @@ class Engine:
                     s_h = sig * math.sqrt(n)
                     b68, b95 = d["u68"] * s_h, d["u95"] * s_h
                     skill = self.models.skill(sym, h)
-                    fc[h] = {"p": round(d["p"], 4), "band68": round(b68, 6), "band95": round(b95, 6),
+                    fc[h] = {"p": round(d["p"], 4), "pp": round(d.get("p_pool", d["p"]), 4), "band68": round(b68, 6), "band95": round(b95, 6),
                              "lo68": ref * math.exp(-b68), "hi68": ref * math.exp(b68),
                              "lo95": ref * math.exp(-b95), "hi95": ref * math.exp(b95),
                              "move_bp": round(b68 * 1e4, 1), "tradable": bool(b68 * 1e4 > ROUND_TRIP_FEE_BP),
@@ -247,6 +251,7 @@ class Engine:
                 if head:
                     head["lab"] = mk.labs["all"] = steady(mk.labs.get("all", 0), head["p"], band["enter"], band["leave"])
                     head["skill"] = self.models.manifest["headline"].get("skill", {})
+                self.alert_step(sym, head, ref, now)
                 tail = mk.bars.iloc[-1440:]
                 prof = delta_profile(tail["high"].to_numpy(), tail["low"].to_numpy(), tail["close"].to_numpy(),
                                      tail["volume"].to_numpy(), tail["taker_buy_volume"].to_numpy())
@@ -305,6 +310,38 @@ class Engine:
             self.resolved_recent.extend(shown)
             self.emit({"type": "resolved", "items": shown[-40:]})
 
+    # ------------------------------------------------------------ strong direction alerts
+    def alert_step(self, sym: str, head: dict | None, ref: float, now: int) -> None:
+        """Score the open alert at its 15-minute and 1-hour checkpoints, then open a new one when all four timeframes
+        agree and their average is strong enough (models/manifest.json "alerts", research/alerts_eval.py)."""
+        spec = self.models.manifest.get("alerts")
+        a = self.alerts.get(sym)
+        if a:
+            changed = False
+            for chk in (15, 60):
+                due = a["t0"] + chk * 60
+                if a.get(f"ok{chk}") is None and now >= due:
+                    if now - due <= 180 and ref == ref and a["price0"] > 0:
+                        r = math.log(ref / a["price0"]) * a["side"]
+                        ok = 1 if r > 0 else 0
+                    else:
+                        r, ok = None, -1                            # not measured (e.g. the server was down)
+                    a[f"r{chk}"], a[f"ok{chk}"] = r, ok
+                    self.store.set_alert(a["id"], chk, r, ok)
+                    changed = True
+            if changed:
+                self.emit({"type": "alert", "alert": dict(a)})
+            if a.get("ok60") is not None:
+                del self.alerts[sym]
+        if (spec and head and KIND.get(sym) == "coin" and sym not in self.alerts and ref == ref
+                and head["agree"] == head["of"] == spec.get("agree", 4) and abs(head["z"]) >= spec["z_min"]):
+            a = {"sym": sym, "side": 1 if head["z"] > 0 else -1, "t0": now, "price0": ref, "p": head["p"], "z": head["z"],
+                 "r15": None, "ok15": None, "r60": None, "ok60": None, "model": self.models.version}
+            a["id"] = self.store.add_alert(a)
+            a["end"] = now + 60 * spec.get("window_min", 60)
+            self.alerts[sym] = a
+            self.emit({"type": "alert", "alert": dict(a)})
+
     # ------------------------------------------------------------ views
     def tick(self) -> dict:
         """Lightweight per-second update for the screen."""
@@ -333,10 +370,11 @@ class Engine:
                 "funding": mk.funding_now if mk.funding_now == mk.funding_now else (float(mk.funding["funding"].iloc[-1]) if len(mk.funding) else None),
                 "liqs": list(mk.liqs)[-10:],
                 "big": list(mk.big)[-30:], "big15": self.big15(mk, self.clock()), "book": mk.book,
+                "alerts": self.store.alerts(int(self.clock()) - 3 * 86400, sym),
             }
         return {"type": "snapshot", "ts": self.clock(), "markets": MARKETS, "horizons": list(HORIZONS),
                 "m": mk_out, "model": {"version": self.models.version, "trained_through": self.models.manifest.get("trained_through"),
-                                       "skill": self.models.manifest["skill"],
+                                       "skill": self.models.manifest["skill"], "alerts": self.models.manifest.get("alerts"),
                                        "levels": {"hold": self.levels_info.get("hold"), "period": self.levels_info.get("period")}},
                 "status": self.status, "resolved": list(self.resolved_recent)[-40:], "big_usd": BIG_TRADE_USD}
 

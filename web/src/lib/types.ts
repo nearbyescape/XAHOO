@@ -37,6 +37,13 @@ export interface Market extends Meta {
   liqPulse: number;
   nextFunding: number | null;
   big: Big[]; big15: [number, number]; book: Book | null; bigPulse: number;
+  alerts: Alert[];
+}
+/** Strong direction alert: all four timeframes agree and their average is in the strongest 5% of readings.
+ *  Scored at 15 minutes and 1 hour: ok 1 right, 0 wrong, -1 not measured, null not yet. r = move in its direction. */
+export interface Alert {
+  id: number; sym: string; side: 1 | -1; t0: number; end?: number; price0: number; p: number; z: number;
+  r15: number | null; ok15: number | null; r60: number | null; ok60: number | null;
 }
 export interface Resolved { sym: string; h: string; p: number; outcome: number; ret: number; due: number; }
 export interface Skill { tier: number; show: boolean; auc?: number; accuracy?: number; conf55_hit?: number | null; conf55_share?: number; n?: number; basis?: string; }

@@ -12,7 +12,12 @@ CREATE TABLE IF NOT EXISTS forecasts (
   u68 REAL, sig REAL, outcome INTEGER, ret REAL, model TEXT);
 CREATE INDEX IF NOT EXISTS ix_due ON forecasts (outcome, due);
 CREATE INDEX IF NOT EXISTS ix_sym ON forecasts (sym, h, ts);
+CREATE TABLE IF NOT EXISTS alerts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, sym TEXT, side INTEGER, t0 INTEGER, price0 REAL, p REAL, z REAL,
+  r15 REAL, ok15 INTEGER, r60 REAL, ok60 INTEGER, model TEXT);
+CREATE INDEX IF NOT EXISTS ix_alert_sym ON alerts (sym, t0);
 """
+ALERT_COLS = ("id", "sym", "side", "t0", "price0", "p", "z", "r15", "ok15", "r60", "ok60", "model")
 BINS = [0.0, 0.40, 0.45, 0.48, 0.52, 0.55, 0.60, 1.0001]
 BIN_LABELS = ["<40", "40-45", "45-48", "48-52", "52-55", "55-60", ">60"]
 
@@ -40,6 +45,50 @@ class Store:
         with self.lock:
             self.db.executemany("UPDATE forecasts SET outcome=?, ret=? WHERE id=?", rows)
             self.db.commit()
+
+    # ---------------------------------------------------------------- strong direction alerts
+    def add_alert(self, a: dict) -> int:
+        with self.lock:
+            cur = self.db.execute("INSERT INTO alerts (sym, side, t0, price0, p, z, model) VALUES (?,?,?,?,?,?,?)",
+                                  (a["sym"], a["side"], a["t0"], a["price0"], a["p"], a["z"], a.get("model")))
+            self.db.commit()
+            return int(cur.lastrowid)
+
+    def set_alert(self, aid: int, chk: int, r: float | None, ok: int) -> None:
+        """Result at a checkpoint (15 or 60 minutes): r = move in the alert's direction (log), ok 1 / 0, -1 = not measured."""
+        assert chk in (15, 60)
+        with self.lock:
+            self.db.execute(f"UPDATE alerts SET r{chk}=?, ok{chk}=? WHERE id=?", (r, ok, aid))
+            self.db.commit()
+
+    def clear_alerts(self) -> None:
+        """Replay only: each replay run starts with no alerts (its clock jumps back to the replay start)."""
+        with self.lock:
+            self.db.execute("DELETE FROM alerts")
+            self.db.commit()
+
+    def alerts(self, since: int, sym: str | None = None, open_only: bool = False) -> list[dict]:
+        q, args = "SELECT * FROM alerts WHERE t0 >= ?", [since]
+        if sym:
+            q += " AND sym = ?"
+            args.append(sym)
+        if open_only:
+            q += " AND ok60 IS NULL"
+        with self.lock:
+            rows = self.db.execute(q + " ORDER BY t0", args).fetchall()
+        return [dict(zip(ALERT_COLS, r)) for r in rows]
+
+    def alert_stats(self, since: int, sym: str | None = None) -> dict:
+        out = {}
+        for chk in (15, 60):
+            q, args = f"SELECT COUNT(*), SUM(ok{chk}) FROM alerts WHERE ok{chk} >= 0 AND t0 >= ?", [since]
+            if sym:
+                q += " AND sym = ?"
+                args.append(sym)
+            with self.lock:
+                n, hits = self.db.execute(q, args).fetchone()
+            out[f"n{chk}"], out[f"hit{chk}"] = int(n or 0), (hits / n if n else None)
+        return out
 
     def recent(self, limit: int = 60) -> list[dict]:
         with self.lock:

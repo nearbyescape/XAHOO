@@ -1,5 +1,5 @@
 import { writable, get } from 'svelte/store';
-import type { Market, Meta, Resolved, Skill, Forecast, Big } from './types';
+import type { Market, Meta, Resolved, Skill, Forecast, Big, Alert } from './types';
 
 export const markets = writable<Record<string, Market>>({});
 export const order = writable<string[]>([]);
@@ -16,6 +16,19 @@ export const levelsInfo = writable<any>(null);
 export const focus = writable<string>('BTCUSDT');
 export const fh = writable<string>('1h');            // horizon the focus panel explains
 export const bigUsd = writable<Record<string, number>>({});
+export const alertSpec = writable<{ z_min: number; avg_p: number; skill?: Record<string, any> } | null>(null);
+/** Insert or update alerts for a market (by id), oldest first, keeping the last 3 days. */
+export function mergeAlerts(sym: string, list: Alert[]) {
+  markets.update(ms => {
+    const m = ms[sym];
+    if (!m) return ms;
+    const by = new Map(m.alerts.map(a => [a.id, a]));
+    for (const a of list) by.set(a.id, { ...by.get(a.id), ...a, end: a.end ?? a.t0 + 3600 });
+    const cut = now() - 3 * 86400;
+    m.alerts = [...by.values()].filter(a => a.t0 >= cut).sort((x, y) => x.t0 - y.t0);
+    return ms;
+  });
+}
 export const tally = writable<{ hit: number; n: number }>({ hit: 0, n: 0 });   // forecasts resolved since this page opened
 
 let offset = 0;            // server clock − local clock (replay mode runs on a simulated clock)
@@ -52,6 +65,7 @@ function onMessage(msg: any) {
           liqs: s.liqs || [], age: null, changed: {}, liqPulse: 0,
           nextFunding: null,
           big: s.big || [], big15: s.big15 || [0, 0], book: s.book && s.book.mid ? s.book : null, bigPulse: 0,
+          alerts: (s.alerts || []).map((a: Alert) => ({ ...a, end: a.t0 + 3600 })),
         };
       }
       markets.set(out);
@@ -61,6 +75,7 @@ function onMessage(msg: any) {
       levelsInfo.set(msg.model.levels || null);
       bigUsd.set(msg.big_usd || {});
       model.set({ version: msg.model.version, trained_through: msg.model.trained_through });
+      alertSpec.set(msg.model.alerts || null);
       status.set(msg.status || {});
       resolved.set((msg.resolved || []).slice().reverse());
       break;
@@ -92,6 +107,9 @@ function onMessage(msg: any) {
       tally.update(t => ({ n: t.n + items.length, hit: t.hit + items.filter(i => (i.p > 0.5) === (i.outcome === 1)).length }));
       break;
     }
+    case 'alert':
+      mergeAlerts(msg.alert.sym, [msg.alert as Alert]);
+      break;
     case 'big':
       markets.update(ms => {
         const m = ms[msg.sym];

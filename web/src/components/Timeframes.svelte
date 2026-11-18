@@ -80,7 +80,6 @@
   .bar .mid { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--line3); }
   .bar .fill { position: absolute; top: 0; bottom: 0; border-radius: 4px; transition: width .7s cubic-bezier(.2,.8,.2,1), background .5s; }
   .pb b { font-size: 13.5px; min-width: 74px; text-align: right; transition: color .5s; }
-  .pb b small { font-size: 9.5px; font-weight: 500; opacity: .7; }
   .rg { font-size: 11.5px; color: var(--text); display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2; }
   .rg small { font-size: 9.5px; color: var(--faint); }
   .why { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

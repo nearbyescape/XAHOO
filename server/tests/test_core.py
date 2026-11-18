@@ -282,3 +282,38 @@ def test_models_list_every_input_they_read():
     for hz in m.manifest["families"].values():
         for spec in hz.values():
             assert set(spec.get("features_dir") or []) <= set(m.all_features)
+
+
+def test_strong_alert_lifecycle(tmp_path):
+    from xahoo.engine import Engine
+
+    class FakeModels:
+        path = tmp_path
+        version = "t"
+        manifest = {"alerts": {"z_min": 0.248, "agree": 4, "window_min": 60}}
+
+    t = [1_800_000_000]
+    eng = Engine(FakeModels(), Store(tmp_path / "a.db"), clock=lambda: t[0])
+    sent = []
+    eng.listeners.append(sent.append)
+    strong = {"p": 0.57, "z": 0.30, "agree": 4, "of": 4}
+    eng.alert_step("BTCUSDT", {**strong, "agree": 3}, 100.0, t[0])            # not all four agree: nothing
+    eng.alert_step("BTCUSDT", {**strong, "z": 0.2}, 100.0, t[0])              # not strong enough: nothing
+    eng.alert_step("XAUUSDT", strong, 100.0, t[0])                            # metals never alert
+    assert not eng.alerts and not sent
+    eng.alert_step("BTCUSDT", strong, 100.0, t[0])
+    a = eng.alerts["BTCUSDT"]
+    assert a["side"] == 1 and a["end"] == t[0] + 3600 and sent[-1]["type"] == "alert"
+    eng.alert_step("BTCUSDT", strong, 101.0, t[0] + 60)                       # one open alert per market
+    assert len(eng.store.alerts(0)) == 1
+    eng.alert_step("BTCUSDT", None, 100.5, t[0] + 900)                        # 15-minute checkpoint: higher -> right
+    assert eng.alerts["BTCUSDT"]["ok15"] == 1
+    eng.alert_step("BTCUSDT", None, 99.0, t[0] + 3600)                        # 1-hour checkpoint: lower -> wrong, closed
+    assert "BTCUSDT" not in eng.alerts
+    row = eng.store.alerts(0)[0]
+    assert row["ok15"] == 1 and row["ok60"] == 0 and row["r60"] < 0
+    st = eng.store.alert_stats(0, "BTCUSDT")
+    assert st["n15"] == 1 and st["hit15"] == 1 and st["hit60"] == 0
+    eng.alert_step("ETHUSDT", {**strong, "z": -0.31}, 50.0, t[0])            # short alert; restored after a restart
+    eng2 = Engine(FakeModels(), eng.store, clock=lambda: t[0] + 120)
+    assert eng2.alerts["ETHUSDT"]["side"] == -1

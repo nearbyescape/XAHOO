@@ -11,7 +11,7 @@
   import CoinLogo from './CoinLogo.svelte';
   import { cubicOut, backOut } from 'svelte/easing';
   import { createChart, type IChartApi, type ISeriesApi, type IPriceLine, LineStyle } from 'lightweight-charts';
-  import { api, markets, fh, bigUsd, serverTime } from '../lib/store';
+  import { api, markets, fh, bigUsd, serverTime, mergeAlerts, now } from '../lib/store';
   import type { Market, Level } from '../lib/types';
   import { px, pct, probColor, lean, HORIZON_MIN, usd, biasWord, biasShort, conviction, dirOf } from '../lib/format';
   import Roll from './Roll.svelte';
@@ -24,8 +24,8 @@
   let cone: ISeriesApi<'Line'>[] = [];
   let plines: IPriceLine[] = [];
   let tf = 1;
-  const FULL = { arrow: true, levels: true, zones: true, book: true, trades: true, cone: true, compact: false };
-  const CLEAN = { arrow: true, levels: true, zones: true, book: true, trades: true, cone: false, compact: true };
+  const FULL = { arrow: true, levels: true, zones: true, book: true, trades: true, cone: true, alerts: true, compact: false };
+  const CLEAN = { arrow: true, levels: true, zones: true, book: true, trades: true, cone: false, alerts: true, compact: true };
   let show = { ...CLEAN };
   try { const v = localStorage.getItem('xahoo.chart2'); if (v) show = { ...CLEAN, ...JSON.parse(v) }; } catch { /* private mode */ }
   $: try { localStorage.setItem('xahoo.chart2', JSON.stringify(show)); } catch { /* ignore */ }
@@ -109,7 +109,7 @@
       last = d.length ? { time: d[d.length - 1].time, open: d[d.length - 1].open, high: d[d.length - 1].high, low: d[d.length - 1].low, close: d[d.length - 1].close } : null;
       candles.applyOptions({ priceFormat: { type: 'price', precision: m.digits, minMove: 1 / 10 ** m.digits } });
       loadedTf = tf;
-      bigSig = ''; drawCone(); keepLevels(); liveView(); bigStrip();
+      bigSig = ''; markSig = ''; drawCone(); keepLevels(); liveView(); bigStrip(); alertMarkers();
       return;
     }
     // refresh: only the newest bars, applied with update() so zoom and scroll stay where the user left them
@@ -197,6 +197,108 @@
     safe(() => candleUpdate(bar), 'live candle');
   }
 
+  // ------------------------------------------------------------------ strong direction alerts
+  // Server-side rule (models/manifest.json "alerts"): all four timeframes agree and their average is in the strongest
+  // 5% of readings. Drawn on the chart: a marker on the alert candle, the alert price line across its 1-hour window
+  // (into the empty space right of the live candle), the 15-minute checkpoint and a live tag. Ended alerts keep a
+  // ✓ / ✗ marker for both checkpoints.
+  let alertStats: { sym?: any; all?: any } = {};
+  let alertTested: Record<string, any> | null = null;
+  let markSig = '';
+  const seenAt = new Map<number, number>();                  // alert id -> when this screen first drew it (pop-in)
+  async function loadAlerts() {
+    if (m?.kind !== 'coin') return;
+    try {
+      const want = sym;
+      const r = await api<any>(`/api/alerts?sym=${encodeURIComponent(want)}&days=3`);
+      if (!alive || want !== sym) return;
+      mergeAlerts(want, r.alerts || []);
+      alertStats = r.stats || {}; alertTested = r.tested || null;
+    } catch { /* next round */ }
+  }
+  const barOf = (t: number) => Math.floor(t / (tf * 60)) * tf * 60;
+  const mark = (ok: number | null | undefined) => (ok === 1 ? '✓' : ok === 0 ? '✗' : ok === -1 ? '·' : '…');
+  function alertMarkers() {
+    if (!candles) return;
+    const data = candles.data();
+    const first = data.length ? (data[0].time as number) : 0;
+    const list = show.alerts ? (m?.alerts || []).filter(a => barOf(a.t0 - 60) >= first) : [];
+    const sig = `${tf}|${first}|${list.map(a => `${a.id}:${a.ok15}:${a.ok60}`).join(',')}`;
+    if (sig === markSig) return;
+    markSig = sig;
+    const up = css('--up'), dn = css('--down');
+    safe(() => candles.setMarkers(list.map(a => {
+      const open = a.ok60 == null;
+      return {
+        time: barOf(a.t0 - 60) as any, position: a.side > 0 ? 'belowBar' : 'aboveBar', shape: a.side > 0 ? 'arrowUp' : 'arrowDown',
+        color: open ? (a.side > 0 ? up : dn) : a.ok60 === 1 ? up : a.ok60 === 0 ? dn : css('--muted'), size: open ? 2 : 1,
+        text: open ? `STRONG ${a.side > 0 ? 'LONG' : 'SHORT'} ${((a.side > 0 ? a.p : 1 - a.p) * 100).toFixed(0)}%`
+                   : `${mark(a.ok15)}15m ${mark(a.ok60)}1h`,
+      };
+    })), 'alert markers');
+  }
+  $: if (candles && loadedTf) { m?.alerts; show.alerts; tf; alertMarkers(); }
+  function drawAlerts(c: CanvasRenderingContext2D, plotW: number, plotH: number, flowW: number, Y: (p: number) => number | null, t: number) {
+    const data = candles.data();
+    if (!data.length || !m?.alerts?.length) return;
+    const nb = data.length, lastT = data[nb - 1].time as number, step = tf * 60;
+    const X = (ts: number) => chart.timeScale().logicalToCoordinate((nb - 1 + (ts - lastT) / step - 0.5) as any);
+    const tnow = now();
+    const live = m.mark ?? m.price;
+    for (const a of m.alerts) {
+      const open = a.ok60 == null && tnow < (a.end ?? a.t0 + 3600) + 120;
+      const x0 = X(a.t0), xe = X(a.end ?? a.t0 + 3600), y = Y(a.price0);
+      if (x0 == null || xe == null || y == null || xe < 0 || x0 > plotW) continue;
+      const col = a.side > 0 ? css('--up') : css('--down');
+      const rgb = a.side > 0 ? '46,230,168' : '255,92,138';
+      if (!open) {                                                   // ended: a faint line at the alert price
+        c.strokeStyle = `rgba(${rgb},.35)`; c.lineWidth = 1; c.setLineDash([2, 4]);
+        c.beginPath(); c.moveTo(x0, y); c.lineTo(xe, y); c.stroke(); c.setLineDash([]);
+        continue;
+      }
+      if (!seenAt.has(a.id)) seenAt.set(a.id, t);
+      const age = (t - seenAt.get(a.id)!) / 1000;
+      const fadeIn = Math.min(1, age / 0.8);
+      const pulse = age < 6 ? 0.5 + 0.5 * Math.sin(age * 6) : 0;
+      // the 1-hour window
+      const g = c.createLinearGradient(x0, 0, xe, 0);
+      g.addColorStop(0, `rgba(${rgb},${0.13 * fadeIn})`); g.addColorStop(1, `rgba(${rgb},${0.04 * fadeIn})`);
+      c.fillStyle = g; c.fillRect(x0, 0, xe - x0, plotH);
+      c.strokeStyle = `rgba(${rgb},${0.55 * fadeIn})`; c.lineWidth = 1;
+      c.beginPath(); c.moveTo(xe, 0); c.lineTo(xe, plotH); c.stroke();
+      // the 15-minute checkpoint
+      const x15 = X(a.t0 + 900);
+      if (x15 != null) {
+        c.setLineDash([3, 3]); c.strokeStyle = `rgba(${rgb},${0.5 * fadeIn})`;
+        c.beginPath(); c.moveTo(x15, 0); c.lineTo(x15, plotH); c.stroke(); c.setLineDash([]);
+        const r15 = a.ok15 == null ? '15m' : `${mark(a.ok15)} 15m ${a.r15 != null ? `${a.r15 >= 0 ? '+' : '−'}${Math.abs(a.r15 * 100).toFixed(2)}%` : ''}`;
+        pill(c, x15 + 4, 12, r15, a.ok15 === 0 ? css('--down') : a.ok15 === 1 ? css('--up') : `rgba(${rgb},.9)`, 'left', 'rgba(12,16,30,.85)', 10);
+      }
+      pill(c, xe - 4, 12, '1h', `rgba(${rgb},.9)`, 'right', 'rgba(12,16,30,.85)', 10);
+      // the alert price line: green while price is on the alert's side, red while it isn't
+      const move = live != null ? Math.log(live / a.price0) * a.side : 0;
+      const lc = move >= 0 ? css('--up') : css('--down');
+      if (pulse) { c.strokeStyle = col; c.globalAlpha = 0.35 * pulse; c.lineWidth = 8; c.shadowColor = col; c.shadowBlur = 16;
+        c.beginPath(); c.moveTo(x0, y); c.lineTo(xe, y); c.stroke(); c.shadowBlur = 0; c.globalAlpha = 1; }
+      c.strokeStyle = lc; c.lineWidth = 1.6; c.setLineDash([7, 4]);
+      c.beginPath(); c.moveTo(x0, y); c.lineTo(xe, y); c.stroke(); c.setLineDash([]);
+      // live tag, kept clear of the buyers / sellers area
+      const left = Math.max(0, Math.round(((a.end ?? a.t0 + 3600) - tnow) / 60));
+      const tag = `${a.side > 0 ? '▲ STRONG LONG' : '▼ STRONG SHORT'} ${((a.side > 0 ? a.p : 1 - a.p) * 100).toFixed(1)}%  ·  ${move >= 0 ? '+' : '−'}${Math.abs(move * 100).toFixed(2)}%  ·  ${left} min left`;
+      const tx = Math.min(xe - 6, plotW - flowW - 8);
+      pill(c, tx, y + (a.side > 0 ? 18 : -18), tag, col, 'right', `rgba(${rgb},.14)`, 11);
+    }
+  }
+  function drawAlertScore(c: CanvasRenderingContext2D, plotW: number, flowW: number) {
+    if (m?.kind !== 'coin') return;
+    const s = alertStats.sym, k = alertTested;
+    const pc = (v: number | null | undefined) => (v == null ? '—' : `${(v * 100).toFixed(0)}%`);
+    const live = s && s.n60 ? `30d ${m.short}: 15m ${pc(s.hit15)} · 1h ${pc(s.hit60)} (${s.n60})` : `none yet for ${m.short} in 30 days`;
+    const txt = `STRONG ALERTS  ·  ${live}  ·  tested ${pc(k?.hit15)} / ${pc(k?.hit60)}`;
+    pill(c, plotW - flowW - 8, plotH0 - 14, txt, 'rgba(152,163,192,.95)', 'right', 'rgba(10,13,24,.88)', 10);
+  }
+  let plotH0 = 0;
+
   // ------------------------------------------------------------------ drawing helpers
   function pill(c: CanvasRenderingContext2D, x: number, y: number, text: string, col: string, align: 'left' | 'right' = 'left',
                 bg = 'rgba(12,16,30,.9)', size = 11) {
@@ -247,7 +349,10 @@
     // ---- candle area
     c.save(); c.beginPath(); c.rect(0, 0, plotW, plotH); c.clip();
     const flowW = flowWidth(plotW);
+    plotH0 = Math.min(plotH * PRICE_BOTTOM + 10, plotH - 14);
+    if (show.alerts) drawAlerts(c, plotW, plotH, flowW, Y, t);
     if (flowW) drawFlow(c, plotW, plotH, flowW, Y, pulse);
+    if (show.alerts) drawAlertScore(c, plotW, flowW);
     const labels: Lbl[] = [];
     if (show.levels && lv) {
       const tol = lv.tol || 0.003;
@@ -411,8 +516,9 @@
     scaleS = chart.addLineSeries({ lineVisible: false, pointMarkersVisible: false, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
     const mk = (color: string, style: LineStyle, w: 1 | 2) => chart.addLineSeries({ color, lineStyle: style, lineWidth: w, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, autoscaleInfoProvider: () => null });
     cone = [mk('rgba(139,124,255,.5)', LineStyle.Dotted, 1), mk('rgba(167,156,255,.95)', LineStyle.Dashed, 2), mk('rgba(167,156,255,.95)', LineStyle.Dashed, 2), mk('rgba(139,124,255,.5)', LineStyle.Dotted, 1)];
-    load();
+    load(); loadAlerts();
     timer = setInterval(load, 5000);           // the live candle's volume refreshes every 5 s
+    alertTimer = setInterval(loadAlerts, 30000);
     chart.subscribeCrosshairMove(prm => {
       hoverY = prm.point ? prm.point.y : null; hoverT = prm.time != null ? (prm.time as number) : null;
       if (prm.time != null) (chart2 as any).setCrosshairPosition?.(0, prm.time, buyV); else (chart2 as any).clearCrosshairPosition?.();
@@ -420,9 +526,10 @@
     chart.timeScale().subscribeVisibleLogicalRangeChange(r => { userMoved = !!r && r.to < candles.data().length - 1; });
     raf = requestAnimationFrame(draw);
   });
-  onDestroy(() => { alive = false; clearInterval(timer); clearInterval(widthTimer); cancelAnimationFrame(raf); chart?.remove(); chart2?.remove(); });
+  let alertTimer: ReturnType<typeof setInterval>;
+  onDestroy(() => { alive = false; clearInterval(timer); clearInterval(alertTimer); clearInterval(widthTimer); cancelAnimationFrame(raf); chart?.remove(); chart2?.remove(); });
   $: if (chart && sym) { tf; load(); }
-  const toggles: [Exclude<keyof typeof show, 'compact' | 'arrow'>, string][] = [['levels', 'Support / resistance'], ['zones', 'Volume by price'], ['book', 'Order-book walls'], ['trades', 'Big trades'], ['cone', 'Expected range']];
+  const toggles: [Exclude<keyof typeof show, 'compact' | 'arrow'>, string][] = [['levels', 'Support / resistance'], ['zones', 'Volume by price'], ['book', 'Order-book walls'], ['trades', 'Big trades'], ['cone', 'Expected range'], ['alerts', 'Strong alerts']];
   const f = (v: number) => `$${usd(v).slice(2)}`;
   // Big badge: the overall direction (5m, 15m, 1h, 4h combined) when the server sends one (coins). Metals have no
   // tested overall, so their badge follows the selected timeframe instead.
@@ -546,6 +653,7 @@
   .sw.zones { background: linear-gradient(90deg, var(--down) 0 45%, transparent 45% 55%, var(--up) 55%); }
   .sw.book { background: var(--up); box-shadow: 0 0 6px var(--up); height: 3px; }
   .sw.trades { border-radius: 1px; background: linear-gradient(90deg, var(--up) 0 30%, transparent 30% 70%, var(--down) 70%); } .sw.cone { background: #a79cff; }
+  .sw.alerts { border-radius: 2px; background: linear-gradient(135deg, var(--up) 0 50%, var(--down) 50%); }
   .sw.arrow { width: 14px; height: 0; border-radius: 0; border-top: 3px solid var(--up); position: relative; }
   .sw.arrow::after { content: ""; position: absolute; right: -3px; top: -6px; border-left: 6px solid var(--up); border-top: 4.5px solid transparent; border-bottom: 4.5px solid transparent; }
   .bar > .live { margin-left: auto; border-radius: 99px; color: var(--text); border-color: var(--accent); background: rgba(139,124,255,.15); font-weight: 600; animation: pop .3s ease-out; }

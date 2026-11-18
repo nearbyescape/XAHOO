@@ -75,11 +75,13 @@ def headline(spec: dict | None, fc: dict) -> dict | None:
     named in the spec (research/headline_eval.py). None unless every listed timeframe has a shown forecast."""
     if not spec or not all(fc.get(h, {}).get("show") for h in spec["horizons"]):
         return None
-    ps = [min(max(fc[h]["p"], 1e-4), 1 - 1e-4) for h in spec["horizons"]]
+    # the same inputs the overall map and the alert level were fitted on: each timeframe's pooled probability
+    # (before the per-market correction), research/headline_eval.py and alerts_eval.py
+    ps = [min(max(fc[h].get("pp", fc[h]["p"]), 1e-4), 1 - 1e-4) for h in spec["horizons"]]
     z = float(np.mean([np.log(p / (1 - p)) for p in ps]))
     p = float(np.clip(apply_cal(spec["calibration"], np.array([1 / (1 + np.exp(-z))]))[0], 0.01, 0.99))
-    agree = sum(1 for q in ps if (q > 0.5) == (p > 0.5))
-    return {"p": round(p, 4), "agree": agree, "of": len(ps), "target": spec.get("target", "1h"),
+    agree = sum(1 for q in ps if (q > 0.5) == (z > 0))
+    return {"p": round(p, 4), "z": round(z, 4), "agree": agree, "of": len(ps), "target": spec.get("target", "1h"),
             "parts": {h: round(fc[h]["p"], 4) for h in spec["horizons"]}}
 
 
@@ -135,6 +137,7 @@ class Models:
                     bs = b if isinstance(b, list) else [b]
                     raw = np.mean([x.predict(Xd) for x in bs], axis=0)
                     p = apply_cal(spec["calibration"], raw)
+                    p_pool = p.copy()                               # before the per-market step: the overall direction's input
                     mc = spec.get("market_cal")
                     if mc and syms is not None:                     # per-market correction: sigmoid(a + b * logit(p))
                         for j, i in enumerate(rows):
@@ -149,6 +152,7 @@ class Models:
                     d = {"p": 0.5, "u68": float(q68[j]), "u95": float(q95[j]), "layers": {}, "top": [], "has_dir": b is not None}
                     if b is not None:
                         d["p"] = float(np.clip(p[j], 0.01, 0.99))
+                        d["p_pool"] = float(np.clip(p_pool[j], 0.01, 0.99))
                         d["layers"] = {LAYERS[g]: float(contrib[j, idx].sum()) for g, idx in lidx.items() if idx}
                         cj = contrib[j, :-1]                            # last column is the bias
                         order = np.argsort(-np.abs(cj))[:10]

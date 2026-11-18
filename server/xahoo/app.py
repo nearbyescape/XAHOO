@@ -214,7 +214,10 @@ async def lifespan(app: FastAPI):
     if MODE == "replay":
         from .replay import SimClock
         clock = SimClock(time.time())
-    ENGINE = Engine(Models(MODELS), Store(DATA / ("replay.db" if MODE == "replay" else "xahoo.db")), clock)
+    store = Store(DATA / ("replay.db" if MODE == "replay" else "xahoo.db"))
+    if MODE == "replay":
+        store.clear_alerts()
+    ENGINE = Engine(Models(MODELS), store, clock)
     HUB.loop = asyncio.get_running_loop()
     ENGINE.listeners.append(lambda m: HUB.publish(_clean(m)))
     tasks = [asyncio.create_task(replay_feed(ENGINE) if MODE == "replay" else live_feed(ENGINE)),
@@ -353,6 +356,17 @@ def scoreboard(sym: str | None = None, days: float = 30):
     since = int(ENGINE.clock() - days * 86400)
     return _clean({"since": since, "sym": sym, "horizons": ENGINE.store.scoreboard(since, sym),
                    "recent": ENGINE.store.recent(60)})
+
+
+@app.get("/api/alerts")
+def alerts(sym: str | None = None, days: float = 3):
+    """Strong direction alerts for one market (or all), with 30-day live hit rates at 15 minutes and 1 hour."""
+    if sym and sym not in ENGINE.m:
+        raise HTTPException(404, "unknown market")
+    now = int(ENGINE.clock())
+    return _clean({"alerts": ENGINE.store.alerts(now - int(days * 86400), sym),
+                   "stats": {"sym": ENGINE.store.alert_stats(now - 30 * 86400, sym), "all": ENGINE.store.alert_stats(now - 30 * 86400)},
+                   "tested": (ENGINE.models.manifest.get("alerts") or {}).get("skill")})
 
 
 @app.websocket("/ws")
