@@ -52,7 +52,10 @@ function applyForecast(m: Market, f: Forecast | null) {
 
 function onMessage(msg: any) {
   lastMsg = Date.now();
-  if (msg.ts) { offset = msg.ts - Date.now() / 1000; serverTime.set(msg.ts); }
+  // only the server-clock messages set the clock: big trades and liquidations carry their own time in milliseconds
+  if (msg.ts && (msg.type === 'snapshot' || msg.type === 'tick' || msg.type === 'forecast') && msg.ts < 1e11) {
+    offset = msg.ts - Date.now() / 1000; serverTime.set(msg.ts);
+  }
   switch (msg.type) {
     case 'snapshot': {
       const out: Record<string, Market> = {};
