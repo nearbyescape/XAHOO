@@ -296,3 +296,26 @@ random minute of the same month; averaged over 5 draws. A version has to beat it
 1.2 over validation; at least 200 validation trades; beats its random baseline. Then the single best passing
 version takes the final exam, which must also be positive. Reported for all: win rate, average R, profit factor,
 worst drawdown and longest losing streak (all coins in time order), long vs short, per coin.
+
+**Results (2026-11-19, research/sweep_eval.py). No version passed; the final exam (2026-07 → 10) was not opened.**
+
+| Version | Trades (validation) | Win | Avg R after costs | Profit factor | Random entries, same stops | Periods positive |
+|---|---|---|---|---|---|---|
+| V1 base | 850 | 33.9% | −0.17 | 0.78 | −0.15 | 1 of 5 |
+| V4 + OI + delta | 190 | 33.2% | −0.16 | 0.78 | −0.11 | 1 of 5 |
+| V5 + trend | 70 | 31.4% | −0.23 | 0.70 | −0.01 | 2 of 5 |
+| V6 V4, half at 1R | 190 | 47.9% | −0.18 | 0.70 | −0.17 | 1 of 5 |
+| V8 V4, market entry | 852 | 40.7% | −0.07 | 0.89 | −0.10 | 1 of 5 |
+| V10 V4 + model | 102 | 30.4% | −0.20 | 0.74 | −0.15 | 2 of 5 |
+| V11 base, half at 1R | 850 | 47.8% | −0.16 | 0.73 | −0.12 | 0 of 5 |
+
+All others (V2, V3, V7, V9, V12) were also negative. Development years 2022–2023 were negative for every version.
+
+**Without any costs** (fees, slippage, funding set to zero): the pullback versions are about break-even (V1 −0.02R,
+V4 −0.04R, V11 −0.03R per trade), no better than random entries. Only V8 (enter at the change-of-direction close,
+with the OI and delta filters) is slightly positive before costs (+0.05R, profit factor 1.09, random +0.01R), and
+costs of about 0.11R per trade turn it negative. Waiting for the pullback made results worse: the limit order
+fills mostly when the move is failing, and the best moves leave without it.
+
+Conclusion: on Binance coin futures 2022–2026, sweep-and-pullback on 5m candles has no edge large enough to pay for
+trading costs; it is not shown on screen.
