@@ -245,3 +245,54 @@ Coins only; one open alert per coin; each alert is scored after 15 minutes and a
 coin per day (2-day engine run), because short strong spells between hourly marks are caught too. Alerts
 cluster: in market-wide moves several coins alert within minutes in the same direction, and are right or wrong
 together. Level kept at the tested 5% by the owner's choice (2026-11-18).
+
+## 13. Sweep and pullback trade signals: pre-registered rules (written 2026-11-19, before any result)
+
+Goal: a trade signal with entry, stop-loss and take-profit that makes money **after Binance costs** on unseen
+periods. Judged on average R per trade after costs (R = entry-to-stop distance), with win rate shown alongside.
+
+**Data.** 8 coins (BTC, ETH, SOL, XRP, BNB, DOGE, ADA, LINK), Binance USDⓈ-M 1-minute bars with taker buy volume,
+5-minute open interest, funding; 2022-01 → 2026-10. Signals on 5-minute candles; fills and exits simulated
+minute by minute.
+
+**Periods.** Development 2022–2023 (code checks only, no tuning). Validation: 2024H1, 2024H2, 2025H1, 2025H2,
+2026H1. Final exam: 2026-07 → 2026-10, looked at only once, for the single version chosen on validation.
+
+**Liquidity levels** (known before each candle): previous UTC day high / low; Asian session (00–08 UTC) high /
+low, from 08:00; 1h swing highs / lows (3 hours each side, usable once confirmed, last 72 h); 4h swing highs /
+lows (2 bars each side, last 7 days).
+
+**Sweep (long; short is the mirror).** A 5m low goes below a level by at least 0.1 × ATR(14, 5m), the level had
+not been traded below in the 12 candles before, and a 5m close returns above the level within 3 candles
+(sweep candle included). Sweep extreme = lowest low of those candles.
+
+**Change of direction.** Within 6 candles after that close, a 5m close above the highest high of the 6 candles
+before the sweep. Leg = sweep extreme → highest high up to that candle.
+
+**Entry.** Limit order at 50% of the leg, valid for 12 candles (1 hour); cancelled if price first reaches 1R
+above the entry without filling. Stop = sweep extreme − 0.1 × ATR. Risk must be 0.25%–3% of price.
+Same-minute stop and fill counts as a loss; a target is never counted in the fill minute.
+
+**Exits.** A: one target at 2R. B: half at 1R, stop to entry, rest at 2R. C: nearest opposite liquidity level at
+least 1.5R away (2R if none). All: close at market after 8 hours.
+
+**Costs.** Limit entry and targets 0.02%; stops 0.05% + 0.02% slippage; time exits 0.05%; funding paid / received
+at each 8-hour settlement while open.
+
+**Filters.** OI: open interest (as published, 5 minutes late) fell at least 0.2% from 30 minutes before the sweep
+to the change-of-direction candle. Delta: net taker selling over the sweep candles and net taker buying from the
+reclaim to the change-of-direction candle. Trend: last 4h close above its 20-period EMA (below for shorts).
+Model: the 15m forecast (out-of-sample, latest before the signal) on the trade's side; 2024+ only.
+
+**Versions (12, all fixed now):**
+V1 base, exit A · V2 V1+OI · V3 V1+delta · V4 V1+OI+delta · V5 V4+trend · V6 V4 exit B · V7 V4 exit C ·
+V8 V4 entering at the change-of-direction close (market, no pullback) · V9 V5 exit B · V10 V4+model (2024+) ·
+V11 V1 exit B · V12 V5 exit C.
+
+**Baseline.** For every trade of a version: the same coin, side, stop distance (in %) and exits, entered at a
+random minute of the same month; averaged over 5 draws. A version has to beat its baseline.
+
+**Pass rule.** Positive average R after costs in at least 4 of the 5 validation periods; profit factor at least
+1.2 over validation; at least 200 validation trades; beats its random baseline. Then the single best passing
+version takes the final exam, which must also be positive. Reported for all: win rate, average R, profit factor,
+worst drawdown and longest losing streak (all coins in time order), long vs short, per coin.
