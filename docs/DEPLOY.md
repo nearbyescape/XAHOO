@@ -89,3 +89,13 @@ The scoreboard lives in the `xahoo-data` Docker volume and survives updates.
 - If a market's backfill fails, the server retries every 3 minutes and also fills any bars missed during
   reconnects.
 - Limits: 1 CPU, 1 GB memory (see `docker-compose.yml`).
+
+## Research recorder (order book, single trades, liquidations)
+
+Live mode saves one row per market per minute to `/data/micro.db` (the `xahoo-data` volume), with the data
+Binance does not archive: order-book depth and imbalance at 0.1–2% from the mid, the largest walls, single-trade
+counts and big trades, liquidations and the predicted funding rate. About 7 MB a day; it survives rebuilds.
+
+- Progress (while logged in): `https://<your-domain>/api/micro` shows rows, days covered and rows per market.
+- Turn it off: add `XAHOO_RECORD=0` to `.env` and restart.
+- Copy it out for research: `docker cp xahoo:/data/micro.db ~/micro.db`

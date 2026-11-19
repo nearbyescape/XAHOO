@@ -319,3 +319,12 @@ fills mostly when the move is failing, and the best moves leave without it.
 
 Conclusion: on Binance coin futures 2022–2026, sweep-and-pullback on 5m candles has no edge large enough to pay for
 trading costs; it is not shown on screen.
+
+## 14. Recording live order-book and trade data (started 2026-11-19)
+
+The archive has no order book, single trades or liquidations, so these cannot yet be tested as inputs. The live
+server now records one row per market per minute (xahoo/recorder.py; `/data/micro.db`): spread, size at the best
+prices, resting USD and imbalance within 0.1 / 0.25 / 0.5 / 1 / 2% of the mid (last snapshot and the minute's
+average), the largest wall per side, trade count, largest trade, big-trade buy / sell USD, liquidations by side,
+predicted funding. After 6–8 weeks: walk-forward test (weekly folds) of these as extra inputs for 1m–15m, adopted
+only if better on most unseen weeks, same rules as sections 7–11.

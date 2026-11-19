@@ -317,3 +317,38 @@ def test_strong_alert_lifecycle(tmp_path):
     eng.alert_step("ETHUSDT", {**strong, "z": -0.31}, 50.0, t[0])            # short alert; restored after a restart
     eng2 = Engine(FakeModels(), eng.store, clock=lambda: t[0] + 120)
     assert eng2.alerts["ETHUSDT"]["side"] == -1
+
+
+def test_research_recorder_rows(tmp_path):
+    from xahoo.engine import Engine
+    from xahoo.orderflow import BIG_TRADE_USD, book_stats
+    from xahoo.recorder import Recorder
+
+    class FakeModels:
+        path = tmp_path
+        version = "t"
+        manifest = {}
+
+    t = [1_800_000_000]
+    rec = Recorder(tmp_path / "micro.db")
+    eng = Engine(FakeModels(), Store(tmp_path / "a.db"), clock=lambda: t[0], recorder=rec)
+    big = BIG_TRADE_USD["BTCUSDT"]
+    for usd, side in ((1000.0, "buy"), (big * 2, "sell"), (big * 1.5, "buy")):
+        eng.on_event({"type": "trade", "sym": "BTCUSDT", "price": 100.0, "qty": usd / 100, "usd": usd, "side": side, "ts": t[0] * 1000})
+    eng.on_event({"type": "liq", "sym": "BTCUSDT", "side": "long", "usd": 5e4, "price": 100.0, "ts": t[0] * 1000})
+    bids = [[100.0 - i * 0.01, 10.0] for i in range(300)]
+    asks = [[100.02 + i * 0.01, 5.0] for i in range(300)]
+    eng.set_book("BTCUSDT", {"bids": bids, "asks": asks})
+    st = book_stats(bids, asks)
+    assert 0.6 < st["imb_0_25"] < 0.7 and st["spread_bp"] > 0
+    eng.record(t[0] + 60)
+    rows = dict(zip([d[0] for d in rec.db.execute("SELECT * FROM micro").description],
+                    rec.db.execute("SELECT * FROM micro WHERE sym='BTCUSDT'").fetchone()))
+    assert rows["n_trades"] == 3 and rows["n_big"] == 2 and abs(rows["big_sell_usd"] - big * 2) < 1e-6
+    assert rows["liq_long_usd"] == 5e4 and rows["n_liq"] == 1 and rows["n_book"] == 1
+    assert abs(rows["imb_0_25"] - st["imb_0_25"]) < 1e-9 and rows["imb_0_25_avg"] == rows["imb_0_25"]
+    eth = rec.db.execute("SELECT n_trades, n_book FROM micro WHERE sym='ETHUSDT'").fetchone()
+    assert eth == (0, 0)                                             # every market gets a row, even a quiet one
+    eng.record(t[0] + 120)                                           # counters reset each minute
+    assert rec.db.execute("SELECT n_trades FROM micro WHERE sym='BTCUSDT' AND ts=?", (t[0] + 120,)).fetchone()[0] == 0
+    assert rec.summary()["rows"] == 2 * len(eng.m)

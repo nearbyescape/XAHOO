@@ -118,3 +118,26 @@ class WallTracker:
                 w["age"] = round(now - t0)
         self.first = seen
         return walls
+
+
+DEPTHS = (0.001, 0.0025, 0.005, 0.01, 0.02)
+
+
+def book_stats(bids: list, asks: list) -> dict:
+    """Compact order-book summary for the research recorder: spread, size at the best prices, resting USD within
+    0.1 / 0.25 / 0.5 / 1 / 2% of the mid on each side, and the imbalance bid / (bid + ask) at each depth."""
+    if not bids or not asks:
+        return {}
+    b, a = np.array(bids, dtype=float), np.array(asks, dtype=float)
+    mid = (b[0, 0] + a[0, 0]) / 2
+    out = {"mid": mid, "spread_bp": (a[0, 0] - b[0, 0]) / mid * 1e4,
+           "bid1_usd": b[0, 0] * b[0, 1], "ask1_usd": a[0, 0] * a[0, 1]}
+    db, da = 1 - b[:, 0] / mid, a[:, 0] / mid - 1
+    nb, na = b[:, 0] * b[:, 1], a[:, 0] * a[:, 1]
+    for w in DEPTHS:
+        key = f"{w * 100:g}".replace(".", "_")
+        bu, au = float(nb[db <= w].sum()), float(na[da <= w].sum())
+        out[f"bid_{key}"], out[f"ask_{key}"] = bu, au
+        out[f"imb_{key}"] = bu / (bu + au) if bu + au > 0 else None
+    out["covered_bid"], out["covered_ask"] = float(db.max()), float(da.max())     # how deep the snapshot reached
+    return out

@@ -18,7 +18,7 @@ import json
 
 from . import features
 from .levels import find_levels, reach_prob
-from .orderflow import BIG_TRADE_USD, WallTracker, book_walls, delta_profile
+from .orderflow import BIG_TRADE_USD, WallTracker, book_stats, book_walls, delta_profile
 from .reasons import explain
 from .binance import BAR_COLS
 from .config import KEEP_BARS, KIND, MARKETS, ROUND_TRIP_FEE_BP, STORE_EVERY
@@ -42,7 +42,8 @@ class Market:
         self.metrics = pd.DataFrame()
         self.funding = pd.DataFrame()
         self.daily = pd.Series(dtype="float64")
-        self.labs: dict[str, int] = {}             # steady direction label per timeframe (and "all" for the headline)    # daily closes older than the 1m history (EMA / market-state inputs)
+        self.labs: dict[str, int] = {}
+        self.minute = self._fresh_minute()          # research recorder: this minute's trades, liquidations, book stats             # steady direction label per timeframe (and "all" for the headline)    # daily closes older than the 1m history (EMA / market-state inputs)
         self.flow = deque(maxlen=120)           # (second, buy_usd, sell_usd)
         self.liqs = deque(maxlen=50)
         self.forecast: dict = {}
@@ -51,6 +52,11 @@ class Market:
         self.book: dict = {}
         self.walls = WallTracker()
         self.last_event = 0.0
+
+    @staticmethod
+    def _fresh_minute() -> dict:
+        return {"n_trades": 0, "max_trade_usd": 0.0, "big_buy_usd": 0.0, "big_sell_usd": 0.0, "n_big": 0,
+                "liq_long_usd": 0.0, "liq_short_usd": 0.0, "n_liq": 0, "books": []}
 
     @property
     def price(self) -> float:
@@ -73,8 +79,9 @@ class Market:
 
 
 class Engine:
-    def __init__(self, models: Models, store: Store, clock=time.time):
+    def __init__(self, models: Models, store: Store, clock=time.time, recorder=None):
         self.models, self.store, self.clock = models, store, clock
+        self.recorder = recorder                 # research recorder (live mode only), xahoo/recorder.py
         lp = models.path / "levels.json"
         self.levels_info = json.loads(lp.read_text()) if lp.exists() else {}
         self.m = {meta["sym"]: Market(meta) for meta in MARKETS}
@@ -110,13 +117,20 @@ class Engine:
             mk.funding_now = ev.get("funding", math.nan)
             mk.next_funding = int(ev.get("next_funding") or 0)
         elif t == "trade":
+            mm = mk.minute
+            mm["n_trades"] += 1
+            mm["max_trade_usd"] = max(mm["max_trade_usd"], ev["usd"])
             if ev["usd"] >= BIG_TRADE_USD.get(mk.sym, 1e9):
+                mm["n_big"] += 1
+                mm["big_buy_usd" if ev["side"] == "buy" else "big_sell_usd"] += ev["usd"]
                 b = {"ts": ev["ts"], "side": ev["side"], "usd": round(ev["usd"]), "price": ev["price"]}
                 if ev.get("sim"):
                     b["sim"] = True
                 mk.big.append(b)
                 self.emit({"type": "big", "sym": mk.sym, **b})
         elif t == "liq":
+            mk.minute["n_liq"] += 1
+            mk.minute["liq_long_usd" if ev["side"] == "long" else "liq_short_usd"] += ev["usd"]
             mk.liqs.append({"ts": ev["ts"], "side": ev["side"], "usd": ev["usd"], "price": ev["price"]})
             self.emit({"type": "liq", "sym": mk.sym, "side": ev["side"], "usd": ev["usd"], "price": ev["price"], "ts": ev["ts"]})
 
@@ -179,6 +193,11 @@ class Engine:
             return
         mk.walls.update(w, self.clock())
         w["ts"] = self.clock()
+        if self.recorder is not None and not simulated:
+            st = book_stats(depth.get("bids", []), depth.get("asks", []))
+            if st:
+                st["ts"], st["walls"] = self.clock(), w
+                mk.minute["books"].append(st)
         if simulated:
             w["sim"] = True
         mk.book = w
@@ -262,6 +281,8 @@ class Engine:
                 self.store.add(to_store)
             self.status["forecasts"] += len(to_store)
         self.last_minute = minute_s
+        if self.recorder is not None:
+            self.record(now)
         self.resolve(now)
         self.status.update(last_forecast=now, compute_ms=round((time.perf_counter() - t0) * 1000))
         self.emit({"type": "forecast", "ts": now, "markets": out})
@@ -309,6 +330,37 @@ class Engine:
         if shown:
             self.resolved_recent.extend(shown)
             self.emit({"type": "resolved", "items": shown[-40:]})
+
+    # ------------------------------------------------------------ research recorder
+    def record(self, now: int) -> None:
+        """One row per market for the minute that just closed (see xahoo/recorder.py), then reset the counters."""
+        rows = []
+        for sym, mk in self.m.items():
+            mm, mk.minute = mk.minute, Market._fresh_minute()
+            row = {k: v for k, v in mm.items() if k != "books"}
+            row.update(ts=now, sym=sym, mark=mk.mark if mk.mark == mk.mark else None,
+                       funding_pred=mk.funding_now if mk.funding_now == mk.funding_now else None)
+            books = mm["books"]
+            if books:
+                last = books[-1]
+                row.update({k: v for k, v in last.items() if k not in ("ts", "walls")})
+                row["n_book"], row["book_age_s"] = len(books), round(now - last["ts"], 1)
+                for k in ("0_25", "1"):
+                    xs = [b[f"imb_{k}"] for b in books if b.get(f"imb_{k}") is not None]
+                    row[f"imb_{k}_avg"] = sum(xs) / len(xs) if xs else None
+                w = last["walls"]
+                for side in ("bid", "ask"):
+                    if w.get(side):
+                        top = max(w[side], key=lambda x: x["usd"])
+                        row[f"wall_{side}_usd"], row[f"wall_{side}_dist"] = top["usd"], top["dist"]
+            else:
+                row["n_book"] = 0
+            rows.append(row)
+        try:
+            self.recorder.write(rows)
+            self.status["micro_rows"] = self.recorder.rows
+        except Exception:  # noqa: BLE001
+            log.exception("research recorder write failed")
 
     # ------------------------------------------------------------ strong direction alerts
     def alert_step(self, sym: str, head: dict | None, ref: float, now: int) -> None:

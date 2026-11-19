@@ -217,7 +217,11 @@ async def lifespan(app: FastAPI):
     store = Store(DATA / ("replay.db" if MODE == "replay" else "xahoo.db"))
     if MODE == "replay":
         store.clear_alerts()
-    ENGINE = Engine(Models(MODELS), store, clock)
+    recorder = None
+    if MODE == "live" and os.environ.get("XAHOO_RECORD", "1") != "0":
+        from .recorder import Recorder
+        recorder = Recorder(DATA / "micro.db")
+    ENGINE = Engine(Models(MODELS), store, clock, recorder)
     HUB.loop = asyncio.get_running_loop()
     ENGINE.listeners.append(lambda m: HUB.publish(_clean(m)))
     tasks = [asyncio.create_task(replay_feed(ENGINE) if MODE == "replay" else live_feed(ENGINE)),
@@ -356,6 +360,14 @@ def scoreboard(sym: str | None = None, days: float = 30):
     since = int(ENGINE.clock() - days * 86400)
     return _clean({"since": since, "sym": sym, "horizons": ENGINE.store.scoreboard(since, sym),
                    "recent": ENGINE.store.recent(60)})
+
+
+@app.get("/api/micro")
+def micro():
+    """Research recorder progress: rows, first / last minute recorded, days covered, rows per market."""
+    if ENGINE.recorder is None:
+        return {"recording": False}
+    return {"recording": True, **ENGINE.recorder.summary()}
 
 
 @app.get("/api/alerts")
