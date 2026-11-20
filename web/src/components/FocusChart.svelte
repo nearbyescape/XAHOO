@@ -18,6 +18,7 @@
   import { safe, report } from '../lib/report';
   export let sym: string;
   let el: HTMLDivElement, cv: HTMLCanvasElement, el2: HTMLDivElement, cv2: HTMLCanvasElement;
+  let cvb: HTMLCanvasElement;                 // under the chart (its background is transparent): the alert window shading
   let chart2: IChartApi;                   // lower panel: big trades and volume, kept in step with the price chart
   let chart: IChartApi, candles: ISeriesApi<'Candlestick'>, buyV: ISeriesApi<'Histogram'>, sellV: ISeriesApi<'Histogram'>,
     bigS: ISeriesApi<'Histogram'>, scaleS: ISeriesApi<'Line'>;
@@ -279,9 +280,14 @@
       const age = (t - seenAt.get(a.id)!) / 1000;
       const fadeIn = Math.min(1, age / 0.8);
       const pulse = age < 6 ? 0.5 + 0.5 * Math.sin(age * 6) : 0;
-      // nothing is drawn over the candles except the thin alert-price line: the hour shows as a progress bar along the
-      // top edge, with ticks at 15 minutes and 1 hour, and one compact tag just below it
-      if (layer === 'band') continue;
+      // the hour's green / red shading is painted BEHIND the candles (layer 'band', on the canvas under the chart);
+      // over them only the progress bar along the top edge, the thin alert-price line and one compact tag
+      if (layer === 'band') {
+        const g = c.createLinearGradient(x0, 0, xe, 0);
+        g.addColorStop(0, `rgba(${rgb},${0.17 * fadeIn})`); g.addColorStop(1, `rgba(${rgb},${0.06 * fadeIn})`);
+        c.fillStyle = g; c.fillRect(x0, 0, xe - x0, plotH);
+        continue;
+      }
       const end = a.end ?? a.t0 + 3600;
       const xn = Math.min(xe, Math.max(x0, X(tnow)));
       c.fillStyle = `rgba(${rgb},${0.9 * fadeIn})`; c.fillRect(x0, 1, xn - x0, 4);            // elapsed
@@ -379,7 +385,10 @@
     c.save(); c.beginPath(); c.rect(0, 0, plotW, plotH); c.clip();
     const flowW = flowWidth(plotW);
     plotH0 = Math.min(plotH * PRICE_BOTTOM + 10, plotH - 14);
-    if (show.alerts) drawAlerts(c, plotW, plotH, flowW, Y, t, 'band');
+    if (cvb) {
+      const { c: cb } = canvas(cvb);
+      if (show.alerts) { cb.save(); cb.beginPath(); cb.rect(0, 0, plotW, plotH); cb.clip(); drawAlerts(cb, plotW, plotH, flowW, Y, t, 'band'); cb.restore(); }
+    }
     if (flowW) drawFlow(c, plotW, plotH, flowW, Y, pulse);
     const labels: Lbl[] = [];
     if (show.levels && lv) {
@@ -623,7 +632,7 @@
   </div>
   <div class="area">
     <div class="charts">
-      <div class="chart" bind:this={el}><canvas bind:this={cv}></canvas></div>
+      <div class="chart" bind:this={el}><canvas class="bg" bind:this={cvb}></canvas><canvas bind:this={cv}></canvas></div>
       <div class="strips" bind:this={el2} style="height:{STRIP_H}px"><canvas bind:this={cv2}></canvas>
       <div class="totals" style="right:{scaleW}px">
         <div class="lt">Live · last 60 s</div>
@@ -702,6 +711,8 @@
   .strips canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; }
   .chart { position: relative; min-width: 0; }
   .chart canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; }
+  .chart { isolation: isolate; }
+  .chart canvas.bg { z-index: -1; }          /* behind the candles */
   .totals { position: absolute; top: 0; bottom: 28px; width: 190px; padding: 8px 10px 4px; display: flex; flex-direction: column; gap: 2px;
     background: linear-gradient(90deg, rgba(10,13,24,0), rgba(10,13,24,.75) 18%); z-index: 4; pointer-events: none; }
   .lt { font: 700 9px var(--sans); letter-spacing: 1.1px; text-transform: uppercase; color: var(--faint); margin-top: 3px; }
