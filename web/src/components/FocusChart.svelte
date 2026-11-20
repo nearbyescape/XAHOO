@@ -24,7 +24,7 @@
     bigS: ISeriesApi<'Histogram'>, scaleS: ISeriesApi<'Line'>;
   let cone: ISeriesApi<'Line'>[] = [];
   let plines: IPriceLine[] = [];
-  let tf = 1;
+  let tf = 5;                              // chart candles in minutes (5m by default)
   const FULL = { arrow: true, levels: true, zones: true, book: true, trades: true, cone: true, alerts: true, compact: false };
   const CLEAN = { arrow: true, levels: true, zones: true, book: true, trades: true, cone: false, alerts: true, compact: true };
   let show = { ...CLEAN };
