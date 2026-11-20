@@ -328,3 +328,35 @@ prices, resting USD and imbalance within 0.1 / 0.25 / 0.5 / 1 / 2% of the mid (l
 average), the largest wall per side, trade count, largest trade, big-trade buy / sell USD, liquidations by side,
 predicted funding. After 6–8 weeks: walk-forward test (weekly folds) of these as extra inputs for 1m–15m, adopted
 only if better on most unseen weeks, same rules as sections 7–11.
+
+## 15. Making the strong alerts more accurate: pre-registered test (written 2026-11-20, before any result)
+
+Directional only: the alert stays "price higher / lower after 15 minutes and after 1 hour"; no trade signals.
+
+**Minute-by-minute test set (research/minute_oos.py).** The production recipe for 5m, 15m, 1h and 4h (same
+inputs, models, seeds and calibration as research/train_ema.py and train_eval.walk_forward), trained per fold on
+earlier data only, then applied to every minute of the fold for the 8 coins (2024-01 → 2026-10). Calibration
+maps exactly as in the walk-forward test (earlier out-of-sample predictions plus the 90-day window).
+
+**Base rule, as live.** Each minute: z = mean log-odds of the four timeframes, each centred on its median in earlier
+periods; alert when all four lean the same way and |z| is at or above the 95th percentile of |z| in earlier periods;
+one open alert per coin; scored on the mark price after 15 minutes and after 1 hour.
+
+**Versions (fixed now):**
+- P3 / P5: the alert condition must hold for 3 / 5 minutes in a row (fires on the 3rd / 5th).
+- BTC: the leader's own z (BTC; ETH for BTC) leans the same way.
+- BREADTH+: at least 4 of the 8 coins lean the same way with |z| at or above half the alert level.
+- BREADTH−: at most 2 coins do (the opposite hypothesis: lone alerts are better).
+- TREND: daily close vs its 20-day average (r_d20) on the alert's side.
+- FUNDING: no long alert when funding z (c_funding_z) > 2, no short alert when < −2 (crowded on the alert's side).
+- META: a small LightGBM model trained only on earlier periods' alerts, predicting whether the alert is right after
+  1 hour from its context (z, each timeframe's probability, volatility, time of day, weekday, leader z, breadth,
+  funding z, r_d20, trend efficiency); keeps alerts whose score is above the median score of earlier alerts.
+- COMBO: P3 + BTC + TREND.
+
+**Periods.** 2024H1 only warms up (centring, alert level, META training). Validation: 2024H2, 2025H1, 2025H2,
+2026H1. Final exam: 2026-07 → 2026-10, opened once, for the single best passing version.
+
+**Pass rule.** Versus the base rule on validation: hit rate at least 1.0 point higher at both 15 minutes and 1 hour;
+higher at both checkpoints in at least 3 of the 4 periods; at least 0.5 alerts per coin per day remain. The passing
+version with the best 1-hour hit rate takes the final exam, where it must also beat the base rule.
