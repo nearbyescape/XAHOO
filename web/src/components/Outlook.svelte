@@ -70,26 +70,6 @@
     {/if}
   </div>
 
-  <!-- levels -->
-  <div class="blk">
-    <div class="bt">Support &amp; resistance <span>reach = measured chance price trades there</span></div>
-    <div class="lvt">
-      <span class="lh"></span><span class="lh r">price</span><span class="lh r">away</span><span class="lh r">{rh}</span><span class="lh r">1d</span>
-      {#each (lv?.resistance || []).slice().reverse() as x, i}
-        <span class="tag res">R{(lv?.resistance?.length || 0) - i} <em>{'●'.repeat(x.strength)}<s>{'●'.repeat(3 - x.strength)}</s></em></span>
-        <span class="num pr r" title={x.sources.join(' · ')}>{px(x.price, m.digits)}</span>
-        <span class="num r dim">+{dist(x.price).toFixed(2)}%</span><span class="num r">{reach(x, rh)}</span><span class="num r">{reach(x, '1d')}</span>
-      {/each}
-      <span class="tag now">PRICE</span><span class="num pr r nowp">{px(m.price, m.digits)}</span><span></span><span></span><span></span>
-      {#each lv?.support || [] as x, i}
-        <span class="tag sup">S{i + 1} <em>{'●'.repeat(x.strength)}<s>{'●'.repeat(3 - x.strength)}</s></em></span>
-        <span class="num pr r" title={x.sources.join(' · ')}>{px(x.price, m.digits)}</span>
-        <span class="num r dim">{dist(x.price).toFixed(2)}%</span><span class="num r">{reach(x, rh)}</span><span class="num r">{reach(x, '1d')}</span>
-      {/each}
-    </div>
-    {#if hold?.res?.level}<div class="note">Tested 2024–26: after a touch, price turned back {(hold.res.level.held60 * 100).toFixed(0)}% (resistance) and {(hold.sup.level.held60 * 100).toFixed(0)}% (support) of the time — the same as at arbitrary prices. Treat levels as reference prices; the reach chances are measured.</div>{/if}
-  </div>
-
   <!-- buyers & sellers -->
   <div class="blk">
     <div class="bt">Strong buyers &amp; sellers {#if bk?.sim}<span class="sim">simulated in replay</span>{/if}</div>
@@ -129,6 +109,26 @@
       </div>
     {/if}
     <div class="note">Live order flow describes what is happening; it is not part of the tested forecast, and resting orders can be pulled at any time.</div>
+  </div>
+
+  <!-- levels -->
+  <div class="blk">
+    <div class="bt">Support &amp; resistance <span>reach = measured chance price trades there</span></div>
+    <div class="lvt">
+      <span class="lh"></span><span class="lh r">price</span><span class="lh r">away</span><span class="lh r">{rh}</span><span class="lh r">1d</span>
+      {#each (lv?.resistance || []).slice().reverse() as x, i}
+        <span class="tag res">R{(lv?.resistance?.length || 0) - i} <em>{'●'.repeat(x.strength)}<s>{'●'.repeat(3 - x.strength)}</s></em></span>
+        <span class="num pr r" title={x.sources.join(' · ')}>{px(x.price, m.digits)}</span>
+        <span class="num r dim">+{dist(x.price).toFixed(2)}%</span><span class="num r">{reach(x, rh)}</span><span class="num r">{reach(x, '1d')}</span>
+      {/each}
+      <span class="tag now">PRICE</span><span class="num pr r nowp">{px(m.price, m.digits)}</span><span></span><span></span><span></span>
+      {#each lv?.support || [] as x, i}
+        <span class="tag sup">S{i + 1} <em>{'●'.repeat(x.strength)}<s>{'●'.repeat(3 - x.strength)}</s></em></span>
+        <span class="num pr r" title={x.sources.join(' · ')}>{px(x.price, m.digits)}</span>
+        <span class="num r dim">{dist(x.price).toFixed(2)}%</span><span class="num r">{reach(x, rh)}</span><span class="num r">{reach(x, '1d')}</span>
+      {/each}
+    </div>
+    {#if hold?.res?.level}<div class="note">Tested 2024–26: after a touch, price turned back {(hold.res.level.held60 * 100).toFixed(0)}% (resistance) and {(hold.sup.level.held60 * 100).toFixed(0)}% (support) of the time — the same as at arbitrary prices. Treat levels as reference prices; the reach chances are measured.</div>{/if}
   </div>
 
   <!-- positioning -->
