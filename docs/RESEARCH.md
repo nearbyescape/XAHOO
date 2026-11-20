@@ -360,3 +360,26 @@ one open alert per coin; scored on the mark price after 15 minutes and after 1 h
 **Pass rule.** Versus the base rule on validation: hit rate at least 1.0 point higher at both 15 minutes and 1 hour;
 higher at both checkpoints in at least 3 of the 4 periods; at least 0.5 alerts per coin per day remain. The passing
 version with the best 1-hour hit rate takes the final exam, where it must also beat the base rule.
+
+**Results (2026-11-20, research/minute_oos.py + alerts_minute_eval.py). No version passed; the final exam was not opened.**
+
+The minute-level forecasts match the earlier walk-forward test exactly for 5m, 15m and 1h; the 4h test file
+predated the last 4h rebuild, and the rebuilt 4h forecasts score the same (AUC 0.532 vs 0.532).
+
+| Version | Alerts / coin / day | Right after 15 min | Right after 1 h | Better than base in (of 4 half-years) |
+|---|---|---|---|---|
+| BASE (the live rule, checked every minute) | 2.88 | 57.4% | 56.5% | — |
+| P3: hold 3 minutes | 0.99 | 56.8% | 56.2% | 1 |
+| P5: hold 5 minutes | 0.56 | 57.3% | 57.5% | 2 |
+| BTC agrees | 2.87 | 57.4% | 56.5% | 2 |
+| BREADTH+ (4+ coins) | 2.81 | 57.5% | 56.5% | 2 |
+| BREADTH− (lone coin) | 0.12 | 55.0% | 55.0% | 1 |
+| TREND (20-day average) | 1.59 | 58.0% | 57.0% | 1 |
+| FUNDING not crowded | 2.83 | 57.4% | 56.5% | 0 |
+| META (learned from past alerts) | 1.82 | 57.2% | 57.3% | 2 |
+| COMBO (P3 + BTC + TREND) | 0.57 | 59.2% | 58.0% | 2 |
+
+The live rule holds up checked every minute (57.4% / 56.5%, every half-year 55.7–60.8% / 54.8–58.8%). The best
+looking versions (COMBO, P5, META) gained in 2024H2–2025H1 and lost in 2025H2–2026H1, the most recent periods, so
+none met the consistency rule. BTC agreement, breadth and funding change almost nothing: alerts already mostly
+agree with BTC and the market. The live rule stays as it is.

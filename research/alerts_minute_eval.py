@@ -38,6 +38,8 @@ def zscores(P: dict[str, pd.DataFrame], start: pd.Timestamp):
     95th percentile of |z| before `start` (pooled coins)."""
     allL = pd.concat([pd.DataFrame({h: lg(d[f"p_{h}"].to_numpy()) for h in HS}, index=d.index) for d in P.values()])
     prev = allL[allL.index < start]
+    if not len(prev):                       # 2024H1, the warm-up period (never scored): its own data sets the centre
+        prev = allL[allL.index < start + pd.Timedelta(days=182)]
     med = prev.median()
     zc_prev = (prev - med).mean(axis=1)
     level = float(np.quantile(np.abs(zc_prev), 0.95))
