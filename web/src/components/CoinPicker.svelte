@@ -74,5 +74,11 @@
   .px i.up { color: var(--up); } .px i.down { color: var(--down); }
   .ov { display: inline-flex; align-items: center; justify-content: flex-end; gap: 5px; font-size: 12.5px; font-weight: 700; }
   .ov small { font: 600 9px var(--sans); color: var(--faint); }
-  @media (max-width: 700px) { .menu { width: calc(100vw - 24px); } .cur { min-width: 0; } .nm em { display: none; } }
+  /* phones: the list spans the screen just below the top bar instead of running off the right edge */
+  @media (max-width: 700px) {
+    .pk { position: static; }
+    .menu { left: 12px; right: 12px; width: auto; top: calc(100% + 4px); max-height: calc(100vh - 120px); overflow-y: auto; }
+    .mh, .row { grid-template-columns: 26px 1fr 96px 88px; gap: 8px; } .mh { grid-template-columns: 1fr 96px 88px; }
+    .cur { min-width: 0; } .nm em { display: none; }
+  }
 </style>

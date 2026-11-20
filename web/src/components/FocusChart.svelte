@@ -253,6 +253,16 @@
     const X = (ts: number) => xl + ((ts - lastT) / step - 0.5) * bw;
     const tnow = now();
     const live = m.mark ?? m.price;
+    if (layer === 'top') {                     // keep the tag off the candle markers ("STRONG SHORT 55%", "✓15m ✗1h")
+      const byT = new Map(data.map(d => [d.time as number, d as any]));
+      for (const a of m.alerts) {
+        const bar = byT.get(barOf(a.t0 - 60));
+        const xa = X(a.t0 - 30);
+        const yb = bar ? Y(a.side > 0 ? bar.low : bar.high) : null;
+        if (yb == null) continue;
+        taken.push(a.side > 0 ? { x0: xa - 70, x1: xa + 70, y0: yb, y1: yb + 40 } : { x0: xa - 70, x1: xa + 70, y0: yb - 40, y1: yb });
+      }
+    }
     for (const a of m.alerts) {
       const open = a.ok60 == null && tnow < (a.end ?? a.t0 + 3600) + 120;
       const x0 = X(a.t0), xe = X(a.end ?? a.t0 + 3600), y = Y(a.price0);
@@ -269,47 +279,54 @@
       const age = (t - seenAt.get(a.id)!) / 1000;
       const fadeIn = Math.min(1, age / 0.8);
       const pulse = age < 6 ? 0.5 + 0.5 * Math.sin(age * 6) : 0;
-      if (layer === 'band') {                                        // the 1-hour window
-        const g = c.createLinearGradient(x0, 0, xe, 0);
-        g.addColorStop(0, `rgba(${rgb},${0.14 * fadeIn})`); g.addColorStop(1, `rgba(${rgb},${0.05 * fadeIn})`);
-        c.fillStyle = g; c.fillRect(x0, 0, xe - x0, plotH);
-        continue;
-      }
-      c.strokeStyle = `rgba(${rgb},${0.55 * fadeIn})`; c.lineWidth = 1;
-      c.beginPath(); c.moveTo(xe, 0); c.lineTo(xe, plotH); c.stroke();
-      // the 15-minute checkpoint
+      // nothing is drawn over the candles except the thin alert-price line: the hour shows as a progress bar along the
+      // top edge, with ticks at 15 minutes and 1 hour, and one compact tag just below it
+      if (layer === 'band') continue;
+      const end = a.end ?? a.t0 + 3600;
+      const xn = Math.min(xe, Math.max(x0, X(tnow)));
+      c.fillStyle = `rgba(${rgb},${0.9 * fadeIn})`; c.fillRect(x0, 1, xn - x0, 4);            // elapsed
+      c.fillStyle = `rgba(${rgb},${0.28 * fadeIn})`; c.fillRect(xn, 1, xe - xn, 4);           // still to go
       const x15 = X(a.t0 + 900);
-      if (x15 != null) {
-        c.setLineDash([3, 3]); c.strokeStyle = `rgba(${rgb},${0.5 * fadeIn})`;
-        c.beginPath(); c.moveTo(x15, 0); c.lineTo(x15, plotH); c.stroke(); c.setLineDash([]);
-        const r15 = a.ok15 == null ? '15m' : `${mark(a.ok15)} 15m ${a.r15 != null ? `${a.r15 >= 0 ? '+' : '−'}${Math.abs(a.r15 * 100).toFixed(2)}%` : ''}`;
-        pill(c, x15 + 4, 32, r15, a.ok15 === 0 ? css('--down') : a.ok15 === 1 ? css('--up') : `rgba(${rgb},.9)`, 'left', 'rgba(12,16,30,.85)', 10);
-      }
-      pill(c, xe - 4, 52, '1h', `rgba(${rgb},.9)`, 'right', 'rgba(12,16,30,.85)', 10);
+      c.strokeStyle = `rgba(${rgb},.95)`; c.lineWidth = 1.5;
+      for (const xt of [x15, xe]) { c.beginPath(); c.moveTo(xt, 0); c.lineTo(xt, 10); c.stroke(); }
       // the alert price line: green while price is on the alert's side, red while it isn't
       const move = live != null ? Math.log(live / a.price0) * a.side : 0;
       const lc = move >= 0 ? css('--up') : css('--down');
-      if (pulse) { c.strokeStyle = col; c.globalAlpha = 0.35 * pulse; c.lineWidth = 8; c.shadowColor = col; c.shadowBlur = 16;
+      if (pulse) { c.strokeStyle = col; c.globalAlpha = 0.3 * pulse; c.lineWidth = 6; c.shadowColor = col; c.shadowBlur = 12;
         c.beginPath(); c.moveTo(x0, y); c.lineTo(xe, y); c.stroke(); c.shadowBlur = 0; c.globalAlpha = 1; }
-      c.strokeStyle = lc; c.lineWidth = 1.6; c.setLineDash([7, 4]);
-      c.beginPath(); c.moveTo(x0, y); c.lineTo(xe, y); c.stroke(); c.setLineDash([]);
-      // live tag, kept clear of the buyers / sellers area
-      const left = Math.max(0, Math.round(((a.end ?? a.t0 + 3600) - tnow) / 60));
-      const tag = `${a.side > 0 ? '▲ STRONG LONG' : '▼ STRONG SHORT'} ${((a.side > 0 ? a.p : 1 - a.p) * 100).toFixed(1)}%  ·  ${move >= 0 ? '+' : '−'}${Math.abs(move * 100).toFixed(2)}%  ·  ${left} min left`;
-      const tx = Math.min(xe - 6, plotW - flowW - 8);
-      // opposite side of the line from the candle marker (long: marker below the candle, tag above; short: the reverse)
-      pill(c, tx, y + (a.side > 0 ? -18 : 18), tag, col, 'right', 'rgba(10,13,24,.94)', 11);
+      c.globalAlpha = 0.85; c.strokeStyle = lc; c.lineWidth = 1; c.setLineDash([5, 4]);
+      c.beginPath(); c.moveTo(x0, y); c.lineTo(xe, y); c.stroke(); c.setLineDash([]); c.globalAlpha = 1;
+      // one compact tag at the top edge: direction, live move, time left and the 15-minute result once known
+      const left = Math.max(0, Math.round((end - tnow) / 60));
+      const r15 = a.ok15 == null ? '' : `  ·  ${mark(a.ok15)} 15m ${a.r15 != null ? `${a.r15 >= 0 ? '+' : '−'}${Math.abs(a.r15 * 100).toFixed(2)}%` : ''}`;
+      const mv = `${move >= 0 ? '+' : '−'}${Math.abs(move * 100).toFixed(2)}%`;
+      const narrow = plotW - flowW < 560;                                            // phones: short form, clear of the level tags
+      const tag = narrow
+        ? `${a.side > 0 ? '▲' : '▼'} ${mv} · ${left}m${a.ok15 == null ? '' : ` ${mark(a.ok15)}15m`}`      // the marker carries the %
+        : `${a.side > 0 ? '▲ STRONG LONG' : '▼ STRONG SHORT'} ${((a.side > 0 ? a.p : 1 - a.p) * 100).toFixed(1)}%  ·  ${mv}  ·  ${left} min left${r15}`;
+      place(c, Math.min(xe, plotW - flowW - 8), narrow ? [20, 42] : [20, 42, 86, 108, 130, 152, 174, 196], tag, col, 'rgba(10,13,24,.94)', narrow ? 10 : 10.5);
     }
   }
   function drawAlertScore(c: CanvasRenderingContext2D, plotW: number, flowW: number) {
-    if (m?.kind !== 'coin') return;
+    if (m?.kind !== 'coin' || plotW - flowW < 560) return;                         // no room on phones
     const s = alertStats.sym, k = alertTested;
     const pc = (v: number | null | undefined) => (v == null ? '—' : `${(v * 100).toFixed(0)}%`);
     const live = s && s.n60 ? `30d ${m.short}: 15m ${pc(s.hit15)} · 1h ${pc(s.hit60)} (${s.n60})` : `none yet for ${m.short} in 30 days`;
-    const txt = `STRONG ALERTS  ·  ${live}  ·  tested ${pc(k?.hit15)} / ${pc(k?.hit60)}`;
-    pill(c, plotW - flowW - 8, plotH0 - 14, txt, 'rgba(152,163,192,.95)', 'right', 'rgba(10,13,24,.88)', 10);
+    const txt = plotW - flowW < 560
+      ? `Alerts 30d ${s && s.n60 ? `${pc(s.hit15)} / ${pc(s.hit60)}` : '—'} · tested ${pc(k?.hit15)} / ${pc(k?.hit60)}`
+      : `STRONG ALERTS  ·  ${live}  ·  tested ${pc(k?.hit15)} / ${pc(k?.hit60)}`;
+    place(c, plotW - flowW - 8, [plotH0 - 14, plotH0 - 36, plotH0 - 58], txt, 'rgba(152,163,192,.95)', 'rgba(10,13,24,.88)', 10);
   }
   let plotH0 = 0;
+  let taken: { x0: number; x1: number; y0: number; y1: number }[] = [];        // level tags drawn this frame
+  /** Right-aligned tag at the first height in ys where it does not overlap a level tag (else the last one). */
+  function place(c: CanvasRenderingContext2D, xr: number, ys: number[], text: string, col: string, bg: string, size: number) {
+    c.font = `600 ${size}px Inter, sans-serif`;
+    const w = c.measureText(text).width + (size > 10 ? 14 : 10), h = size + 8;
+    const y = ys.find(yy => !taken.some(r => xr - w - 6 < r.x1 && xr + 6 > r.x0 && yy - h / 2 - 2 < r.y1 && yy + h / 2 + 2 > r.y0)) ?? ys[ys.length - 1];
+    pill(c, xr, y, text, col, 'right', bg, size);
+    taken.push({ x0: xr - w, x1: xr, y0: y - h / 2, y1: y + h / 2 });
+  }
 
   // ------------------------------------------------------------------ drawing helpers
   function pill(c: CanvasRenderingContext2D, x: number, y: number, text: string, col: string, align: 'left' | 'right' = 'left',
@@ -364,7 +381,6 @@
     plotH0 = Math.min(plotH * PRICE_BOTTOM + 10, plotH - 14);
     if (show.alerts) drawAlerts(c, plotW, plotH, flowW, Y, t, 'band');
     if (flowW) drawFlow(c, plotW, plotH, flowW, Y, pulse);
-    if (show.alerts) { drawAlerts(c, plotW, plotH, flowW, Y, t, 'top'); drawAlertScore(c, plotW, flowW); }
     const labels: Lbl[] = [];
     if (show.levels && lv) {
       const tol = lv.tol || 0.003;
@@ -397,10 +413,15 @@
       }
     }
     layout(labels, 22, 12, priceBottom);
+    taken = [];
     for (const l of labels) {
       const body = l.short && !near(l) ? l.short : l.text;
-      pill(c, 10, l.y, l.y0 < 0 ? `↑ ${body}` : l.y0 > priceBottom ? `↓ ${body}` : body, l.col);
+      const w = pill(c, 10, l.y, l.y0 < 0 ? `↑ ${body}` : l.y0 > priceBottom ? `↓ ${body}` : body, l.col);
+      taken.push({ x0: 10, x1: 10 + w, y0: l.y - 11, y1: l.y + 11 });
     }
+    // alert tag and score after the level tags, so they can be steered clear of them (and of the hover line at y 64)
+    if (hoverT != null) taken.push({ x0: 0, x1: plotW, y0: 53, y1: 75 });
+    if (show.alerts) { drawAlerts(c, plotW, plotH, flowW, Y, t, 'top'); drawAlertScore(c, plotW, flowW); }
     if (hoverT != null) {                    // candle under the cursor
       const g = bigAt.get(hoverT), v = volAt.get(hoverT);
       const parts = [`${new Date(hoverT * 1000).toISOString().slice(11, 16)} UTC`];
